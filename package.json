@@ -1,0 +1,33 @@
+{
+  "name": "@fastxyz/skill-benchmark",
+  "version": "0.1.0",
+  "description": "Generic SDK/MCP skill documentation benchmark framework",
+  "type": "module",
+  "bin": {
+    "skill-benchmark": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "benchmark": "tsx src/cli.ts run",
+    "dev": "tsx src/cli.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts"
+  },
+  "dependencies": {
+    "tree-sitter-wasms": "^0.1.13",
+    "web-tree-sitter": "^0.24.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.12.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

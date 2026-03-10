@@ -1,0 +1,449 @@
+/**
+ * Smoke tests for LLM format handlers (openai-format.ts, anthropic-format.ts, index.ts).
+ * No test framework — uses simple assertion helpers.
+ */
+
+import { createLLMClient } from '../src/llm/index.js';
+import type { LLMConfig, McpToolDefinition } from '../src/types.js';
+
+// ---------------------------------------------------------------------------
+// Assertion helpers
+// ---------------------------------------------------------------------------
+
+let passed = 0;
+let failed = 0;
+
+async function test(name: string, fn: () => Promise<void> | void) {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ✓ ${name}`);
+  } catch (e: any) {
+    failed++;
+    console.log(`  ✗ ${name}`);
+    console.log(`    ${e.message}`);
+  }
+}
+
+function assert(condition: boolean, message: string) {
+  if (!condition) throw new Error(`Assertion failed: ${message}`);
+}
+
+function assertEqual<T>(actual: T, expected: T, message: string) {
+  if (actual !== expected) {
+    throw new Error(
+      `${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fetch mock helpers
+// ---------------------------------------------------------------------------
+
+type MockFetch = (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+function mockFetch(
+  handler: (url: string, init: RequestInit) => { status: number; body: any },
+): MockFetch {
+  return async (url: string | URL | Request, init?: RequestInit) => {
+    const urlStr = typeof url === 'string' ? url : url.toString();
+    const result = handler(urlStr, init as RequestInit);
+    return new Response(JSON.stringify(result.body), {
+      status: result.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shared test data
+// ---------------------------------------------------------------------------
+
+// Set a test API key in the environment before creating any client
+process.env.__TEST_API_KEY__ = 'test-key-12345';
+
+const openaiConfig: LLMConfig = {
+  format: 'openai',
+  baseUrl: 'https://api.test.com/v1',
+  apiKeyEnv: '__TEST_API_KEY__',
+  timeout: 5_000,
+  models: [],
+};
+
+const anthropicConfig: LLMConfig = {
+  format: 'anthropic',
+  baseUrl: 'https://api.anthropic.com',
+  apiKeyEnv: '__TEST_API_KEY__',
+  timeout: 5_000,
+  models: [],
+};
+
+const sampleTools: McpToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get the weather for a city',
+      parameters: {
+        type: 'object',
+        properties: { city: { type: 'string' } },
+        required: ['city'],
+      },
+    },
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Save original fetch so we can restore it after all tests
+// ---------------------------------------------------------------------------
+
+const originalFetch = globalThis.fetch;
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+console.log('\n=== LLM Format Handler Smoke Tests ===\n');
+
+// --- Group 1: createLLMClient factory ---
+
+await test('createLLMClient: creates client for openai format', () => {
+  const client = createLLMClient(openaiConfig);
+  assert(typeof client.chat === 'function', 'client.chat should be a function');
+  assert(typeof client.chatWithTools === 'function', 'client.chatWithTools should be a function');
+});
+
+await test('createLLMClient: creates client for anthropic format', () => {
+  const client = createLLMClient(anthropicConfig);
+  assert(typeof client.chat === 'function', 'client.chat should be a function');
+  assert(typeof client.chatWithTools === 'function', 'client.chatWithTools should be a function');
+});
+
+await test('createLLMClient: throws when apiKeyEnv is set but env var is missing', () => {
+  let threw = false;
+  try {
+    createLLMClient({ ...openaiConfig, apiKeyEnv: '__MISSING_ENV_VAR_XYZ__' });
+  } catch (e: any) {
+    threw = true;
+    assert(
+      e.message.includes('__MISSING_ENV_VAR_XYZ__'),
+      'error message should mention the missing env var name',
+    );
+  }
+  assert(threw, 'should have thrown for missing env var');
+});
+
+// --- Group 2: OpenAI format handler ---
+
+await test('openai format: sends correct request body', async () => {
+  let capturedBody: any = null;
+  let capturedHeaders: Record<string, string> = {};
+
+  globalThis.fetch = mockFetch((url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    capturedHeaders = (init.headers as Record<string, string>) ?? {};
+    return {
+      status: 200,
+      body: {
+        choices: [{ message: { content: 'ok' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(openaiConfig);
+  await client.chat('gpt-4o', 'You are a helper.', 'Hello');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(capturedBody.model, 'gpt-4o', 'model field');
+  assert(Array.isArray(capturedBody.messages), 'messages should be an array');
+  const roles = capturedBody.messages.map((m: any) => m.role);
+  assert(roles.includes('system'), 'messages should contain a system role');
+  assert(roles.includes('user'), 'messages should contain a user role');
+  const systemMsg = capturedBody.messages.find((m: any) => m.role === 'system');
+  assertEqual(systemMsg.content, 'You are a helper.', 'system message content');
+  const userMsg = capturedBody.messages.find((m: any) => m.role === 'user');
+  assertEqual(userMsg.content, 'Hello', 'user message content');
+  assertEqual(
+    capturedHeaders['Authorization'],
+    'Bearer test-key-12345',
+    'Authorization header',
+  );
+}) ;
+
+await test('openai format: posts to /chat/completions endpoint', async () => {
+  let capturedUrl = '';
+
+  globalThis.fetch = mockFetch((url) => {
+    capturedUrl = url;
+    return {
+      status: 200,
+      body: {
+        choices: [{ message: { content: 'ok' } }],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(openaiConfig);
+  await client.chat('gpt-4o', 'sys', 'user');
+
+  assert(
+    capturedUrl.endsWith('/chat/completions'),
+    `URL should end with /chat/completions, got: ${capturedUrl}`,
+  );
+});
+
+await test('openai format: parses chat response', async () => {
+  globalThis.fetch = mockFetch(() => ({
+    status: 200,
+    body: {
+      choices: [{ message: { content: 'Hello from OpenAI' } }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    },
+  })) as any;
+
+  const client = createLLMClient(openaiConfig);
+  const result = await client.chat('gpt-4o', 'sys', 'user');
+
+  assertEqual(result.content, 'Hello from OpenAI', 'content');
+  assert(result.usage !== undefined, 'usage should be present');
+  assertEqual(result.usage!.prompt, 10, 'usage.prompt');
+  assertEqual(result.usage!.completion, 5, 'usage.completion');
+  assertEqual(result.usage!.total, 15, 'usage.total');
+});
+
+await test('openai format: parses tool_calls response', async () => {
+  globalThis.fetch = mockFetch(() => ({
+    status: 200,
+    body: {
+      choices: [
+        {
+          message: {
+            content: '',
+            tool_calls: [
+              {
+                function: {
+                  name: 'get_weather',
+                  arguments: '{"city":"NYC"}',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  })) as any;
+
+  const client = createLLMClient(openaiConfig);
+  const result = await client.chatWithTools('gpt-4o', 'sys', 'user', sampleTools);
+
+  assert(result.toolCalls !== undefined, 'toolCalls should be present');
+  assert(result.toolCalls!.length === 1, 'should have exactly one tool call');
+  assertEqual(result.toolCalls![0].name, 'get_weather', 'tool call name');
+  assertEqual(
+    (result.toolCalls![0].arguments as any).city,
+    'NYC',
+    'tool call argument city',
+  );
+});
+
+await test('openai format: handles non-200 response', async () => {
+  // The retry logic retries once after 3s on any non-AbortError.
+  // To avoid a 3s delay in tests, we make both attempts fail immediately.
+  let callCount = 0;
+  globalThis.fetch = mockFetch(() => {
+    callCount++;
+    return {
+      status: 429,
+      body: { error: { message: 'Rate limit exceeded' } },
+    };
+  }) as any;
+
+  const client = createLLMClient(openaiConfig);
+  let threw = false;
+  try {
+    // Override the retry delay by patching setTimeout — instead, just catch the error.
+    // The retry waits 3s; we accept the delay here since it's a single retry.
+    // To keep tests fast, we mock fetch to succeed on the second call.
+    await client.chat('gpt-4o', 'sys', 'user');
+  } catch (e: any) {
+    threw = true;
+    assert(
+      e.message.includes('429'),
+      `error message should include status code 429, got: ${e.message}`,
+    );
+  }
+  assert(threw, 'should have thrown on non-200 response');
+}, );
+
+// --- Group 3: Anthropic format handler ---
+
+await test('anthropic format: sends correct headers', async () => {
+  let capturedHeaders: Record<string, string> = {};
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedHeaders = (init.headers as Record<string, string>) ?? {};
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chat('claude-3-5-sonnet-20241022', 'sys', 'user');
+
+  assertEqual(
+    capturedHeaders['x-api-key'],
+    'test-key-12345',
+    'x-api-key header',
+  );
+  assert(
+    capturedHeaders['anthropic-version'] !== undefined,
+    'anthropic-version header should be present',
+  );
+  assert(
+    capturedHeaders['Authorization'] === undefined,
+    'should NOT have Authorization header (Anthropic uses x-api-key)',
+  );
+});
+
+await test('anthropic format: correct request body format', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'ok' }],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chat('claude-3-5-sonnet-20241022', 'You are a helper.', 'Hello');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(capturedBody.model, 'claude-3-5-sonnet-20241022', 'model field');
+  // Anthropic puts system as a top-level field, NOT inside messages
+  assertEqual(capturedBody.system, 'You are a helper.', 'system field at top level');
+  assert(Array.isArray(capturedBody.messages), 'messages should be an array');
+  // Only user message in messages array (no system role)
+  const roles = capturedBody.messages.map((m: any) => m.role);
+  assert(!roles.includes('system'), 'messages array should NOT contain a system role');
+  assert(roles.includes('user'), 'messages array should contain a user role');
+  const userMsg = capturedBody.messages.find((m: any) => m.role === 'user');
+  assertEqual(userMsg.content, 'Hello', 'user message content');
+});
+
+await test('anthropic format: posts to /v1/messages endpoint', async () => {
+  let capturedUrl = '';
+
+  globalThis.fetch = mockFetch((url) => {
+    capturedUrl = url;
+    return {
+      status: 200,
+      body: { content: [{ type: 'text', text: 'ok' }] },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chat('claude-3-5-sonnet-20241022', 'sys', 'user');
+
+  assert(
+    capturedUrl.endsWith('/v1/messages'),
+    `URL should end with /v1/messages, got: ${capturedUrl}`,
+  );
+});
+
+await test('anthropic format: parses response', async () => {
+  globalThis.fetch = mockFetch(() => ({
+    status: 200,
+    body: {
+      content: [{ type: 'text', text: 'Hello from Anthropic' }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    },
+  })) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  const result = await client.chat('claude-3-5-sonnet-20241022', 'sys', 'user');
+
+  assertEqual(result.content, 'Hello from Anthropic', 'content');
+  assert(result.usage !== undefined, 'usage should be present');
+  // Anthropic maps input_tokens -> prompt, output_tokens -> completion, sum -> total
+  assertEqual(result.usage!.prompt, 10, 'usage.prompt (input_tokens)');
+  assertEqual(result.usage!.completion, 5, 'usage.completion (output_tokens)');
+  assertEqual(result.usage!.total, 15, 'usage.total (input + output)');
+});
+
+await test('anthropic format: parses tool_use response', async () => {
+  globalThis.fetch = mockFetch(() => ({
+    status: 200,
+    body: {
+      content: [
+        {
+          type: 'tool_use',
+          id: '123',
+          name: 'get_weather',
+          input: { city: 'NYC' },
+        },
+      ],
+    },
+  })) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  const result = await client.chatWithTools(
+    'claude-3-5-sonnet-20241022',
+    'sys',
+    'user',
+    sampleTools,
+  );
+
+  assert(result.toolCalls !== undefined, 'toolCalls should be present');
+  assert(result.toolCalls!.length === 1, 'should have exactly one tool call');
+  assertEqual(result.toolCalls![0].name, 'get_weather', 'tool call name');
+  assertEqual(
+    (result.toolCalls![0].arguments as any).city,
+    'NYC',
+    'tool call argument city',
+  );
+});
+
+await test('anthropic format: converts McpToolDefinition to Anthropic tool format', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: { content: [{ type: 'text', text: 'ok' }] },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chatWithTools('claude-3-5-sonnet-20241022', 'sys', 'user', sampleTools);
+
+  assert(Array.isArray(capturedBody.tools), 'tools should be an array in request body');
+  const tool = capturedBody.tools[0];
+  assertEqual(tool.name, 'get_weather', 'tool name');
+  assertEqual(tool.description, 'Get the weather for a city', 'tool description');
+  assert(tool.input_schema !== undefined, 'tool should have input_schema (not parameters)');
+  assertEqual(tool.input_schema.type, 'object', 'input_schema.type');
+  assert(
+    tool.parameters === undefined,
+    'Anthropic format should use input_schema, not parameters',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Restore original fetch
+// ---------------------------------------------------------------------------
+
+globalThis.fetch = originalFetch;
+
+console.log(`\n${passed} passed, ${failed} failed\n`);
+process.exit(failed > 0 ? 1 : 0);

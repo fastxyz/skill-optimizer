@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Cache directories
+.cache/
+
+# Test results and benchmarks
+results/
+benchmark-results/
+
+# Integration test directory
+integration/
+
+# Environment variables
+.env
+*.env
+
+# Package manager
+bun.lock
+
+# Archives
+*.tgz
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temp directories
+tmp/
+temp/

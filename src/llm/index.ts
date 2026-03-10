@@ -1,0 +1,40 @@
+import type { LLMConfig, LLMResponse, McpToolDefinition } from '../types.js';
+import { chatOpenAI, chatWithToolsOpenAI } from './openai-format.js';
+import { chatAnthropic, chatWithToolsAnthropic } from './anthropic-format.js';
+
+export interface LLMClient {
+  /** Regular chat — LLM returns text (code mode) */
+  chat(modelId: string, system: string, user: string): Promise<LLMResponse>;
+  /** Chat with tools — LLM returns structured tool_calls (MCP mode) */
+  chatWithTools(modelId: string, system: string, user: string, tools: McpToolDefinition[]): Promise<LLMResponse>;
+}
+
+/**
+ * Create an LLM client from config.
+ */
+export function createLLMClient(config: LLMConfig): LLMClient {
+  const baseUrl = config.baseUrl.replace(/\/+$/, ''); // strip trailing slash
+  const timeout = config.timeout ?? 240_000;
+  const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : undefined;
+
+  if (config.apiKeyEnv && !apiKey) {
+    throw new Error(`Environment variable ${config.apiKeyEnv} is not set`);
+  }
+
+  const extraHeaders = config.headers ?? {};
+
+  return {
+    async chat(modelId, system, user) {
+      if (config.format === 'anthropic') {
+        return chatAnthropic({ baseUrl, apiKey, timeout, extraHeaders, modelId, system, user });
+      }
+      return chatOpenAI({ baseUrl, apiKey, timeout, extraHeaders, modelId, system, user });
+    },
+    async chatWithTools(modelId, system, user, tools) {
+      if (config.format === 'anthropic') {
+        return chatWithToolsAnthropic({ baseUrl, apiKey, timeout, extraHeaders, modelId, system, user, tools });
+      }
+      return chatWithToolsOpenAI({ baseUrl, apiKey, timeout, extraHeaders, modelId, system, user, tools });
+    },
+  };
+}
