@@ -66,13 +66,19 @@ async function fetchFromGitHub(source: string, useCache: boolean): Promise<Fetch
   // Try to get commit SHA from GitHub API (optional — don't fail if it doesn't work)
   let commitSha = 'unknown';
   try {
-    const commitRes = await fetch(
-      `https://api.github.com/repos/${org}/${repo}/commits/main`,
-      { headers: { Accept: 'application/vnd.github.v3+json' } }
-    );
-    if (commitRes.ok) {
-      const commitData = (await commitRes.json()) as { sha: string };
-      commitSha = commitData.sha;
+    const commitController = new AbortController();
+    const commitTimer = setTimeout(() => commitController.abort(), 30_000);
+    try {
+      const commitRes = await fetch(
+        `https://api.github.com/repos/${org}/${repo}/commits/main`,
+        { headers: { Accept: 'application/vnd.github.v3+json' }, signal: commitController.signal }
+      );
+      if (commitRes.ok) {
+        const commitData = (await commitRes.json()) as { sha: string };
+        commitSha = commitData.sha;
+      }
+    } finally {
+      clearTimeout(commitTimer);
     }
   } catch {
     // Non-fatal — proceed with 'unknown'
@@ -80,11 +86,18 @@ async function fetchFromGitHub(source: string, useCache: boolean): Promise<Fetch
 
   // Fetch raw content
   const rawUrl = `https://raw.githubusercontent.com/${org}/${repo}/main/${path}`;
-  const skillRes = await fetch(rawUrl);
-  if (!skillRes.ok) {
-    throw new Error(`Failed to fetch skill from GitHub (${rawUrl}): ${skillRes.status} ${skillRes.statusText}`);
+  const skillController = new AbortController();
+  const skillTimer = setTimeout(() => skillController.abort(), 30_000);
+  let content: string;
+  try {
+    const skillRes = await fetch(rawUrl, { signal: skillController.signal });
+    if (!skillRes.ok) {
+      throw new Error(`Failed to fetch skill from GitHub (${rawUrl}): ${skillRes.status} ${skillRes.statusText}`);
+    }
+    content = await skillRes.text();
+  } finally {
+    clearTimeout(skillTimer);
   }
-  const content = await skillRes.text();
 
   const version: SkillVersion = {
     source,
@@ -120,11 +133,18 @@ async function fetchFromUrl(source: string, useCache: boolean): Promise<FetchedS
 
   console.log(`[skill] Fetching from URL: ${source}...`);
 
-  const res = await fetch(source);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch skill from URL (${source}): ${res.status} ${res.statusText}`);
+  const urlController = new AbortController();
+  const urlTimer = setTimeout(() => urlController.abort(), 30_000);
+  let content: string;
+  try {
+    const res = await fetch(source, { signal: urlController.signal });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch skill from URL (${source}): ${res.status} ${res.statusText}`);
+    }
+    content = await res.text();
+  } finally {
+    clearTimeout(urlTimer);
   }
-  const content = await res.text();
 
   const version: SkillVersion = {
     source,

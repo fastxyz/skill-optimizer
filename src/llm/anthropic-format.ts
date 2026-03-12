@@ -99,7 +99,9 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Anthropic API error ${response.status}: ${text}`);
+    const err = new Error(`Anthropic API error ${response.status}: ${text}`);
+    (err as any).status = response.status;
+    throw err;
   }
 
   const data = await response.json() as {
@@ -112,6 +114,10 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
       output_tokens: number;
     };
   };
+
+  if (!data.content || !Array.isArray(data.content)) {
+    throw new Error(`Anthropic API returned unexpected response: missing content array`);
+  }
 
   const textBlock = data.content.find((b) => b.type === 'text') as
     | { type: 'text'; text: string }
@@ -149,8 +155,15 @@ async function callWithRetry(
   try {
     return await doFetch(params, body);
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
+    if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
       throw err;
+    }
+    // Don't retry client errors (4xx) except 429 (rate limit)
+    if (err && typeof err === 'object' && 'status' in err) {
+      const status = (err as any).status;
+      if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+        throw err;
+      }
     }
     // Retry once after 3s
     await new Promise((resolve) => setTimeout(resolve, 3_000));

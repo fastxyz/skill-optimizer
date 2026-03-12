@@ -43,12 +43,13 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
 
   // 2. Determine known methods (for precision/hallucination tracking)
   let knownMethods: Set<string>;
+  let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
   if (config.mode === 'code') {
     knownMethods = new Set(config.code!.methods);
   } else {
-    // MCP mode: known methods are the tool names from the tools file
-    const mcpTools = loadMcpTools(config.mcp!.tools);
-    knownMethods = new Set(mcpTools.map(t => t.function.name));
+    // MCP mode: load tools once, reuse for both knownMethods and chatWithTools
+    mcpToolDefs = loadMcpTools(config.mcp!.tools);
+    knownMethods = new Set(mcpToolDefs.map(t => t.function.name));
   }
 
   // 3. Load tasks
@@ -58,16 +59,13 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   if (options.taskId) {
     tasks = tasks.filter(t => t.id === options.taskId);
     if (tasks.length === 0) {
-      console.error(`ERROR: Task '${options.taskId}' not found in ${config.tasks}`);
-      process.exit(1);
+      throw new Error(`Task '${options.taskId}' not found in ${config.tasks}`);
     }
     console.log(`[tasks] Filtered to task: ${options.taskId}`);
   }
 
-  // 4. Load MCP tools (if MCP mode) for chatWithTools
-  let mcpToolDefs = undefined;
-  if (config.mode === 'mcp') {
-    mcpToolDefs = loadMcpTools(config.mcp!.tools);
+  // 4. Log MCP tools (already loaded in step 2)
+  if (config.mode === 'mcp' && mcpToolDefs) {
     console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${config.mcp!.tools}`);
   }
 
@@ -103,8 +101,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   if (options.modelSlug) {
     const found = getModelBySlug(config, options.modelSlug);
     if (!found) {
-      console.error(`ERROR: Model '${options.modelSlug}' not found in config`);
-      process.exit(1);
+      throw new Error(`Model '${options.modelSlug}' not found in config`);
     }
     models = [found];
     console.log(`[models] Filtered to model: ${found.name}`);

@@ -95,7 +95,90 @@ export function matchTools(
   const usedIndices = new Set<number>();
 
   return expectedTools.map((expected) => {
-    // Find the first unused extracted call that matches the method name
+    // If there are args to check, try to find a perfect match (method + args) first.
+    // Otherwise, find the first unused extracted call that matches the method name.
+    const hasExpectedArgs = expected.args && Object.keys(expected.args).length > 0;
+
+    if (hasExpectedArgs) {
+      // Two-pass strategy:
+      // Pass 1: look for a perfect match (method name AND all args match).
+      let perfectMatchIndex = -1;
+      for (let i = 0; i < extractedCalls.length; i++) {
+        if (usedIndices.has(i)) continue;
+        if (extractedCalls[i].method !== expected.method) continue;
+        // Check args
+        let allArgsMatch = true;
+        for (const [key, expectedValue] of Object.entries(expected.args!)) {
+          if (!matchArgValue(expectedValue, extractedCalls[i].args[key])) {
+            allArgsMatch = false;
+            break;
+          }
+        }
+        if (allArgsMatch) {
+          perfectMatchIndex = i;
+          break;
+        }
+      }
+
+      if (perfectMatchIndex !== -1) {
+        // Perfect match found — consume it and report success.
+        usedIndices.add(perfectMatchIndex);
+        const found = extractedCalls[perfectMatchIndex];
+        const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
+        for (const [key, expectedValue] of Object.entries(expected.args!)) {
+          argResults[key] = { expected: expectedValue, got: found.args[key], match: true };
+        }
+        return {
+          expected,
+          found,
+          methodFound: true,
+          argsCorrect: true,
+          matched: true,
+          argResults,
+        } satisfies ToolMatch;
+      }
+
+      // Pass 2: no perfect match — fall back to the first method-name match.
+      // Consume it to prevent re-matching by a later expected tool.
+      let fallbackIndex = -1;
+      for (let i = 0; i < extractedCalls.length; i++) {
+        if (usedIndices.has(i)) continue;
+        if (extractedCalls[i].method === expected.method) {
+          fallbackIndex = i;
+          break;
+        }
+      }
+
+      if (fallbackIndex === -1) {
+        // Method not found at all
+        return {
+          expected,
+          found: null,
+          methodFound: false,
+          argsCorrect: false,
+          matched: false,
+        } satisfies ToolMatch;
+      }
+
+      // Consume the fallback index so it can't be re-matched
+      usedIndices.add(fallbackIndex);
+      const found = extractedCalls[fallbackIndex];
+      const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
+      for (const [key, expectedValue] of Object.entries(expected.args!)) {
+        const got = found.args[key];
+        argResults[key] = { expected: expectedValue, got, match: matchArgValue(expectedValue, got) };
+      }
+      return {
+        expected,
+        found,
+        methodFound: true,
+        argsCorrect: false,
+        matched: false,
+        argResults,
+      } satisfies ToolMatch;
+    }
+
+    // No args to check — find the first unused extracted call matching the method name.
     let foundIndex = -1;
     for (let i = 0; i < extractedCalls.length; i++) {
       if (usedIndices.has(i)) continue;
@@ -116,39 +199,11 @@ export function matchTools(
       } satisfies ToolMatch;
     }
 
-    const found = extractedCalls[foundIndex];
-
-    // Check argument values if expected.args is specified
-    if (expected.args && Object.keys(expected.args).length > 0) {
-      const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
-      let allArgsMatch = true;
-
-      for (const [key, expectedValue] of Object.entries(expected.args)) {
-        const got = found.args[key];
-        const match = matchArgValue(expectedValue, got);
-        argResults[key] = { expected: expectedValue, got, match };
-        if (!match) allArgsMatch = false;
-      }
-
-      if (allArgsMatch) {
-        usedIndices.add(foundIndex);
-      }
-
-      return {
-        expected,
-        found,
-        methodFound: true,
-        argsCorrect: allArgsMatch,
-        matched: allArgsMatch,
-        argResults,
-      } satisfies ToolMatch;
-    }
-
     // No args to check — method match is sufficient
     usedIndices.add(foundIndex);
     return {
       expected,
-      found,
+      found: extractedCalls[foundIndex],
       methodFound: true,
       argsCorrect: true,
       matched: true,

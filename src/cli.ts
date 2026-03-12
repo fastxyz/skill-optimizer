@@ -174,9 +174,7 @@ async function main(): Promise<void> {
   printCoverage(report.coverage);
 
   // Determine output dir from report (use the same dir as the saved report.json)
-  const outputDir = report.config
-    ? resolve('benchmark-results')
-    : resolve('benchmark-results');
+  const outputDir = resolve((report.config as { name: string; mode: string; outputDir?: string })?.outputDir ?? 'benchmark-results');
 
   // Generate and save Markdown report alongside JSON
   const mdPath = resolve(outputDir, 'report.md');

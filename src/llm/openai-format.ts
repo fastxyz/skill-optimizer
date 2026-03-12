@@ -74,7 +74,9 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`OpenAI API error ${response.status}: ${text}`);
+    const err = new Error(`OpenAI API error ${response.status}: ${text}`);
+    (err as any).status = response.status;
+    throw err;
   }
 
   const data = await response.json() as {
@@ -93,13 +95,25 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
     };
   };
 
+  if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+    throw new Error(`OpenAI API returned unexpected response: no choices in response`);
+  }
+
   const message = data.choices[0]?.message;
   const content = message?.content ?? '';
 
-  const toolCalls = message?.tool_calls?.map((tc) => ({
-    name: tc.function.name,
-    arguments: JSON.parse(tc.function.arguments) as Record<string, unknown>,
-  }));
+  const toolCalls = message?.tool_calls?.map((tc) => {
+    let parsedArguments: Record<string, unknown> = {};
+    try {
+      parsedArguments = JSON.parse(tc.function.arguments) as Record<string, unknown>;
+    } catch {
+      process.stderr.write(
+        `[openai-format] Warning: failed to parse tool call arguments for "${tc.function.name}". ` +
+          `Raw value: ${tc.function.arguments}\n`,
+      );
+    }
+    return { name: tc.function.name, arguments: parsedArguments };
+  });
 
   const usage = data.usage
     ? {
@@ -119,8 +133,15 @@ async function callWithRetry(
   try {
     return await doFetch(params, body);
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
+    if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
       throw err;
+    }
+    // Don't retry client errors (4xx) except 429 (rate limit)
+    if (err && typeof err === 'object' && 'status' in err) {
+      const status = (err as any).status;
+      if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
+        throw err;
+      }
     }
     // Retry once after 3s
     await new Promise((resolve) => setTimeout(resolve, 3_000));

@@ -378,6 +378,5 @@ See `integration/` for a real-world consumer example using the Fast SDK.
 
 ## TODO
 
-- **HTTP mode** (`code` mode, `style: "http"`): LLM writes TypeScript with `fetch()` calls, tree-sitter extracts `METHOD /path` endpoints. The extractor (`http-analyzer.ts`) is implemented and tested but disabled in the consumer. Needs evaluator fixes for non-string arg types before re-enabling.
-- **Curl mode** (`code` mode, `style: "curl"`): LLM writes curl commands, regex parser extracts `METHOD /path` endpoints. The extractor (`curl-analyzer.ts`) is implemented and tested but disabled in the consumer. Same evaluator fix needed.
-- Clean up legacy files: `src/models.ts`, `src/evaluate.ts`, `src/benchmark.ts`, `src/executor.ts`, `infra/`
+- **HTTP mode** (`code` mode, `style: "http"`): LLM writes TypeScript with `fetch()` calls, tree-sitter extracts `METHOD /path` endpoints. The extractor (`http-analyzer.ts`) was previously implemented but has been removed from source and needs to be re-implemented if this mode is desired.
+- **Curl mode** (`code` mode, `style: "curl"`): LLM writes curl commands, regex parser extracts `METHOD /path` endpoints. The extractor (`curl-analyzer.ts`) was previously implemented but has been removed from source and needs to be re-implemented if this mode is desired.
