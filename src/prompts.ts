@@ -6,6 +6,7 @@ export type CodeStyle = 'sdk';
 export interface PromptOptions {
   mode: PromptMode;
   style?: CodeStyle; // only used when mode === 'code'
+  agentic?: boolean;
 }
 
 /**
@@ -60,6 +61,9 @@ export function buildSystemPrompt(
   return (
     `You are an expert developer. The user will ask you to accomplish tasks using ${sdkName}.\n` +
     `Use ONLY the documentation below.\n` +
+    (opts.agentic
+      ? `A \`web_fetch\` tool is available if you need to retrieve additional documentation referenced by the skill.\n`
+      : '') +
     `${formatInstruction}\n\n` +
     `--- DOCUMENTATION ---\n${skill.content}\n--- END DOCUMENTATION ---`
   );
@@ -99,6 +103,9 @@ export function buildTaskPrompt(
       outputInstruction =
         `Write a complete, runnable TypeScript script that accomplishes this task. ` +
         `Use only the SDK/API from the documentation provided. ` +
+        (opts.agentic
+          ? `Use any available documentation tools as needed. `
+          : '') +
         `Include all necessary imports and wrap in an async main function if needed.`;
       break;
   }

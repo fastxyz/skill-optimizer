@@ -1,4 +1,4 @@
-import type { LLMResponse, McpToolDefinition } from '../types.js';
+import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 
 interface CallParams {
   baseUrl: string;
@@ -124,6 +124,52 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
     : undefined;
 
   return { content, toolCalls, usage };
+}
+
+interface AgentLoopParams extends CallWithToolsParams {
+  executor: ToolExecutor;
+  maxTurns: number;
+}
+
+export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMResponse> {
+  const messages: Array<Record<string, unknown>> = [
+    { role: 'system', content: params.system },
+    { role: 'user', content: params.user },
+  ];
+  let allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+  let totalUsage = { prompt: 0, completion: 0, total: 0 };
+
+  for (let turn = 0; turn < params.maxTurns; turn++) {
+    const body: Record<string, unknown> = {
+      model: params.modelId, messages, tools: params.tools, tool_choice: 'auto', temperature: 0.2,
+    };
+    const response = await callWithRetry(params, body);
+    if (response.usage) {
+      totalUsage.prompt += response.usage.prompt;
+      totalUsage.completion += response.usage.completion;
+      totalUsage.total += response.usage.total;
+    }
+    if (!response.toolCalls || response.toolCalls.length === 0) {
+      return { content: response.content, toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
+    }
+    allToolCalls.push(...response.toolCalls);
+    messages.push({
+      role: 'assistant', content: response.content || null,
+      tool_calls: response.toolCalls.map((tc, i) => ({ id: `call_${turn}_${i}`, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) } })),
+    });
+    const MAX_TOOL_RESULT_CHARS = 50_000;
+    for (let i = 0; i < response.toolCalls.length; i++) {
+      const tc = response.toolCalls[i];
+      let result: string;
+      try { result = await params.executor(tc.name, tc.arguments); }
+      catch (err) { result = `Error: ${err instanceof Error ? err.message : String(err)}`; }
+      if (result.length > MAX_TOOL_RESULT_CHARS) {
+        result = result.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n[... truncated]';
+      }
+      messages.push({ role: 'tool', tool_call_id: `call_${turn}_${i}`, content: result });
+    }
+  }
+  return { content: '', toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
 }
 
 async function callWithRetry(

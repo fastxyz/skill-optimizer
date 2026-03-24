@@ -1,4 +1,4 @@
-import type { LLMResponse, McpToolDefinition } from '../types.js';
+import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 
 interface CallParams {
   baseUrl: string;
@@ -146,6 +146,53 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
     : undefined;
 
   return { content, toolCalls, usage };
+}
+
+interface AgentLoopParams extends CallWithToolsParams {
+  executor: ToolExecutor;
+  maxTurns: number;
+}
+
+export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<LLMResponse> {
+  const messages: Array<Record<string, unknown>> = [{ role: 'user', content: params.user }];
+  let allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+  let totalUsage = { prompt: 0, completion: 0, total: 0 };
+
+  for (let turn = 0; turn < params.maxTurns; turn++) {
+    const body: Record<string, unknown> = {
+      model: params.modelId, max_tokens: 8192, system: params.system,
+      messages, tools: params.tools.map(toAnthropicTool), temperature: 0.2,
+    };
+    const response = await callWithRetry(params, body);
+    if (response.usage) {
+      totalUsage.prompt += response.usage.prompt;
+      totalUsage.completion += response.usage.completion;
+      totalUsage.total += response.usage.total;
+    }
+    if (!response.toolCalls || response.toolCalls.length === 0) {
+      return { content: response.content, toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
+    }
+    allToolCalls.push(...response.toolCalls);
+    const assistantContent = [
+      ...(response.content ? [{ type: 'text', text: response.content }] : []),
+      ...response.toolCalls.map((tc, i) => ({ type: 'tool_use', id: `toolu_${turn}_${i}`, name: tc.name, input: tc.arguments })),
+    ];
+    messages.push({ role: 'assistant', content: assistantContent });
+    const MAX_TOOL_RESULT_CHARS = 50_000;
+    const toolResults = [];
+    for (let i = 0; i < response.toolCalls.length; i++) {
+      const tc = response.toolCalls[i];
+      let result: string;
+      try { result = await params.executor(tc.name, tc.arguments); }
+      catch (err) { result = `Error: ${err instanceof Error ? err.message : String(err)}`; }
+      if (result.length > MAX_TOOL_RESULT_CHARS) {
+        result = result.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n[... truncated]';
+      }
+      toolResults.push({ type: 'tool_result', tool_use_id: `toolu_${turn}_${i}`, content: result });
+    }
+    messages.push({ role: 'user', content: toolResults });
+  }
+  return { content: '', toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
 }
 
 async function callWithRetry(

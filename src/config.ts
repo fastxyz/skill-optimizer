@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import type { BenchmarkConfig, TaskDefinition, McpToolDefinition, ModelConfig } from './types.js';
 
 const DEFAULT_CONFIG_NAME = 'benchmark.config.json';
@@ -8,7 +8,7 @@ const DEFAULT_CONFIG_NAME = 'benchmark.config.json';
  * Load benchmark config from the given path or search for benchmark.config.json
  * in the current working directory.
  */
-export function loadConfig(configPath?: string): BenchmarkConfig {
+export function loadConfig(configPath?: string): { config: BenchmarkConfig; configDir: string } {
   const resolvedPath = configPath
     ? resolve(configPath)
     : resolve(process.cwd(), DEFAULT_CONFIG_NAME);
@@ -35,7 +35,7 @@ export function loadConfig(configPath?: string): BenchmarkConfig {
   }
 
   validateConfig(config, resolvedPath);
-  return config;
+  return { config, configDir: dirname(resolvedPath) };
 }
 
 /**
@@ -50,22 +50,6 @@ function validateConfig(config: BenchmarkConfig, path: string): void {
 
   if (config.mode === 'code') {
     if (!config.code) throw new Error(`Config ${path}: "code" section is required when mode is "code"`);
-
-    const style = config.code.style ?? 'sdk';
-    if (style !== 'sdk' && style !== 'http' && style !== 'curl') {
-      throw new Error(`Config ${path}: "code.style" must be "sdk", "http", or "curl", got "${style}"`);
-    }
-
-    // classes are required only for SDK style
-    if (style === 'sdk') {
-      if (!config.code.classes || !Array.isArray(config.code.classes) || config.code.classes.length === 0) {
-        throw new Error(`Config ${path}: "code.classes" must be a non-empty array when style is "sdk"`);
-      }
-    }
-
-    if (!config.code.methods || !Array.isArray(config.code.methods) || config.code.methods.length === 0) {
-      throw new Error(`Config ${path}: "code.methods" must be a non-empty array`);
-    }
     if (!config.code.language) {
       throw new Error(`Config ${path}: "code.language" is required (e.g. "typescript")`);
     }
@@ -99,8 +83,8 @@ function validateConfig(config: BenchmarkConfig, path: string): void {
  * Load task definitions from the tasks.json path specified in config.
  * Resolves the path relative to the config file's directory or CWD.
  */
-export function loadTasks(tasksPath: string): TaskDefinition[] {
-  const resolved = resolve(process.cwd(), tasksPath);
+export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[] {
+  const resolved = resolve(baseDir ?? process.cwd(), tasksPath);
   if (!existsSync(resolved)) {
     throw new Error(`Tasks file not found: ${resolved}`);
   }
@@ -129,8 +113,8 @@ export function loadTasks(tasksPath: string): TaskDefinition[] {
 /**
  * Load MCP tool definitions from the tools.json path specified in config.
  */
-export function loadMcpTools(toolsPath: string): McpToolDefinition[] {
-  const resolved = resolve(process.cwd(), toolsPath);
+export function loadMcpTools(toolsPath: string, baseDir?: string): McpToolDefinition[] {
+  const resolved = resolve(baseDir ?? process.cwd(), toolsPath);
   if (!existsSync(resolved)) {
     throw new Error(`MCP tools file not found: ${resolved}`);
   }

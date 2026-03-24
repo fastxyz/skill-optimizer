@@ -60,19 +60,15 @@ export function generateMarkdown(report: BenchmarkReport): string {
   lines.push(`| Total Models | ${summary.totalModels} |`);
   lines.push(`| Total Evaluations | ${summary.totalEvaluations} |`);
   lines.push(`| Overall Pass Rate | ${pct(summary.overallPassRate)} |`);
-  lines.push(`| Avg Tool Recall | ${fixed2(summary.avgToolRecall)} |`);
-  lines.push(`| Avg Tool Precision | ${fixed2(summary.avgToolPrecision)} |`);
-  lines.push(`| Avg Tool Selection | ${fixed2(summary.avgToolSelectionAccuracy)} |`);
-  lines.push(`| Avg Arg Accuracy | ${fixed2(summary.avgArgAccuracy)} |`);
-  lines.push(`| Avg Hallucination Rate | ${pct(summary.avgHallucinationRate)} |`);
+  lines.push(`| Avg Recall | ${fixed2(summary.avgToolRecall)} |`);
   lines.push(`| Method Coverage | ${pct(summary.methodCoveragePercent)} |`);
   lines.push('');
 
   // 3. Per-model results table
   lines.push('## Results by Model');
   lines.push('');
-  lines.push('| Model | Tier | Pass Rate | Tool Sel. | Arg Acc. | Avg Recall | Avg Precision | Halluc. | Tasks Run |');
-  lines.push('|-------|------|-----------|-----------|----------|------------|---------------|---------|-----------|');
+  lines.push('| Model | Tier | Pass Rate | Recall | Tasks Run |');
+  lines.push('|-------|------|-----------|--------|-----------|');
 
   // Collect model display names from results
   const modelNameMap = new Map<string, string>();
@@ -90,7 +86,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
     const name = modelNameMap.get(modelId) ?? modelId;
     const tier = modelTierMap.get(modelId) ?? '—';
     lines.push(
-      `| ${name} | ${tier} | ${pct(ms.passRate)} | ${fixed2(ms.avgToolSelectionAccuracy)} | ${fixed2(ms.avgArgAccuracy)} | ${fixed2(ms.avgRecall)} | ${fixed2(ms.avgPrecision)} | ${pct(ms.avgHallucinationRate)} | ${ms.tasksRun} |`,
+      `| ${name} | ${tier} | ${pct(ms.passRate)} | ${fixed2(ms.avgRecall)} | ${ms.tasksRun} |`,
     );
   }
   lines.push('');
@@ -98,8 +94,8 @@ export function generateMarkdown(report: BenchmarkReport): string {
   // 4. Per-task results table
   lines.push('## Results by Task');
   lines.push('');
-  lines.push('| Task | Pass Rate | Tool Sel. | Arg Acc. | Avg Recall | Failed Models |');
-  lines.push('|------|-----------|-----------|----------|------------|---------------|');
+  lines.push('| Task | Pass Rate | Recall | Failed Models |');
+  lines.push('|------|-----------|--------|---------------|');
 
   // Build failed models per task
   const failedModelsPerTask = new Map<string, string[]>();
@@ -118,7 +114,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
     const failed = failedModelsPerTask.get(taskId) ?? [];
     const failedStr = failed.length > 0 ? failed.join(', ') : '—';
     lines.push(
-      `| \`${taskId}\` | ${pct(ts.passRate)} | ${fixed2(ts.avgToolSelectionAccuracy)} | ${fixed2(ts.avgArgAccuracy)} | ${fixed2(ts.avgRecall)} | ${failedStr} |`,
+      `| \`${taskId}\` | ${pct(ts.passRate)} | ${fixed2(ts.avgRecall)} | ${failedStr} |`,
     );
   }
   lines.push('');
@@ -168,23 +164,13 @@ export function generateMarkdown(report: BenchmarkReport): string {
       `**Expected Tools:** ${firstResult.task.expected_tools.map(t => `\`${t.method}\``).join(', ')}`,
     );
     lines.push('');
-    lines.push('| Model | Status | Recall | Precision | Tool Sel. | Arg Acc. | Extracted Calls | Hallucinated | Latency |');
-    lines.push('|-------|--------|--------|-----------|-----------|----------|-----------------|--------------|---------|');
+    lines.push('| Model | Status | Recall | Latency |');
+    lines.push('|-------|--------|--------|---------|');
 
     for (const r of taskResults) {
       const status = r.metrics.taskPassed ? '✅ PASS' : '❌ FAIL';
-      const calls =
-        r.extractedCalls.length > 0
-          ? r.extractedCalls.map(c => `\`${c.method}\``).join(', ')
-          : r.error
-            ? `_Error: ${r.error.slice(0, 60)}_`
-            : '_none_';
-      const hallucinated =
-        r.metrics.hallucinatedCalls.length > 0
-          ? r.metrics.hallucinatedCalls.map(m => `\`${m}\``).join(', ')
-          : '—';
       lines.push(
-        `| ${r.model.name} | ${status} | ${fixed2(r.metrics.toolRecall)} | ${fixed2(r.metrics.toolPrecision)} | ${fixed2(r.metrics.toolSelectionAccuracy)} | ${fixed2(r.metrics.argAccuracy)} | ${calls} | ${hallucinated} | ${r.llmLatencyMs}ms |`,
+        `| ${r.model.name} | ${status} | ${fixed2(r.metrics.toolRecall)} | ${r.llmLatencyMs}ms |`,
       );
     }
     lines.push('');
@@ -213,11 +199,7 @@ export function printSummary(report: BenchmarkReport): void {
   const COL_MODEL = 24;
   const COL_TIER = 10;
   const COL_PASS = 11;
-  const COL_TOOLSEL = 10;
-  const COL_ARGACC = 9;
   const COL_RECALL = 9;
-  const COL_PREC = 11;
-  const COL_HALLUC = 8;
 
   const divider =
     '+' +
@@ -227,15 +209,7 @@ export function printSummary(report: BenchmarkReport): void {
     '+' +
     '─'.repeat(COL_PASS + 2) +
     '+' +
-    '─'.repeat(COL_TOOLSEL + 2) +
-    '+' +
-    '─'.repeat(COL_ARGACC + 2) +
-    '+' +
     '─'.repeat(COL_RECALL + 2) +
-    '+' +
-    '─'.repeat(COL_PREC + 2) +
-    '+' +
-    '─'.repeat(COL_HALLUC + 2) +
     '+';
 
   console.log('\nSkill Benchmark — Task-Based Agent Evaluation');
@@ -248,15 +222,7 @@ export function printSummary(report: BenchmarkReport): void {
       ' | ' +
       center('Pass Rate', COL_PASS) +
       ' | ' +
-      center('Tool Sel.', COL_TOOLSEL) +
-      ' | ' +
-      center('Arg Acc.', COL_ARGACC) +
-      ' | ' +
       center('Recall', COL_RECALL) +
-      ' | ' +
-      center('Precision', COL_PREC) +
-      ' | ' +
-      center('Halluc.', COL_HALLUC) +
       ' |',
   );
   console.log(divider);
@@ -277,15 +243,7 @@ export function printSummary(report: BenchmarkReport): void {
         ' | ' +
         center(pct(ms.passRate), COL_PASS) +
         ' | ' +
-        center(fixed2(ms.avgToolSelectionAccuracy), COL_TOOLSEL) +
-        ' | ' +
-        center(fixed2(ms.avgArgAccuracy), COL_ARGACC) +
-        ' | ' +
         center(fixed2(ms.avgRecall), COL_RECALL) +
-        ' | ' +
-        center(fixed2(ms.avgPrecision), COL_PREC) +
-        ' | ' +
-        center(pct(ms.avgHallucinationRate), COL_HALLUC) +
         ' |',
     );
   }
@@ -295,23 +253,9 @@ export function printSummary(report: BenchmarkReport): void {
 
   // Overall stats
   console.log('Overall Statistics:');
-  console.log(`  Pass Rate:        ${pct(summary.overallPassRate)}`);
-  console.log(`  Avg Tool Recall:  ${fixed2(summary.avgToolRecall)}`);
-  console.log(`  Avg Precision:    ${fixed2(summary.avgToolPrecision)}`);
-  console.log(`  Tool Selection:   ${fixed2(summary.avgToolSelectionAccuracy)}`);
-  console.log(`  Arg Accuracy:     ${fixed2(summary.avgArgAccuracy)}`);
-  console.log(`  Hallucination:    ${pct(summary.avgHallucinationRate)}`);
-  console.log(`  Method Coverage:  ${pct(summary.methodCoveragePercent)}`);
-  console.log(`  Evaluations:      ${summary.totalEvaluations} (${summary.totalTasks} tasks × ${summary.totalModels} models)`);
-  console.log('');
-
-  // Per-tier
-  console.log('By Tier:');
-  for (const tier of ['flagship', 'mid', 'low'] as const) {
-    const t = summary.perTier[tier];
-    console.log(
-      `  ${padR(tier, 10)}  pass=${pct(t.passRate)}  recall=${fixed2(t.avgRecall)}  toolSel=${fixed2(t.avgToolSelectionAccuracy)}  argAcc=${fixed2(t.avgArgAccuracy)}`,
-    );
-  }
+  console.log(`  Pass Rate:      ${pct(summary.overallPassRate)}`);
+  console.log(`  Avg Recall:     ${fixed2(summary.avgToolRecall)}`);
+  console.log(`  Coverage:       ${pct(summary.methodCoveragePercent)}`);
+  console.log(`  Evaluations:    ${summary.totalEvaluations} (${summary.totalTasks} tasks × ${summary.totalModels} models)`);
   console.log('');
 }

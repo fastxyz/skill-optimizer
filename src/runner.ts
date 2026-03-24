@@ -13,6 +13,8 @@ import type {
   SkillVersion,
   ModelSummary,
   TaskSummary,
+  ToolExecutor,
+  McpToolDefinition,
 } from './types.js';
 import { loadConfig, loadTasks, loadMcpTools, slugify, getModelBySlug, getModelsByTier } from './config.js';
 import { createLLMClient } from './llm/index.js';
@@ -21,6 +23,50 @@ import { fetchSkill } from './skill-fetcher.js';
 import { evaluateTask } from './evaluator.js';
 import { computeCoverage } from './coverage.js';
 import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
+
+function buildWebFetchTool(): McpToolDefinition {
+  return {
+    type: 'function',
+    function: {
+      name: 'web_fetch',
+      description: 'Fetch a reference document by path. Use this to load SDK documentation referenced in the skill.',
+      parameters: {
+        type: 'object',
+        properties: { url: { type: 'string', description: 'Path to the reference document' } },
+        required: ['url'],
+      },
+    },
+  };
+}
+
+function createReferenceExecutor(baseUrl: string, allowedPaths: string[]): { executor: ToolExecutor; fetchedPaths: string[] } {
+  const fetched: string[] = [];
+  const allowed = new Set(allowedPaths);
+  const executor: ToolExecutor = async (name, args) => {
+    if (name !== 'web_fetch') return `Error: Unknown tool "${name}"`;
+    let url = (args.url ?? args.path ?? '') as string;
+    url = url.replace(/^\/+/, '');
+    const prefix = baseUrl.replace(/\/+$/, '') + '/';
+    if (url.startsWith(prefix)) url = url.slice(prefix.length);
+    if (url.startsWith('https://')) {
+      const idx = url.indexOf(prefix);
+      if (idx !== -1) url = url.slice(idx + prefix.length);
+    }
+    if (!allowed.has(url)) return `Error: Path "${url}" not in allowed list. Available: ${allowedPaths.join(', ')}`;
+    fetched.push(url);
+    const fullUrl = `${baseUrl.replace(/\/+$/, '')}/${url}`;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 30_000);
+      try {
+        const res = await fetch(fullUrl, { signal: controller.signal });
+        if (!res.ok) return `Error: HTTP ${res.status} fetching ${fullUrl}`;
+        return await res.text();
+      } finally { clearTimeout(timer); }
+    } catch (err) { return `Error: ${err instanceof Error ? err.message : String(err)}`; }
+  };
+  return { executor, fetchedPaths: fetched };
+}
 
 export interface RunnerOptions {
   configPath?: string;
@@ -35,25 +81,33 @@ export interface RunnerOptions {
  */
 export async function runBenchmark(options: RunnerOptions = {}): Promise<BenchmarkReport> {
   // 1. Load config
-  const config = loadConfig(options.configPath);
+  const { config, configDir } = loadConfig(options.configPath);
 
   console.log('================================================================');
   console.log(`  Skill Benchmark — ${config.name}`);
   console.log('================================================================\n');
 
-  // 2. Determine known methods (for precision/hallucination tracking)
+  // 2. Load tasks first (needed for knownMethods derivation)
+  let tasks = loadTasks(config.tasks, configDir);
+
+  // 3. Determine known methods (for precision/hallucination tracking)
   let knownMethods: Set<string>;
   let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
   if (config.mode === 'code') {
-    knownMethods = new Set(config.code!.methods);
+    // Derive from task expected_tools + optional apiSurface
+    const fromTasks = new Set<string>();
+    for (const task of tasks) {
+      for (const tool of task.expected_tools) {
+        fromTasks.add(tool.method);
+      }
+    }
+    const apiSurface = config.code?.apiSurface ?? [];
+    knownMethods = new Set([...fromTasks, ...apiSurface]);
   } else {
     // MCP mode: load tools once, reuse for both knownMethods and chatWithTools
-    mcpToolDefs = loadMcpTools(config.mcp!.tools);
+    mcpToolDefs = loadMcpTools(config.mcp!.tools, configDir);
     knownMethods = new Set(mcpToolDefs.map(t => t.function.name));
   }
-
-  // 3. Load tasks
-  let tasks = loadTasks(config.tasks);
   console.log(`[tasks] Loaded ${tasks.length} tasks from ${config.tasks}`);
 
   if (options.taskId) {
@@ -84,7 +138,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   const style = config.code?.style ?? 'sdk';
   const promptOptions = config.mode === 'mcp'
     ? { mode: 'mcp' as const }
-    : { mode: 'code' as const, style };
+    : { mode: 'code' as const, style, agentic: Boolean(config.agentic) };
   const systemPrompt = buildSystemPrompt(skill, config.name, promptOptions);
   console.log(`[prompt] Mode: ${config.mode}, style: ${style}`);
   console.log(`[prompt] System prompt: ${systemPrompt.length} chars\n`);
@@ -110,7 +164,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   console.log(`\n[run] ${tasks.length} tasks × ${models.length} models = ${tasks.length * models.length} evaluations\n`);
 
   // 9. Setup output directory
-  const outputDir = resolve(config.output?.dir ?? 'benchmark-results');
+  const outputDir = resolve(configDir, config.output?.dir ?? 'benchmark-results');
   mkdirSync(outputDir, { recursive: true });
 
   // 10. Run evaluations
@@ -131,10 +185,20 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       let tokenUsage;
       let error: string | undefined;
       let llmResponse;
+      let fetchedPaths: string[] = [];
 
       const start = Date.now();
       try {
-        if (config.mode === 'mcp' && mcpToolDefs) {
+        if (config.agentic) {
+          const ref = createReferenceExecutor(
+            config.agentic.references.baseUrl, config.agentic.references.allowedPaths,
+          );
+          llmResponse = await client.chatAgentLoop(
+            model.id, systemPrompt, buildTaskPrompt(task, promptOptions),
+            [buildWebFetchTool()], ref.executor, config.agentic.maxTurns ?? 5,
+          );
+          fetchedPaths = ref.fetchedPaths;
+        } else if (config.mode === 'mcp' && mcpToolDefs) {
           llmResponse = await client.chatWithTools(
             model.id,
             systemPrompt,
@@ -163,11 +227,13 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       // Extract calls from response
       let extractedCalls: ExtractedCall[] = [];
       let generatedCode: string | null = null;
+      let bindings: Map<string, string> | undefined;
 
       try {
         const extracted = await extract(llmResponse!, config);
         extractedCalls = extracted.calls;
         generatedCode = extracted.generatedCode;
+        bindings = extracted.bindings;
 
         if (config.mode === 'code') {
           if (generatedCode) {
@@ -197,14 +263,25 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         tokenUsage,
         error,
         knownMethods,
+        bindings,
       });
 
+      if (config.agentic && task.expected_fetches) {
+        const actualFetches = fetchedPaths;
+        const expectedSet = new Set(task.expected_fetches);
+        const actualSet = new Set(actualFetches);
+        const matched = [...expectedSet].filter(f => actualSet.has(f));
+        taskResult.metrics.fetchRecall = expectedSet.size === 0 ? 1.0 : matched.length / expectedSet.size;
+        taskResult.metrics.fetchPrecision = actualSet.size === 0 ? 0.0 : matched.length / actualSet.size;
+        taskResult.metrics.actualFetches = actualFetches;
+        taskResult.metrics.taskPassed = taskResult.metrics.taskPassed && taskResult.metrics.fetchRecall === 1.0;
+        const fetchStatus = taskResult.metrics.fetchRecall === 1.0 ? 'correct' : 'WRONG';
+        console.log(`  [${slug}] Fetched: [${actualFetches.join(', ')}] (${fetchStatus})`);
+      }
+
       const status = taskResult.metrics.taskPassed ? '✅ PASS' : '❌ FAIL';
-      const hallucinationInfo = taskResult.metrics.hallucinatedCalls.length > 0
-        ? `  hallucinated=${taskResult.metrics.hallucinatedCalls.join(',')}`
-        : '';
       console.log(
-        `  [${slug}] ${status}  recall=${taskResult.metrics.toolRecall.toFixed(2)}  precision=${taskResult.metrics.toolPrecision.toFixed(2)}  toolSel=${taskResult.metrics.toolSelectionAccuracy.toFixed(2)}  argAcc=${taskResult.metrics.argAccuracy.toFixed(2)}${hallucinationInfo}`
+        `  [${slug}] ${status}  recall=${taskResult.metrics.toolRecall.toFixed(2)}`
       );
 
       results.push(taskResult);

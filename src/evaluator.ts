@@ -79,6 +79,69 @@ function matchArgValue(expected: unknown, got: unknown): boolean {
   return normalize(exp) === normalize(gotStr);
 }
 
+function stringifyExpected(expected: unknown): string {
+  if (typeof expected === 'string') return expected;
+  try {
+    return JSON.stringify(expected);
+  } catch {
+    return String(expected);
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function matchExpectedValue(
+  expected: unknown,
+  got: unknown,
+  path: string,
+  argResults: Record<string, { expected: string; got: unknown; match: boolean }>,
+): boolean {
+  // Array matching: positional match up to expected.length.
+  // Extra elements in `got` beyond expected.length are ignored (subset matching).
+  // Missing elements in `got` (got[i] is undefined) will fail the scalar/object match.
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(got)) {
+      argResults[path] = { expected: stringifyExpected(expected), got, match: false };
+      return false;
+    }
+
+    let allMatch = true;
+    for (let i = 0; i < expected.length; i++) {
+      const childPath = `${path}[${i}]`;
+      if (!matchExpectedValue(expected[i], got[i], childPath, argResults)) {
+        allMatch = false;
+      }
+    }
+    return allMatch;
+  }
+
+  if (isPlainObject(expected)) {
+    if (!isPlainObject(got)) {
+      argResults[path] = { expected: stringifyExpected(expected), got, match: false };
+      return false;
+    }
+
+    let allMatch = true;
+    for (const [key, value] of Object.entries(expected)) {
+      const childPath = path ? `${path}.${key}` : key;
+      if (!matchExpectedValue(value, got[key], childPath, argResults)) {
+        allMatch = false;
+      }
+    }
+    return allMatch;
+  }
+
+  const match = matchArgValue(expected, got);
+  argResults[path] = {
+    expected: stringifyExpected(expected),
+    got,
+    match,
+  };
+  return match;
+}
+
 // ── Tool matching ──────────────────────────────────────────────────────────
 
 /**
@@ -107,11 +170,11 @@ export function matchTools(
         if (usedIndices.has(i)) continue;
         if (extractedCalls[i].method !== expected.method) continue;
         // Check args
+        const trialArgResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
         let allArgsMatch = true;
         for (const [key, expectedValue] of Object.entries(expected.args!)) {
-          if (!matchArgValue(expectedValue, extractedCalls[i].args[key])) {
+          if (!matchExpectedValue(expectedValue, extractedCalls[i].args[key], key, trialArgResults)) {
             allArgsMatch = false;
-            break;
           }
         }
         if (allArgsMatch) {
@@ -126,7 +189,7 @@ export function matchTools(
         const found = extractedCalls[perfectMatchIndex];
         const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
         for (const [key, expectedValue] of Object.entries(expected.args!)) {
-          argResults[key] = { expected: expectedValue, got: found.args[key], match: true };
+          matchExpectedValue(expectedValue, found.args[key], key, argResults);
         }
         return {
           expected,
@@ -164,16 +227,18 @@ export function matchTools(
       usedIndices.add(fallbackIndex);
       const found = extractedCalls[fallbackIndex];
       const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
+      let allArgsMatch = true;
       for (const [key, expectedValue] of Object.entries(expected.args!)) {
-        const got = found.args[key];
-        argResults[key] = { expected: expectedValue, got, match: matchArgValue(expectedValue, got) };
+        if (!matchExpectedValue(expectedValue, found.args[key], key, argResults)) {
+          allArgsMatch = false;
+        }
       }
       return {
         expected,
         found,
         methodFound: true,
-        argsCorrect: false,
-        matched: false,
+        argsCorrect: allArgsMatch,
+        matched: allArgsMatch,
         argResults,
       } satisfies ToolMatch;
     }
@@ -211,6 +276,116 @@ export function matchTools(
   });
 }
 
+// ── Call resolution from bindings + task expectations ───────────────────────
+
+/**
+ * Resolve raw extracted calls (e.g. 'f.setup') into typed calls (e.g. 'FastClient.setup')
+ * using variable bindings from the extractor and type prefixes from task expected_tools.
+ *
+ * Algorithm:
+ * 1. Collect type prefixes from expected tools (e.g. 'FastClient' from 'FastClient.setup')
+ * 2. Collect standalone method names (e.g. 'fast' from { method: 'fast' })
+ * 3. Build inference map: if task expects standalone 'fast' AND 'FastClient.*',
+ *    and bindings show f ← fast, then fast → FastClient
+ * 4. Resolve all raw calls through this map
+ */
+function resolveCallsFromBindings(
+  extractedCalls: ExtractedCall[],
+  bindings: Map<string, string>,
+  expectedTools: ExpectedTool[],
+): ExtractedCall[] {
+  // 1. Collect type prefixes and standalone names from expected tools
+  const expectedPrefixes = new Set<string>();
+  const expectedStandalone = new Set<string>();
+  for (const tool of expectedTools) {
+    if (tool.method.includes('.')) {
+      expectedPrefixes.add(tool.method.split('.')[0]);
+    } else {
+      expectedStandalone.add(tool.method);
+    }
+  }
+
+  // 2. Build function-to-type map
+  // For each standalone expected function, check if any prefix's methods exist
+  // that would indicate the return type mapping
+  const fnToType = new Map<string, string>();
+
+  // Direct class matches (e.g. allset ← AllSetProvider, AllSetProvider is a prefix)
+  for (const [, sourceFn] of bindings) {
+    if (expectedPrefixes.has(sourceFn)) {
+      fnToType.set(sourceFn, sourceFn);
+    }
+  }
+
+  // Inferred matches (e.g. fast is standalone, FastClient is a prefix, f ← fast)
+  // Strategy: for each standalone function, find variables bound to it,
+  // then match the specific methods called on those variables against expected prefix.method pairs.
+  // This avoids ambiguity when multiple prefixes exist — we verify the actual method names match.
+  //
+  // Assumption: each standalone function maps to at most one type prefix.
+  // If a model assigns from the same function to two vars used with different prefixes,
+  // the first matching prefix wins.
+  const expectedPrefixMethods = new Map<string, Set<string>>(); // prefix → set of method names
+  for (const tool of expectedTools) {
+    const dotIdx = tool.method.indexOf('.');
+    if (dotIdx !== -1) {
+      const prefix = tool.method.slice(0, dotIdx);
+      const method = tool.method.slice(dotIdx + 1);
+      if (!expectedPrefixMethods.has(prefix)) expectedPrefixMethods.set(prefix, new Set());
+      expectedPrefixMethods.get(prefix)!.add(method);
+    }
+  }
+
+  for (const standaloneFn of expectedStandalone) {
+    if (fnToType.has(standaloneFn)) continue;
+
+    const varsFromFn: string[] = [];
+    for (const [varName, source] of bindings) {
+      if (source === standaloneFn) varsFromFn.push(varName);
+    }
+
+    // For each prefix, check if any variable from this function has calls
+    // whose method names match the expected methods for that prefix
+    for (const [prefix, methodNames] of expectedPrefixMethods) {
+      if (fnToType.has(standaloneFn)) break;
+      for (const varName of varsFromFn) {
+        const callsOnVar = extractedCalls
+          .filter(c => c.method.startsWith(varName + '.'))
+          .map(c => c.method.slice(varName.length + 1));
+        // Match if at least one method called on this var matches an expected method for this prefix
+        const hasMatchingMethod = callsOnVar.some(m => methodNames.has(m));
+        if (hasMatchingMethod) {
+          fnToType.set(standaloneFn, prefix);
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Build var-to-type map
+  const varToType = new Map<string, string>();
+  for (const [varName, sourceFn] of bindings) {
+    const resolvedType = fnToType.get(sourceFn);
+    if (resolvedType) {
+      varToType.set(varName, resolvedType);
+    }
+  }
+
+  // 4. Resolve each call
+  return extractedCalls.map(call => {
+    const dotIndex = call.method.indexOf('.');
+    if (dotIndex !== -1) {
+      const obj = call.method.slice(0, dotIndex);
+      const rest = call.method.slice(dotIndex + 1);
+      const resolvedType = varToType.get(obj);
+      if (resolvedType) {
+        return { ...call, method: `${resolvedType}.${rest}` };
+      }
+    }
+    return call;
+  });
+}
+
 // ── Task evaluation ────────────────────────────────────────────────────────
 
 /**
@@ -225,19 +400,26 @@ export function evaluateTask(params: {
   llmLatencyMs: number;
   tokenUsage?: TokenUsage;
   error?: string;
-  knownMethods: Set<string>;  // replaces hardcoded KNOWN_SDK_METHODS
+  knownMethods: Set<string>;
+  bindings?: Map<string, string>;  // variable → source function/class from extractor
 }): TaskResult {
   const {
     task,
     model,
     generatedCode,
     rawResponse,
-    extractedCalls,
     llmLatencyMs,
     tokenUsage,
     error,
     knownMethods,
+    bindings,
   } = params;
+
+  // ── Resolve raw calls if bindings provided ──
+  let extractedCalls = params.extractedCalls;
+  if (bindings && bindings.size > 0) {
+    extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, task.expected_tools);
+  }
 
   // ── Tool matching ──
   const toolMatches = matchTools(task.expected_tools, extractedCalls);
@@ -297,19 +479,49 @@ export function evaluateTask(params: {
   const argAccuracy = methodsFoundCount === 0 ? 1.0
     : toolMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
 
-  // Hallucination tracking
+  // SDK-only hallucination tracking
+  // Only flag calls that use a known SDK prefix but with a non-existent method.
+  // e.g. FastClient.doMagic() is hallucinated if FastClient.* methods exist but doMagic doesn't.
+  // tokens.forEach(), myHelper(), console.log() are NOT hallucinations — just normal code.
   const allExtractedMethods = extractedCalls.map(c => c.method);
   const expectedMethods = new Set(task.expected_tools.map(t => t.method));
 
-  // Unnecessary: real known methods that exist but weren't expected
+  // Derive SDK prefixes from knownMethods
+  const sdkPrefixes = new Set<string>();
+  const sdkStandalone = new Set<string>();
+  for (const m of knownMethods) {
+    if (m.includes('.')) {
+      sdkPrefixes.add(m.split('.')[0]);
+    } else {
+      sdkStandalone.add(m);
+    }
+  }
+
+  // Unnecessary: valid SDK methods that weren't expected for this task
   const unnecessaryCalls = allExtractedMethods.filter(
     m => knownMethods.has(m) && !expectedMethods.has(m)
   );
 
-  // Hallucinated: methods that DON'T exist in knownMethods
-  const hallucinatedCalls = allExtractedMethods.filter(
-    m => !knownMethods.has(m)
-  );
+  // Hallucinated: depends on mode
+  // Code mode: only flag calls that use a known SDK prefix but with a non-existent method
+  // MCP mode: any tool call not in knownMethods is hallucinated (no JS builtin noise)
+  const hallucinatedCalls = allExtractedMethods.filter(m => {
+    if (knownMethods.has(m)) return false;
+    const dotIdx = m.indexOf('.');
+    if (dotIdx !== -1) {
+      const prefix = m.slice(0, dotIdx);
+      // Code mode: only flag if the prefix is a known SDK type
+      if (sdkPrefixes.has(prefix)) return true;
+      return false;
+    }
+    // Standalone name not in knownMethods:
+    // In MCP mode (flat tool names), this is a hallucination
+    // In code mode (JS code), this is just a helper function — not a hallucination
+    // Use heuristic: if knownMethods has no dotted entries, we're likely in MCP mode
+    const hasDottedMethods = [...knownMethods].some(k => k.includes('.'));
+    if (!hasDottedMethods) return true; // MCP mode: flat names, so unknown = hallucinated
+    return false; // Code mode: standalone unknown name is just user code
+  });
 
   const hallucinationRate = extractedCalls.length === 0 ? 0
     : hallucinatedCalls.length / extractedCalls.length;

@@ -1,5 +1,5 @@
 import type { ExtractedCall, BenchmarkConfig, LLMResponse } from '../types.js';
-import { extractFromCode } from './code-analyzer.js';
+import { extractAllFromCode } from './code-analyzer.js';
 import { extractCodeBlock } from './code-extractor.js';
 import { extractFromToolCalls } from './mcp-extractor.js';
 
@@ -12,7 +12,7 @@ import { extractFromToolCalls } from './mcp-extractor.js';
 export async function extract(
   response: LLMResponse,
   config: BenchmarkConfig,
-): Promise<{ calls: ExtractedCall[]; generatedCode: string | null }> {
+): Promise<{ calls: ExtractedCall[]; generatedCode: string | null; bindings?: Map<string, string> }> {
   if (config.mode === 'mcp') {
     const calls = extractFromToolCalls(response);
     return { calls, generatedCode: null };
@@ -28,8 +28,8 @@ export async function extract(
     return { calls: [], generatedCode: null };
   }
 
-  const calls = await extractFromCode(generatedCode, config.code.classes ?? []);
-  return { calls, generatedCode };
+  const { calls, bindings } = await extractAllFromCode(generatedCode);
+  return { calls, generatedCode, bindings };
 }
 
 // Re-export for direct access

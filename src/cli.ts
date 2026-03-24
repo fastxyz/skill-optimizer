@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 
 import type { Tier } from './types.js';
 import { runBenchmark } from './runner.js';
@@ -173,8 +173,10 @@ async function main(): Promise<void> {
   // Print coverage
   printCoverage(report.coverage);
 
-  // Determine output dir from report (use the same dir as the saved report.json)
-  const outputDir = resolve((report.config as { name: string; mode: string; outputDir?: string })?.outputDir ?? 'benchmark-results');
+  // Determine output dir — resolve relative to the config file's directory (matching the runner)
+  const configFileDir = options.configPath ? dirname(resolve(options.configPath)) : process.cwd();
+  const reportConfig = report.config as { name: string; mode: string; outputDir?: string };
+  const outputDir = resolve(configFileDir, reportConfig?.outputDir ?? 'benchmark-results');
 
   // Generate and save Markdown report alongside JSON
   const mdPath = resolve(outputDir, 'report.md');

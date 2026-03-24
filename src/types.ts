@@ -24,13 +24,20 @@ export interface BenchmarkConfig {
   tasks: string;                   // path to tasks.json
   llm: LLMConfig;
   output?: OutputConfig;
+  agentic?: AgenticConfig;
 }
 
 export interface CodeModeConfig {
   language: string;                // e.g. "typescript"
-  style?: 'sdk'; // defaults to 'sdk' if omitted
-  classes?: string[];              // e.g. ["FastProvider", "FastWallet"] — required for 'sdk' style
-  methods: string[];               // e.g. ["FastProvider.constructor", "FastWallet.send"]
+  style?: 'sdk';                   // defaults to 'sdk' if omitted
+  // Optional: explicit API surface for coverage/hallucination reporting only.
+  // If omitted, derived automatically from task expected_tools.
+  apiSurface?: string[];
+  // Deprecated fields — kept for backward compat, no longer required
+  classes?: string[];
+  functions?: string[];
+  functionReturns?: Record<string, string>;
+  methods?: string[];
 }
 
 export interface McpModeConfig {
@@ -53,6 +60,14 @@ export interface LLMConfig {
 
 export interface OutputConfig {
   dir?: string;                    // default "./benchmark-results"
+}
+
+export interface AgenticConfig {
+  references: {
+    baseUrl: string;
+    allowedPaths: string[];
+  };
+  maxTurns?: number;
 }
 
 // === MCP Tool Definition (OpenAI function calling format) ===
@@ -88,7 +103,7 @@ export interface FetchedSkill {
 
 export interface ExpectedTool {
   method: string;                  // SDK: "FastWallet.send", MCP: "send_tokens"
-  args?: Record<string, string>;   // expected arg values (string match or /regex/)
+  args?: Record<string, unknown>;  // expected arg values (supports nested objects/arrays, strings, regexes, sentinels)
 }
 
 export interface TaskVerification {
@@ -100,6 +115,7 @@ export interface TaskDefinition {
   prompt: string;
   expected_tools: ExpectedTool[];
   verify?: TaskVerification[];
+  expected_fetches?: string[];
 }
 
 // === Extracted from generated code or tool_calls ===
@@ -123,6 +139,8 @@ export interface ToolCallResult {
   name: string;
   arguments: Record<string, unknown>;
 }
+
+export type ToolExecutor = (name: string, args: Record<string, unknown>) => Promise<string>;
 
 // === Evaluation ===
 
@@ -156,6 +174,9 @@ export interface TaskResult {
     unnecessaryCalls: string[];
     hallucinatedCalls: string[];
     hallucinationRate: number;
+    fetchRecall?: number;
+    fetchPrecision?: number;
+    actualFetches?: string[];
   };
   llmLatencyMs: number;
   tokenUsage?: TokenUsage;
