@@ -1,6 +1,6 @@
-import { extractFromToolCalls } from '../src/extractors/mcp-extractor.js';
-import { extract } from '../src/extractors/index.js';
-import { evaluateTask, matchTools } from '../src/evaluator.js';
+import { extractFromToolCalls } from '../src/benchmark/extractors/mcp-extractor.js';
+import { extract } from '../src/benchmark/extractors/index.js';
+import { evaluateTask, matchTools } from '../src/benchmark/evaluator.js';
 import type {
   ExtractedCall,
   LLMResponse,
@@ -9,7 +9,7 @@ import type {
   ExpectedTool,
   ModelConfig,
   ToolMatch,
-} from '../src/types.js';
+} from '../src/benchmark/types.js';
 
 // ── Test harness ──────────────────────────────────────────────────────────
 

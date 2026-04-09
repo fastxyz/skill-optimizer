@@ -1,0 +1,28 @@
+{
+  "name": "sdk-demo",
+  "surface": "sdk",
+  "sdk": {
+    "language": "typescript",
+    "apiSurface": [
+      "LedgerBox.constructor",
+      "LedgerBox.fetch_holdings",
+      "LedgerBox.dispatch_transfer"
+    ]
+  },
+  "skill": {
+    "source": "./SKILL.md"
+  },
+  "tasks": "./tasks.json",
+  "llm": {
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "format": "openai",
+    "models": [
+      {
+        "id": "openai/gpt-4.1",
+        "name": "GPT-4.1",
+        "tier": "flagship"
+      }
+    ]
+  }
+}

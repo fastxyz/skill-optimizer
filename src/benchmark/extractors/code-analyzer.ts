@@ -1,25 +1,12 @@
 import Parser from 'web-tree-sitter';
-import { createRequire } from 'node:module';
 
 import type { ExtractedCall } from '../types.js';
-
-const require = createRequire(import.meta.url);
+import { getSdkParser } from './sdk/parser.js';
 
 // ── Lazy singleton parser ──────────────────────────────────────────────────
 
-let parser: Parser | null = null;
-
 async function initParser(): Promise<Parser> {
-  if (parser) return parser;
-
-  await Parser.init();
-  parser = new Parser();
-
-  const wasmPath = require.resolve('tree-sitter-wasms/out/tree-sitter-typescript.wasm');
-  const TypeScript = await Parser.Language.load(wasmPath);
-  parser.setLanguage(TypeScript);
-
-  return parser;
+  return getSdkParser('typescript');
 }
 
 // ── Argument extraction ────────────────────────────────────────────────────

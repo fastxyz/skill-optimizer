@@ -1,8 +1,8 @@
 import type { ExtractedCall, BenchmarkConfig, LLMResponse } from '../types.js';
-import { extractAllFromCode } from './code-analyzer.js';
-import { extractCodeBlock } from './code-extractor.js';
+import { extractCodeBlock, extractSdkCodeBlock } from './code-extractor.js';
 import { extractFromCliMarkdown, extractShellBlock } from './cli-extractor.js';
 import { extractFromToolCalls } from './mcp-extractor.js';
+import { extractSdkFromCode, getSdkAdapter } from './sdk/registry.js';
 
 /**
  * Extract SDK/tool calls from an LLM response based on the configured surface.
@@ -23,7 +23,7 @@ export async function extract(
     code?: unknown;
   };
   const surface = extended.surface;
-  const sdkConfig = extended.sdk ?? extended.code;
+  const sdkConfig = (extended.sdk ?? extended.code) as BenchmarkConfig['sdk'] | undefined;
   const knownCommands = Array.isArray(extended.cli?.commandDefinitions)
     ? extended.cli.commandDefinitions.map((definition) => definition.command)
     : undefined;
@@ -43,17 +43,18 @@ export async function extract(
     throw new Error('SDK surface requires "sdk" section in config');
   }
 
-  const generatedCode = extractCodeBlock(response.content);
+  const generatedCode = extractSdkCodeBlock(response.content, sdkConfig.language);
   if (!generatedCode) {
     return { calls: [], generatedCode: null };
   }
 
-  const { calls, bindings } = await extractAllFromCode(generatedCode);
+  const { calls, bindings } = await extractSdkFromCode(generatedCode, sdkConfig.language);
   return { calls, generatedCode, bindings };
 }
 
 // Re-export for direct access
-export { extractCodeBlock } from './code-extractor.js';
+export { extractCodeBlock, extractSdkCodeBlock } from './code-extractor.js';
 export { extractShellBlock, extractFromCliMarkdown, parseShellCommands } from './cli-extractor.js';
 export { extractFromCode } from './code-analyzer.js';
 export { extractFromToolCalls } from './mcp-extractor.js';
+export { extractSdkFromCode, getSdkAdapter } from './sdk/registry.js';

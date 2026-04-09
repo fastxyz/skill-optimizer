@@ -2,10 +2,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { extractShellBlock, parseShellCommands, extractFromCliMarkdown } from '../src/extractors/cli-extractor.js';
-import { extract } from '../src/extractors/index.js';
-import { loadCliCommands } from '../src/config.js';
-import type { BenchmarkConfig, LLMResponse } from '../src/types.js';
+import { extractShellBlock, parseShellCommands, extractFromCliMarkdown } from '../src/benchmark/extractors/cli-extractor.js';
+import { extract } from '../src/benchmark/extractors/index.js';
+import { loadCliCommands } from '../src/benchmark/config.js';
+import type { BenchmarkConfig, LLMResponse } from '../src/benchmark/types.js';
 
 let passed = 0;
 let failed = 0;

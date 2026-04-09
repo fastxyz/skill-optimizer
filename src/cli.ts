@@ -3,12 +3,12 @@
 import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
-import type { Tier } from './types.js';
-import { runBenchmark } from './runner.js';
-import { loadReport, compareReports, printComparison } from './compare.js';
-import { printSummary, generateMarkdown } from './reporter.js';
-import { printCoverage } from './coverage.js';
-import { initBenchmark } from './init.js';
+import type { Tier } from './benchmark/types.js';
+import { runBenchmark } from './benchmark/runner.js';
+import { loadReport, compareReports, printComparison } from './benchmark/compare.js';
+import { printSummary, generateMarkdown } from './benchmark/reporter.js';
+import { printCoverage } from './benchmark/coverage.js';
+import { initBenchmark } from './benchmark/init.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 

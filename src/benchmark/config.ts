@@ -64,6 +64,11 @@ function validateConfig(config: BenchmarkConfig, path: string): void {
     if (!config.sdk.language) {
       throw new Error(`Config ${path}: "sdk.language" is required (e.g. "typescript")`);
     }
+    if (!['typescript', 'python', 'rust'].includes(config.sdk.language)) {
+      throw new Error(
+        `Config ${path}: "sdk.language" must be one of "typescript", "python", or "rust", got "${config.sdk.language}"`,
+      );
+    }
   }
 
   if (config.surface === 'cli') {

@@ -74,6 +74,7 @@ export interface RunnerOptions {
   taskId?: string;
   modelSlug?: string;
   noCache?: boolean;
+  outputDir?: string;
 }
 
 /**
@@ -145,6 +146,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     surface: config.surface,
     agentic: Boolean(config.agentic),
     shell: config.cli?.shell,
+    sdkLanguage: config.sdk?.language,
   };
   const systemPrompt = buildSystemPrompt(skill, config.name, promptOptions);
   console.log(`[prompt] Surface: ${config.surface}`);
@@ -171,7 +173,9 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   console.log(`\n[run] ${tasks.length} tasks × ${models.length} models = ${tasks.length * models.length} evaluations\n`);
 
   // 9. Setup output directory
-  const outputDir = resolve(configDir, config.output?.dir ?? 'benchmark-results');
+  const outputDir = options.outputDir
+    ? resolve(options.outputDir)
+    : resolve(configDir, config.output?.dir ?? 'benchmark-results');
   mkdirSync(outputDir, { recursive: true });
 
   // 10. Run evaluations
@@ -254,11 +258,12 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         bindings = extracted.bindings;
 
         if (config.surface === 'sdk') {
+          const sdkLanguage = config.sdk?.language ?? 'typescript';
           if (generatedCode) {
-            console.log(`  [${slug}] TypeScript extracted: ${generatedCode.length} chars`);
+            console.log(`  [${slug}] ${sdkLanguage} code extracted: ${generatedCode.length} chars`);
           } else if (!error) {
-            console.log(`  [${slug}] WARNING: No TypeScript block found`);
-            error = error ?? 'No TypeScript code block in response';
+            console.log(`  [${slug}] WARNING: No ${sdkLanguage} code block found`);
+            error = error ?? `No ${sdkLanguage} code block in response`;
           }
         }
 
@@ -320,7 +325,11 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       writeFileSync(resolve(taskModelDir, 'response.md'), rawResponse, 'utf-8');
       if (generatedCode) {
         const generatedFile = config.surface === 'sdk'
-          ? 'code.ts'
+          ? config.sdk?.language === 'python'
+            ? 'code.py'
+            : config.sdk?.language === 'rust'
+              ? 'code.rs'
+              : 'code.ts'
           : config.surface === 'cli'
             ? 'commands.sh'
             : 'generated.txt';

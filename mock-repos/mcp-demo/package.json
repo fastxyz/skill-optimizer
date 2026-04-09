@@ -1,0 +1,9 @@
+{
+  "name": "@mock/mcp-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node ./scripts/validate.mjs",
+    "build": "node ./scripts/validate.mjs"
+  }
+}

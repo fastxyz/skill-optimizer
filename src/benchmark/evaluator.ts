@@ -294,37 +294,25 @@ function resolveCallsFromBindings(
   bindings: Map<string, string>,
   expectedTools: ExpectedTool[],
 ): ExtractedCall[] {
-  // 1. Collect type prefixes and standalone names from expected tools
+  // 1. Collect type prefixes from expected tools.
   const expectedPrefixes = new Set<string>();
-  const expectedStandalone = new Set<string>();
   for (const tool of expectedTools) {
     if (tool.method.includes('.')) {
       expectedPrefixes.add(tool.method.split('.')[0]);
-    } else {
-      expectedStandalone.add(tool.method);
     }
   }
 
-  // 2. Build function-to-type map
-  // For each standalone expected function, check if any prefix's methods exist
-  // that would indicate the return type mapping
-  const fnToType = new Map<string, string>();
+  // 2. Build source-to-type map for direct class bindings and inferred factory returns.
+  const sourceToType = new Map<string, string>();
 
   // Direct class matches (e.g. allset ← AllSetProvider, AllSetProvider is a prefix)
-  for (const [, sourceFn] of bindings) {
-    if (expectedPrefixes.has(sourceFn)) {
-      fnToType.set(sourceFn, sourceFn);
+  for (const [, source] of bindings) {
+    if (expectedPrefixes.has(source)) {
+      sourceToType.set(source, source);
     }
   }
 
-  // Inferred matches (e.g. fast is standalone, FastClient is a prefix, f ← fast)
-  // Strategy: for each standalone function, find variables bound to it,
-  // then match the specific methods called on those variables against expected prefix.method pairs.
-  // This avoids ambiguity when multiple prefixes exist — we verify the actual method names match.
-  //
-  // Assumption: each standalone function maps to at most one type prefix.
-  // If a model assigns from the same function to two vars used with different prefixes,
-  // the first matching prefix wins.
+  // Inferred matches (e.g. fast is a factory, or wallet is an instance-returning method).
   const expectedPrefixMethods = new Map<string, Set<string>>(); // prefix → set of method names
   for (const tool of expectedTools) {
     const dotIdx = tool.method.indexOf('.');
@@ -336,26 +324,28 @@ function resolveCallsFromBindings(
     }
   }
 
-  for (const standaloneFn of expectedStandalone) {
-    if (fnToType.has(standaloneFn)) continue;
+  const allSources = new Set(bindings.values());
 
-    const varsFromFn: string[] = [];
-    for (const [varName, source] of bindings) {
-      if (source === standaloneFn) varsFromFn.push(varName);
+  for (const source of allSources) {
+    if (sourceToType.has(source)) continue;
+
+    const varsFromSource: string[] = [];
+    for (const [varName, bindingSource] of bindings) {
+      if (bindingSource === source) varsFromSource.push(varName);
     }
 
-    // For each prefix, check if any variable from this function has calls
+    // For each prefix, check if any variable from this source has calls
     // whose method names match the expected methods for that prefix
     for (const [prefix, methodNames] of expectedPrefixMethods) {
-      if (fnToType.has(standaloneFn)) break;
-      for (const varName of varsFromFn) {
+      if (sourceToType.has(source)) break;
+      for (const varName of varsFromSource) {
         const callsOnVar = extractedCalls
           .filter(c => c.method.startsWith(varName + '.'))
           .map(c => c.method.slice(varName.length + 1));
         // Match if at least one method called on this var matches an expected method for this prefix
         const hasMatchingMethod = callsOnVar.some(m => methodNames.has(m));
         if (hasMatchingMethod) {
-          fnToType.set(standaloneFn, prefix);
+          sourceToType.set(source, prefix);
           break;
         }
       }
@@ -364,8 +354,8 @@ function resolveCallsFromBindings(
 
   // 3. Build var-to-type map
   const varToType = new Map<string, string>();
-  for (const [varName, sourceFn] of bindings) {
-    const resolvedType = fnToType.get(sourceFn);
+  for (const [varName, source] of bindings) {
+    const resolvedType = sourceToType.get(source);
     if (resolvedType) {
       varToType.set(varName, resolvedType);
     }

@@ -124,6 +124,7 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
 
   console.log('\n[init] Done! Next steps:');
   console.log('  1. Edit benchmark.config.json with your surface (sdk/cli/mcp) details');
+  console.log('     For SDK benchmarks, set sdk.language to typescript, python, or rust.');
   console.log('  2. Edit tasks.json with your test cases');
   console.log('  3. Run: npx skill-benchmark run');
 }

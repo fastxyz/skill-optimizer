@@ -16,6 +16,7 @@ export interface TokenUsage {
 // === Config (loaded from benchmark.config.json) ===
 
 export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp';
+export type SdkLanguage = 'typescript' | 'python' | 'rust';
 
 export interface BenchmarkConfig {
   name: string;                    // e.g. "fast-sdk", "my-mcp-tools"
@@ -31,7 +32,7 @@ export interface BenchmarkConfig {
 }
 
 export interface SdkSurfaceConfig {
-  language: string;                // e.g. "typescript"
+  language: SdkLanguage;
   style?: 'sdk';                   // defaults to 'sdk' if omitted
   // Optional: explicit API surface for coverage/hallucination reporting only.
   // If omitted, derived automatically from task expected_tools.

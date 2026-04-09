@@ -3,8 +3,8 @@
  * No test framework — uses simple assertion helpers.
  */
 
-import { createLLMClient } from '../src/llm/index.js';
-import type { LLMConfig, McpToolDefinition } from '../src/types.js';
+import { createLLMClient } from '../src/benchmark/llm/index.js';
+import type { LLMConfig, McpToolDefinition } from '../src/benchmark/types.js';
 
 // ---------------------------------------------------------------------------
 // Assertion helpers

@@ -1,0 +1,31 @@
+{
+  "tasks": [
+    {
+      "id": "mcp-balance",
+      "prompt": "Look up the balance for account alice.",
+      "expected_tools": [
+        {
+          "method": "vault_lookup",
+          "args": {
+            "accountId": "alice"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mcp-transfer",
+      "prompt": "Send 12 units from alice to bob with the memo rent.",
+      "expected_tools": [
+        {
+          "method": "vault_dispatch",
+          "args": {
+            "from": "alice",
+            "to": "bob",
+            "amount": 12,
+            "memo": "rent"
+          }
+        }
+      ]
+    }
+  ]
+}

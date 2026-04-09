@@ -1,14 +1,16 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { extractCodeBlock } from '../src/extractors/code-extractor.js';
-import { extractFromCode, extractAllFromCode } from '../src/extractors/code-analyzer.js';
-import { extract } from '../src/extractors/index.js';
-import { evaluateTask } from '../src/evaluator.js';
-import { computeCoverage } from '../src/coverage.js';
-import { initBenchmark } from '../src/init.js';
-import type { ExtractedCall, TaskDefinition, ModelConfig, BenchmarkConfig, LLMResponse } from '../src/types.js';
+import { extractCodeBlock } from '../src/benchmark/extractors/code-extractor.js';
+import { extractSdkCodeBlock } from '../src/benchmark/extractors/code-extractor.js';
+import { extractFromCode, extractAllFromCode } from '../src/benchmark/extractors/code-analyzer.js';
+import { extract } from '../src/benchmark/extractors/index.js';
+import { evaluateTask } from '../src/benchmark/evaluator.js';
+import { computeCoverage } from '../src/benchmark/coverage.js';
+import { initBenchmark } from '../src/benchmark/init.js';
+import { loadConfig } from '../src/benchmark/config.js';
+import type { ExtractedCall, TaskDefinition, ModelConfig, BenchmarkConfig, LLMResponse } from '../src/benchmark/types.js';
 
 // ── Test harness ───────────────────────────────────────────────────────────
 
@@ -89,6 +91,52 @@ await test('extractCodeBlock: returns null on non-ts block', () => {
   const md = "```python\nprint('hello')\n```";
   const result = extractCodeBlock(md);
   assertEqual(result, null, 'should return null for python code block');
+});
+
+await test('extractSdkCodeBlock: finds python block', () => {
+  const md = '```python\nclient = FastClient()\n```';
+  const result = extractSdkCodeBlock(md, 'python');
+  assertEqual(result, 'client = FastClient()', 'should extract python block content');
+});
+
+await test('extractSdkCodeBlock: finds rust block', () => {
+  const md = '```rust\nlet client = FastClient::new();\n```';
+  const result = extractSdkCodeBlock(md, 'rust');
+  assertEqual(result, 'let client = FastClient::new();', 'should extract rust block content');
+});
+
+await test('loadConfig: rejects unsupported sdk language', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-lang-'));
+  try {
+    const configPath = join(dir, 'benchmark.config.json');
+    writeFileSync(configPath, JSON.stringify({
+      name: 'bad-sdk',
+      surface: 'sdk',
+      sdk: { language: 'java' },
+      tasks: './tasks.json',
+      llm: {
+        baseUrl: 'https://example.com',
+        format: 'openai',
+        models: [{ id: 'test/model', name: 'Test Model', tier: 'flagship' }],
+      },
+    }, null, 2), 'utf-8');
+    writeFileSync(join(dir, 'tasks.json'), JSON.stringify({ tasks: [] }, null, 2), 'utf-8');
+
+    let threw = false;
+    try {
+      loadConfig(configPath);
+    } catch (error: any) {
+      threw = true;
+      assert(
+        error.message.includes('sdk.language'),
+        'error should mention sdk.language validation',
+      );
+    }
+
+    assert(threw, 'should reject unsupported sdk.language values');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // Group 2: extractFromCode (tree-sitter)
