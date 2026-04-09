@@ -8,6 +8,8 @@ const DEFAULT_STABILITY_WINDOW = 2;
 const DEFAULT_MIN_OVERALL_PASS_DELTA = 0.01;
 const DEFAULT_MAX_GENERATED = 10;
 const DEFAULT_TASK_SEED = 1;
+const DEFAULT_TASK_OUTPUT_DIR = '.skill-optimizer';
+const DEFAULT_REPORT_CONTEXT_MAX_BYTES = 16_000;
 
 export function loadOptimizeManifest(manifestPath: string): ResolvedOptimizeManifest {
   const resolvedManifestPath = resolve(manifestPath);
@@ -43,9 +45,15 @@ export function loadOptimizeManifest(manifestPath: string): ResolvedOptimizeMani
         enabled: parsed.optimizer?.taskGeneration?.enabled ?? false,
         maxGenerated: parsed.optimizer?.taskGeneration?.maxGenerated ?? DEFAULT_MAX_GENERATED,
         seed: parsed.optimizer?.taskGeneration?.seed ?? DEFAULT_TASK_SEED,
+        outputDir: resolve(baseDir, parsed.optimizer?.taskGeneration?.outputDir ?? DEFAULT_TASK_OUTPUT_DIR),
       },
     },
-    mutation: parsed.mutation,
+    mutation: parsed.mutation
+      ? {
+          ...parsed.mutation,
+          reportContextMaxBytes: parsed.mutation.reportContextMaxBytes ?? DEFAULT_REPORT_CONTEXT_MAX_BYTES,
+        }
+      : undefined,
   };
 }
 
@@ -62,8 +70,8 @@ function validateManifest(manifest: OptimizeManifest, manifestPath: string): voi
   if (!Array.isArray(manifest.targetRepo.allowedPaths) || manifest.targetRepo.allowedPaths.length === 0) {
     throw new Error(`Optimize manifest ${manifestPath}: "targetRepo.allowedPaths" must be a non-empty array`);
   }
-  if (!Array.isArray(manifest.targetRepo.validation) || manifest.targetRepo.validation.length === 0) {
-    throw new Error(`Optimize manifest ${manifestPath}: "targetRepo.validation" must be a non-empty array`);
+  if (!Array.isArray(manifest.targetRepo.validation)) {
+    throw new Error(`Optimize manifest ${manifestPath}: "targetRepo.validation" must be an array`);
   }
   if (manifest.targetRepo.requireCleanGit === false) {
     throw new Error(`Optimize manifest ${manifestPath}: "targetRepo.requireCleanGit" must remain true in v1`);
@@ -92,5 +100,18 @@ function validateManifest(manifest: OptimizeManifest, manifestPath: string): voi
   const seed = manifest.optimizer?.taskGeneration?.seed;
   if (seed !== undefined && (!Number.isInteger(seed) || seed < 0)) {
     throw new Error(`Optimize manifest ${manifestPath}: "optimizer.taskGeneration.seed" must be a non-negative integer`);
+  }
+
+  const outputDir = manifest.optimizer?.taskGeneration?.outputDir;
+  if (outputDir !== undefined && (typeof outputDir !== 'string' || outputDir.trim() === '')) {
+    throw new Error(`Optimize manifest ${manifestPath}: "optimizer.taskGeneration.outputDir" must be a non-empty string`);
+  }
+
+  const reportContextMaxBytes = manifest.mutation?.reportContextMaxBytes;
+  if (
+    reportContextMaxBytes !== undefined
+    && (!Number.isInteger(reportContextMaxBytes) || reportContextMaxBytes <= 0)
+  ) {
+    throw new Error(`Optimize manifest ${manifestPath}: "mutation.reportContextMaxBytes" must be a positive integer`);
   }
 }

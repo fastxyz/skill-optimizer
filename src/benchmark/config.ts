@@ -22,7 +22,7 @@ export function loadConfig(configPath?: string): { config: BenchmarkConfig; conf
   if (!existsSync(resolvedPath)) {
     throw new Error(
       `Config file not found: ${resolvedPath}\n` +
-      `Run 'skill-benchmark init' to create one, or specify --config <path>.`
+      `Run 'skill-optimizer init' to create one, or specify --config <path>.`
     );
   }
 
@@ -86,10 +86,12 @@ function validateConfig(config: BenchmarkConfig, path: string): void {
   if (!config.tasks) throw new Error(`Config ${path}: "tasks" path is required`);
 
   if (!config.llm) throw new Error(`Config ${path}: "llm" section is required`);
-  if (!config.llm.baseUrl) throw new Error(`Config ${path}: "llm.baseUrl" is required`);
-  if (!config.llm.format) throw new Error(`Config ${path}: "llm.format" is required ("openai" or "anthropic")`);
-  if (config.llm.format !== 'openai' && config.llm.format !== 'anthropic') {
-    throw new Error(`Config ${path}: "llm.format" must be "openai" or "anthropic", got "${config.llm.format}"`);
+  if (!config.llm.format) throw new Error(`Config ${path}: "llm.format" is required ("openai", "anthropic", or "pi")`);
+  if (config.llm.format !== 'openai' && config.llm.format !== 'anthropic' && config.llm.format !== 'pi') {
+    throw new Error(`Config ${path}: "llm.format" must be "openai", "anthropic", or "pi", got "${config.llm.format}"`);
+  }
+  if ((config.llm.format === 'openai' || config.llm.format === 'anthropic') && !config.llm.baseUrl) {
+    throw new Error(`Config ${path}: "llm.baseUrl" is required for ${config.llm.format} format`);
   }
   if (!config.llm.models || !Array.isArray(config.llm.models) || config.llm.models.length === 0) {
     throw new Error(`Config ${path}: "llm.models" must be a non-empty array`);

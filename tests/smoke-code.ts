@@ -106,7 +106,7 @@ await test('extractSdkCodeBlock: finds rust block', () => {
 });
 
 await test('loadConfig: rejects unsupported sdk language', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-lang-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-lang-'));
   try {
     const configPath = join(dir, 'benchmark.config.json');
     writeFileSync(configPath, JSON.stringify({
@@ -296,7 +296,7 @@ await test('extract factory dispatches surface=sdk', async () => {
 });
 
 await test('initBenchmark scaffolds sdk apiSurface', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-init-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
     initBenchmark(dir);
     const config = JSON.parse(readFileSync(join(dir, 'benchmark.config.json'), 'utf-8')) as {

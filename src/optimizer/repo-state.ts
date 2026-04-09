@@ -47,10 +47,10 @@ export function createRepoStateManager() {
 
       await git(targetRepo.path, ['add', '-A', '--', ...changedFiles]);
       await git(targetRepo.path, ['commit', '-m', buildIterationCommitMessage(candidate.summary)], {
-        GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME ?? 'skill-benchmark',
-        GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL ?? 'skill-benchmark@local',
-        GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME ?? process.env.GIT_AUTHOR_NAME ?? 'skill-benchmark',
-        GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL ?? process.env.GIT_AUTHOR_EMAIL ?? 'skill-benchmark@local',
+        GIT_AUTHOR_NAME: process.env.GIT_AUTHOR_NAME ?? 'skill-optimizer',
+        GIT_AUTHOR_EMAIL: process.env.GIT_AUTHOR_EMAIL ?? 'skill-optimizer@local',
+        GIT_COMMITTER_NAME: process.env.GIT_COMMITTER_NAME ?? process.env.GIT_AUTHOR_NAME ?? 'skill-optimizer',
+        GIT_COMMITTER_EMAIL: process.env.GIT_COMMITTER_EMAIL ?? process.env.GIT_AUTHOR_EMAIL ?? 'skill-optimizer@local',
       });
       const result = await git(targetRepo.path, ['rev-parse', 'HEAD']);
       return result.stdout.trim();

@@ -9,11 +9,12 @@ import { listMockRepoTemplates, materializeMockRepo } from './mock-repos.js';
 function printUsage(): void {
   console.log(`
 Usage:
-  tsx src/optimizer/materialize-mock-repo.ts <sdk-demo|cli-demo|mcp-demo> [destination-root]
+  tsx src/optimizer/materialize-mock-repo.ts <sdk-demo|cli-demo|mcp-demo|mcp-tracker-demo> [destination-root]
 
 Examples:
   tsx src/optimizer/materialize-mock-repo.ts sdk-demo
   tsx src/optimizer/materialize-mock-repo.ts cli-demo ./.tmp/mock-repos
+  tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo
 `);
 }
 
@@ -30,7 +31,7 @@ async function main(): Promise<void> {
 
   const destinationRoot = destinationRootArg
     ? resolve(destinationRootArg)
-    : mkdtempSync(join(tmpdir(), 'skill-benchmark-materialized-'));
+    : mkdtempSync(join(tmpdir(), 'skill-optimizer-materialized-'));
 
   const repoPath = await materializeMockRepo(name as never, destinationRoot);
   console.log(repoPath);

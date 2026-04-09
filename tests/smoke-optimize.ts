@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -132,6 +132,20 @@ function makeReport(overallPassRate: number, kinds: Array<'missing' | 'args' | '
   };
 }
 
+function makeBenchmarkRunResult(
+  report: BenchmarkReport,
+  opts: { outputDir: string; label: string },
+  persist = false,
+): { report: BenchmarkReport; reportPath: string } {
+  const reportDir = join(opts.outputDir, opts.label);
+  const reportPath = join(reportDir, 'report.json');
+  if (persist) {
+    mkdirSync(reportDir, { recursive: true });
+    writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf-8');
+  }
+  return { report, reportPath };
+}
+
 function makeManifest(): OptimizeManifest {
   return {
     benchmarkConfig: '/tmp/benchmark.config.json',
@@ -150,6 +164,7 @@ function makeManifest(): OptimizeManifest {
         enabled: false,
         maxGenerated: 10,
         seed: 1,
+        outputDir: '/tmp/skill-optimizer',
       },
     },
   };
@@ -158,7 +173,7 @@ function makeManifest(): OptimizeManifest {
 console.log('\n=== Optimizer Smoke Tests ===\n');
 
 await test('loadOptimizeManifest: applies defaults', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-optimize-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'optimize.config.json');
     writeFileSync(file, JSON.stringify({
@@ -176,13 +191,14 @@ await test('loadOptimizeManifest: applies defaults', () => {
     assertEqual(manifest.optimizer.stabilityWindow, 2, 'stabilityWindow default');
     assertEqual(manifest.optimizer.taskGeneration.enabled, false, 'taskGeneration.enabled default');
     assertEqual(manifest.optimizer.taskGeneration.maxGenerated, 10, 'taskGeneration.maxGenerated default');
+    assertEqual(manifest.optimizer.taskGeneration.outputDir, join(dir, '.skill-optimizer'), 'taskGeneration.outputDir default');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-await test('loadOptimizeManifest: rejects missing target validation commands', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-optimize-'));
+await test('loadOptimizeManifest: allows empty target validation commands', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'optimize.config.json');
     writeFileSync(file, JSON.stringify({
@@ -195,22 +211,15 @@ await test('loadOptimizeManifest: rejects missing target validation commands', (
       },
     }), 'utf-8');
 
-    let threw = false;
-    try {
-      loadOptimizeManifest(file);
-    } catch (error: any) {
-      threw = true;
-      assert(error.message.includes('validation'), 'error should mention validation');
-    }
-
-    assert(threw, 'should reject empty validation array');
+    const manifest = loadOptimizeManifest(file);
+    assertEqual(manifest.targetRepo.validation.length, 0, 'empty validation array should be preserved');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-optimize-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'optimize.config.json');
     writeFileSync(file, JSON.stringify({
@@ -239,7 +248,7 @@ await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
 });
 
 await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-optimize-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'optimize.config.json');
     writeFileSync(file, JSON.stringify({
@@ -258,7 +267,13 @@ await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () 
           enabled: false,
           maxGenerated: 0,
           seed: -1,
+          outputDir: '',
         },
+      },
+      mutation: {
+        provider: 'openai-codex',
+        model: 'gpt-5.4',
+        reportContextMaxBytes: 0,
       },
     }), 'utf-8');
 
@@ -266,9 +281,9 @@ await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () 
     try {
       loadOptimizeManifest(file);
     } catch (error: any) {
-      threw = true;
-      assert(
-        error.message.includes('maxIterations') || error.message.includes('stabilityWindow') || error.message.includes('minOverallPassDelta') || error.message.includes('maxGenerated') || error.message.includes('seed'),
+        threw = true;
+        assert(
+        error.message.includes('maxIterations') || error.message.includes('stabilityWindow') || error.message.includes('minOverallPassDelta') || error.message.includes('maxGenerated') || error.message.includes('seed') || error.message.includes('outputDir') || error.message.includes('reportContextMaxBytes'),
         'error should mention invalid optimizer numeric field',
       );
     }
@@ -297,9 +312,9 @@ await test('runOptimizeLoop: stops after max iterations', async () => {
   let runCount = 0;
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => {
+      run: async (_configPath, opts) => {
         runCount++;
-        return makeReport(0.4);
+        return makeBenchmarkRunResult(makeReport(0.4), opts);
       },
     },
     repo: {
@@ -346,7 +361,7 @@ await test('runOptimizeLoop: applies defaults to partially specified manifests',
   let index = 0;
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => makeReport(scores[Math.min(index++, scores.length - 1)]!),
+      run: async (_configPath, opts) => makeBenchmarkRunResult(makeReport(scores[Math.min(index++, scores.length - 1)]!), opts),
     },
     repo: {
       ensureReady: async () => 'clean',
@@ -375,7 +390,7 @@ await test('runOptimizeLoop: rejects requireCleanGit=false even for programmatic
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => makeReport(0.4),
+      run: async (_configPath, opts) => makeBenchmarkRunResult(makeReport(0.4), opts),
     },
     repo: {
       ensureReady: async () => 'clean',
@@ -415,7 +430,7 @@ await test('runOptimizeLoop: stops early when stable', async () => {
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => makeReport(scores[Math.min(index++, scores.length - 1)]!),
+      run: async (_configPath, opts) => makeBenchmarkRunResult(makeReport(scores[Math.min(index++, scores.length - 1)]!), opts),
     },
     repo: {
       ensureReady: async () => 'clean',
@@ -445,7 +460,7 @@ await test('runOptimizeLoop: rejects validation failures and restores checkpoint
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => makeReport(0.4),
+      run: async (_configPath, opts) => makeBenchmarkRunResult(makeReport(0.4), opts),
     },
     repo: {
       ensureReady: async () => 'clean',
@@ -476,9 +491,9 @@ await test('runOptimizeLoop: restores checkpoint when benchmark rerun throws aft
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => {
+      run: async (_configPath, opts) => {
         runCount += 1;
-        if (runCount === 1) return makeReport(0.4);
+        if (runCount === 1) return makeBenchmarkRunResult(makeReport(0.4), opts);
         throw new Error('rerun failed');
       },
     },
@@ -517,7 +532,7 @@ await test('runOptimizeLoop: restores checkpoint when mutation executor throws',
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => makeReport(0.4),
+      run: async (_configPath, opts) => makeBenchmarkRunResult(makeReport(0.4), opts),
     },
     repo: {
       ensureReady: async () => 'clean',
@@ -558,9 +573,9 @@ await test('runOptimizeLoop: rejects changes outside allowed paths', async () =>
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => {
+      run: async (_configPath, opts) => {
         runCount += 1;
-        return makeReport(0.4);
+        return makeBenchmarkRunResult(makeReport(0.4), opts);
       },
     },
     repo: {
@@ -596,9 +611,9 @@ await test('runOptimizeLoop: rejects validation side effects outside allowed pat
 
   const deps: OptimizeLoopDependencies = {
     benchmark: {
-      run: async () => {
+      run: async (_configPath, opts) => {
         benchmarkRuns += 1;
-        return makeReport(0.4);
+        return makeBenchmarkRunResult(makeReport(0.4), opts);
       },
     },
     repo: {
@@ -632,7 +647,7 @@ await test('runOptimizeLoop: rejects validation side effects outside allowed pat
 });
 
 await test('createJsonLedger: recovers from corrupted ledger file', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-ledger-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-ledger-'));
   try {
     const ledgerPath = join(dir, 'optimize-ledger.json');
     writeFileSync(ledgerPath, '{not-json', 'utf-8');
@@ -649,7 +664,7 @@ await test('createJsonLedger: recovers from corrupted ledger file', async () => 
 });
 
 await test('createRepoStateManager: commits accepted changes without git identity config', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-repo-state-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-repo-state-'));
   const previousHome = process.env.HOME;
   const previousGitConfigGlobal = process.env.GIT_CONFIG_GLOBAL;
   try {
@@ -708,7 +723,7 @@ await test('createRepoStateManager: commits accepted changes without git identit
 });
 
 await test('collectGitChangedFiles: includes unstaged, staged, and untracked files', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-optimize-git-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-git-'));
   try {
     execFileSync('git', ['init'], { cwd: dir, encoding: 'utf-8' });
     execFileSync('git', ['config', 'user.name', 'OpenCode'], { cwd: dir, encoding: 'utf-8' });

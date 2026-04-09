@@ -35,17 +35,18 @@ function assertEqual<T>(actual: T, expected: T, message: string) {
 
 console.log('\n=== Mock Repo Smoke Tests ===\n');
 
-await test('listMockRepoTemplates: exposes sdk, cli, and mcp demos', () => {
+await test('listMockRepoTemplates: exposes sdk, cli, mcp, and tracker demos', () => {
   const templates = listMockRepoTemplates();
-  assertEqual(templates.length, 3, 'should expose exactly 3 templates');
+  assertEqual(templates.length, 4, 'should expose exactly 4 templates');
   assert(templates.includes('sdk-demo'), 'should include sdk-demo');
   assert(templates.includes('cli-demo'), 'should include cli-demo');
   assert(templates.includes('mcp-demo'), 'should include mcp-demo');
+  assert(templates.includes('mcp-tracker-demo'), 'should include mcp-tracker-demo');
 });
 
-for (const name of ['sdk-demo', 'cli-demo', 'mcp-demo'] as const) {
+for (const name of ['sdk-demo', 'cli-demo', 'mcp-demo', 'mcp-tracker-demo'] as const) {
   await test(`materializeMockRepo: ${name} becomes a standalone git repo`, async () => {
-    const destRoot = mkdtempSync(join(tmpdir(), 'skill-benchmark-mock-'));
+    const destRoot = mkdtempSync(join(tmpdir(), 'skill-optimizer-mock-'));
     try {
       const materializedPath = await materializeMockRepo(name, destRoot);
       const benchmarkConfigPath = join(materializedPath, 'benchmark.config.json');
@@ -58,11 +59,28 @@ for (const name of ['sdk-demo', 'cli-demo', 'mcp-demo'] as const) {
       const { config: benchmarkConfig } = loadConfig(benchmarkConfigPath);
       assertEqual(benchmarkConfig.surface, name.startsWith('sdk') ? 'sdk' : name.startsWith('cli') ? 'cli' : 'mcp', 'surface should match template type');
 
-      const optimizeManifest = loadOptimizeManifest(optimizeConfigPath);
-      assertEqual(optimizeManifest.targetRepo.path, materializedPath, 'optimize target should point at the materialized repo');
+      if (name === 'mcp-tracker-demo') {
+        const optimizeConfigRaw = JSON.parse(readFileSync(optimizeConfigPath, 'utf-8')) as {
+          targetRepo?: { validation?: string[]; path?: string };
+          optimizer?: { taskGeneration?: { outputDir?: string } };
+        };
+        assert(Array.isArray(optimizeConfigRaw.targetRepo?.validation), 'tracker demo optimize config should define validation array');
+        assertEqual(optimizeConfigRaw.targetRepo?.validation?.length, 0, 'tracker demo should allow empty validation commands');
+        assertEqual(optimizeConfigRaw.targetRepo?.path, '.', 'tracker demo optimize config should keep path relative');
+        assertEqual(
+          optimizeConfigRaw.optimizer?.taskGeneration?.outputDir,
+          './.skill-optimizer',
+          'tracker demo should declare task generation output directory',
+        );
+        assert(existsSync(join(materializedPath, 'SKILL.md')), 'tracker demo should include SKILL.md');
+        assert(existsSync(join(materializedPath, 'tools.json')), 'tracker demo should include tools.json');
+      } else {
+        const optimizeManifest = loadOptimizeManifest(optimizeConfigPath);
+        assertEqual(optimizeManifest.targetRepo.path, materializedPath, 'optimize target should point at the materialized repo');
 
-      const validation = await createValidationRunner().run(optimizeManifest.targetRepo);
-      assert(validation.ok, 'materialized mock repo validation should pass');
+        const validation = await createValidationRunner().run(optimizeManifest.targetRepo);
+        assert(validation.ok, 'materialized mock repo validation should pass');
+      }
     } finally {
       rmSync(destRoot, { recursive: true, force: true });
     }
@@ -70,7 +88,7 @@ for (const name of ['sdk-demo', 'cli-demo', 'mcp-demo'] as const) {
 }
 
 await test('materializeMockRepo: replacing an existing destination stays deterministic', async () => {
-  const destRoot = mkdtempSync(join(tmpdir(), 'skill-benchmark-mock-'));
+  const destRoot = mkdtempSync(join(tmpdir(), 'skill-optimizer-mock-'));
   try {
     const materializedPath = await materializeMockRepo('sdk-demo', destRoot);
     const staleFilePath = join(materializedPath, 'stale.txt');

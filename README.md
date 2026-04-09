@@ -1,113 +1,107 @@
-# @fastxyz/skill-benchmark
+# skill-optimizer
 
-Surface-driven benchmark framework for testing whether LLMs can select the right actions from documentation and task prompts.
+Surface-driven benchmark and optimization framework for measuring whether LLMs choose the right SDK methods, CLI commands, or MCP tools from documentation and task prompts.
 
-The codebase is split into two layers:
+The repository has two layers:
 
-- `src/benchmark/*`: the core benchmark harness
-- `src/optimizer/*`: the sequential self-improvement loop built on top of the benchmark
+- `src/benchmark/*`: the benchmark harness that runs tasks, extracts actions, and scores results
+- `src/optimizer/*`: the sequential self-improvement loop that reruns the benchmark while mutating an allowed target repo
 
-The benchmark supports three primary surfaces:
+Key properties:
 
-- **sdk**: SDK usage in TypeScript, Python, or Rust
-- **cli**: shell command usage
-- **mcp**: structured tool-calling usage
+- Supports `sdk`, `cli`, and `mcp` evaluation surfaces
+- Uses static extraction and matching only; generated code and commands are not executed
+- Produces benchmark reports you can compare over time
+- Can optimize a target repo or skill file inside a constrained, checkpointed loop
 
-No generated code/commands are executed. Results are based on static extraction + matching.
+## Architecture
 
-## How It Works
+```mermaid
+flowchart LR
+    A[benchmark.config.json\ntasks.json\nSKILL.md] --> B[Prompt builder]
+    B --> C[Model call\nPi or direct provider]
+    C --> D[Surface extractor\nSDK code / CLI commands / MCP tool calls]
+    D --> E[Evaluator\nexpected_tools matching]
+    E --> F[Metrics + coverage\nreport.json + report.md]
+```
 
-1. Load benchmark config + tasks
-2. Build prompts for a selected surface (`sdk`, `cli`, or `mcp`)
-3. Send prompts to each configured model
-4. Extract actions from model output (SDK calls, CLI commands, or MCP tool calls)
-5. Compare extracted actions to `expected_tools` in each task
-6. Compute metrics (recall, precision, arg accuracy, hallucination rate, coverage)
+## Optimizer Loop
+
+```mermaid
+flowchart TD
+    A[Baseline benchmark] --> B[Bucket failures]
+    B --> C[Mutation agent edits allowed paths]
+    C --> D[Validation commands]
+    D --> E[Rerun benchmark]
+    E --> F{Meaningful improvement?}
+    F -- Yes --> G[Accept checkpoint]
+    F -- No --> H[Keep previous best]
+    G --> I{Stable or max iterations?}
+    H --> I
+    I -- No --> B
+    I -- Yes --> J[Best report + optimize ledger]
+```
 
 ## Surfaces
 
 | Surface | Config field | Expected model output | Transport |
 |---|---|---|---|
-| `sdk` | `surface: "sdk"` | One fenced code block matching `sdk.language` | Plain chat |
-| `cli` | `surface: "cli"` | One fenced `bash`/`sh` block with commands only | Plain chat |
-| `mcp` | `surface: "mcp"` | Tool calls only | Tool-calling chat |
+| `sdk` | `surface: "sdk"` | One fenced code block matching `sdk.language` | Pi or direct chat |
+| `cli` | `surface: "cli"` | One fenced `bash`/`sh` block with commands only | Pi or direct chat |
+| `mcp` | `surface: "mcp"` | Tool calls only | Pi or direct tool-calling chat |
 
 `cli` and `mcp` are implementation-language-agnostic. Only `sdk` cares about code language because the model output is parsed as source code.
 
+## How It Works
+
+1. Load the benchmark config, task set, and optional `skill.source` context.
+2. Build a surface-specific prompt contract for `sdk`, `cli`, or `mcp`.
+3. Send prompts to each configured model.
+4. Extract actions from model output.
+5. Compare those actions to `expected_tools` in each task.
+6. Compute benchmark metrics such as recall, precision, argument accuracy, hallucination rate, and coverage.
+
 ## Quick Start
 
+Install and scaffold a new benchmark:
+
 ```bash
-npm install @fastxyz/skill-benchmark
-npx skill-benchmark init
+npm install skill-optimizer
+npx skill-optimizer init
 ```
 
-Run:
+Run a benchmark:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
-npx skill-benchmark run
-npx skill-benchmark run --task send-data --model gpt-4-1
+npx skill-optimizer run
+npx skill-optimizer run --task send-data --model gpt-5-4
 ```
 
-Optimize a target repo sequentially:
+The default examples use `llm.format: "pi"`. For OpenRouter-backed benchmark requests, keep `OPENROUTER_API_KEY` set and use model ids like `openrouter/openai/gpt-5.4`. If you are running the optimizer interactively, the recommended path is Pi subscription auth via `pi /login`.
+
+## Running the Optimizer
+
+The optimizer expects a clean git repo for the target and only edits files listed in `targetRepo.allowedPaths`.
+
+For local testing, this repo currently includes `mock-repos/mcp-tracker-demo`, a richer MCP example that is designed to make `SKILL.md` quality matter.
+
+Materialize a standalone copy before running the optimizer so checkpointing stays isolated from the tracked template:
 
 ```bash
-tsx src/optimizer/materialize-mock-repo.ts sdk-demo ./.tmp/mock-repos
-tsx src/optimizer/main.ts ./.tmp/mock-repos/sdk-demo/optimize.config.json
+tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
+pi /login # choose OpenAI Codex / GPT-5.4 for the orchestrator
+tsx src/optimizer/main.ts ./.tmp/mock-repos/mcp-tracker-demo/optimize.config.json
 ```
 
-`optimize` runs a benchmark, diagnoses failures, asks a coding agent to mutate the target SDK/CLI/MCP repo, validates that repo, reruns the benchmark, and stops when results stabilize or `maxIterations` is reached. The default iteration cap is `5` and can be overridden with `--max-iterations`.
+Useful optimizer flags:
 
-`mock-repos/` contains three self-contained templates for manual testing:
-- `mock-repos/sdk-demo`
-- `mock-repos/cli-demo`
-- `mock-repos/mcp-demo`
+- `--max-iterations <n>`: override the manifest iteration cap
+- `--skip-generation`: disable task generation even if the manifest enables it
 
-Run the benchmark directly against a tracked mock repo:
+`optimize` runs a benchmark, diagnoses failures, asks a coding agent to mutate the target repo, validates the candidate, reruns the benchmark, and stops when results stabilize or `maxIterations` is reached. The default iteration cap is `5`.
 
-```bash
-npx skill-benchmark run --config mock-repos/sdk-demo/benchmark.config.json
-```
-
-Run the optimizer against a materialized standalone copy so git checkpointing stays isolated from the main repository:
-
-```bash
-tsx src/optimizer/materialize-mock-repo.ts sdk-demo ./.tmp/mock-repos
-tsx src/optimizer/main.ts ./.tmp/mock-repos/sdk-demo/optimize.config.json
-```
-
-Example `optimize.config.json`:
-
-```json
-{
-  "benchmarkConfig": "./benchmark.config.json",
-  "targetRepo": {
-    "path": ".",
-    "surface": "sdk",
-    "allowedPaths": ["src", "docs", "examples", "README.md"],
-    "validation": ["node ./scripts/validate.mjs"],
-    "requireCleanGit": true
-  },
-  "optimizer": {
-    "maxIterations": 5,
-    "stabilityWindow": 2,
-    "minOverallPassDelta": 0.01,
-    "taskGeneration": {
-      "enabled": false,
-      "maxGenerated": 10,
-      "seed": 1
-    }
-  },
-  "mutation": {
-    "provider": "openai",
-    "model": "gpt-4o",
-    "thinkingLevel": "medium",
-    "apiKeyEnv": "OPENAI_API_KEY"
-  }
-}
-```
-
-## Configuration
+## Benchmark Configuration
 
 ### SDK Surface
 
@@ -125,11 +119,10 @@ Example `optimize.config.json`:
   },
   "tasks": "./tasks.json",
   "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
     "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
+    "format": "pi",
     "models": [
-      { "id": "openai/gpt-4.1", "name": "GPT-4.1", "tier": "flagship" }
+      { "id": "openrouter/openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
     ]
   }
 }
@@ -141,7 +134,7 @@ Supported `sdk.language` values:
 |---|---|---|
 | `typescript` | `typescript` / `ts` | Best-covered SDK language in the current harness |
 | `python` | `python` / `py` | Supports constructors, bound methods, keyword args, lists, and dict literals |
-| `rust` | `rust` / `rs` | Supports associated functions, bound methods, and struct-literal args; complex macros/builder chains still degrade to dynamic values |
+| `rust` | `rust` / `rs` | Supports associated functions, bound methods, and struct-literal args; complex macros and builder chains degrade to dynamic values |
 
 Python SDK example:
 
@@ -155,11 +148,10 @@ Python SDK example:
   },
   "tasks": "./tasks.json",
   "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
     "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
+    "format": "pi",
     "models": [
-      { "id": "openai/gpt-4.1", "name": "GPT-4.1", "tier": "flagship" }
+      { "id": "openrouter/openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
     ]
   }
 }
@@ -177,11 +169,10 @@ Rust SDK example:
   },
   "tasks": "./tasks.json",
   "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
     "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
+    "format": "pi",
     "models": [
-      { "id": "openai/gpt-4.1", "name": "GPT-4.1", "tier": "flagship" }
+      { "id": "openrouter/openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
     ]
   }
 }
@@ -201,11 +192,10 @@ Rust SDK example:
   },
   "tasks": "./tasks-cli.json",
   "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
     "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
+    "format": "pi",
     "models": [
-      { "id": "openai/gpt-4.1-mini", "name": "GPT-4.1 Mini", "tier": "mid" }
+      { "id": "openrouter/openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
     ]
   }
 }
@@ -244,29 +234,61 @@ Example `commands.json`:
   },
   "tasks": "./tasks-mcp.json",
   "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
     "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
+    "format": "pi",
     "models": [
-      { "id": "openai/gpt-4.1", "name": "GPT-4.1", "tier": "flagship" }
+      { "id": "openrouter/openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
     ]
+  }
+}
+```
+
+### Optimize Manifest
+
+```json
+{
+  "benchmarkConfig": "./benchmark.config.json",
+  "targetRepo": {
+    "path": ".",
+    "surface": "sdk",
+    "allowedPaths": ["src", "docs", "examples", "README.md"],
+    "validation": ["node ./scripts/validate.mjs"],
+    "requireCleanGit": true
+  },
+  "optimizer": {
+    "maxIterations": 5,
+    "stabilityWindow": 2,
+    "minOverallPassDelta": 0.01,
+    "taskGeneration": {
+      "enabled": false,
+      "maxGenerated": 10,
+      "seed": 1,
+      "outputDir": "./.skill-optimizer"
+    }
+  },
+  "mutation": {
+    "provider": "openrouter",
+    "model": "openai/gpt-5.4",
+    "thinkingLevel": "medium",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "reportContextMaxBytes": 16000
   }
 }
 ```
 
 ## `skill.source` Behavior
 
-`skill.source` is optional **guidance context**. It is included in prompts as reference context; it is not itself the evaluation target format.
+`skill.source` is optional guidance context. It is included in prompts as reference material; it is not itself the evaluation target format.
 
 Supported formats:
 
 - `github:org/repo/path/to/SKILL.md`
-- local file path (e.g. `./SKILL.md`)
-- URL (e.g. `https://example.com/skill.md`)
+- local file path such as `./SKILL.md`
+- URL such as `https://example.com/skill.md`
 
 ## Tasks
 
-Tasks are surface-agnostic and always use `expected_tools` for expected action names + args.
+Tasks are surface-agnostic and always use `expected_tools` for expected action names and arguments.
 
 ```json
 {
@@ -285,9 +307,9 @@ Tasks are surface-agnostic and always use `expected_tools` for expected action n
 ## CLI Reference
 
 ```text
-skill-benchmark init
-skill-benchmark run [options]
-skill-benchmark compare [options]
+skill-optimizer init
+skill-optimizer run [options]
+skill-optimizer compare [options]
 ```
 
 Run options:
@@ -295,16 +317,21 @@ Run options:
 - `--config <path>`
 - `--tier <flagship|mid|low>`
 - `--task <task-id>`
-- `--model <model-slug>`
+- `--model <slug>`
 - `--no-cache`
+
+Compare options:
+
+- `--baseline <path>`
+- `--current <path>`
 
 ## Metrics
 
 - **Tool Recall**: expected actions found / expected actions
 - **Tool Precision**: matched actions / extracted known actions
-- **Tool Selection Accuracy**: expected action names found (args ignored)
-- **Argument Accuracy**: argument correctness when action name matched
-- **Task Pass Rate**: all expected actions + args must match
+- **Tool Selection Accuracy**: expected action names found, ignoring arguments
+- **Argument Accuracy**: argument correctness when the action name matched
+- **Task Pass Rate**: all expected actions and args matched
 - **Hallucination Rate**: surface-aware unknown action rate
 - **Coverage**: known surface actions represented by tasks
 
@@ -314,14 +341,39 @@ Run options:
 src/
   cli.ts                CLI entrypoint
   benchmark/
-    runner.ts           Surface-driven execution loop
+    runner.ts           Surface-driven benchmark execution loop
     prompts.ts          Surface prompt contracts (sdk/cli/mcp)
-    evaluator.ts        Matching + surface-aware hallucination logic
-    reporter.ts         Markdown + console reporting
-    config.ts           Config/task/tool/command loading
+    evaluator.ts        Matching and surface-aware hallucination logic
+    reporter.ts         Markdown and console reporting
+    compare.ts          Report-to-report diffing
+    init.ts             Config and task scaffolding
+    llm/                Provider adapters and transports
     extractors/         Surface extractors and SDK language adapters
-    llm/                Provider adapters + transports
   optimizer/
+    main.ts             Optimizer CLI entrypoint
     loop.ts             Sequential benchmark-driven improvement loop
-    manifest.ts         Optimizer manifest loading/validation
+    manifest.ts         Optimizer manifest loading and validation
+    mock-repos.ts       Template materialization helpers
+    mutation/           Mutation execution and report context helpers
 ```
+
+## Local Development
+
+```bash
+npm run build
+npm run typecheck
+npm test
+```
+
+To inspect the CLI locally:
+
+```bash
+npx tsx src/cli.ts --help
+```
+
+## Notes
+
+- Reports are written under `benchmark-results/` by default unless `output.dir` overrides that location.
+- The optimizer records its run ledger under the configured task-generation output directory.
+- `llm.format` supports `pi`, `openai`, and `anthropic`, but the examples in this repo are centered on the Pi flow.
+- Keep benchmark docs aligned with the actual CLI and config shape; stale examples are easy to cargo-cult into downstream repos.

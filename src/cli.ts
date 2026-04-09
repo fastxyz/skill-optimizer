@@ -2,6 +2,9 @@
 
 import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { config as loadDotenv } from 'dotenv';
+
+loadDotenv({ override: true });
 
 import type { Tier } from './benchmark/types.js';
 import { runBenchmark } from './benchmark/runner.js';
@@ -53,12 +56,12 @@ function positionals(args: string[]): string[] {
 
 function printUsage(): void {
   console.log(`
-Skill Benchmark CLI — Test SDK/CLI/MCP guidance quality
+Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
-  skill-benchmark init                          Scaffold config and example tasks
-  skill-benchmark run [options]                 Run the benchmark
-  skill-benchmark compare [options]             Compare two benchmark reports
+  skill-optimizer init                          Scaffold config and example tasks
+  skill-optimizer run [options]                 Run the benchmark
+  skill-optimizer compare [options]             Compare two benchmark reports
 
 Run options:
   --config <path>                               Config file (default: benchmark.config.json)
@@ -72,14 +75,14 @@ Compare options:
   --current <path>                              Path to current report.json
 
 Examples:
-  skill-benchmark init
-  skill-benchmark run
-  skill-benchmark run --config ./my-config.json
-  skill-benchmark run --tier flagship
-  skill-benchmark run --task send-tokens
-  skill-benchmark run --model gpt-4o
-  skill-benchmark run --no-cache
-  skill-benchmark compare --baseline results/old/report.json --current results/report.json
+  skill-optimizer init
+  skill-optimizer run
+  skill-optimizer run --config ./my-config.json
+  skill-optimizer run --tier flagship
+  skill-optimizer run --task send-tokens
+  skill-optimizer run --model gpt-4o
+  skill-optimizer run --no-cache
+  skill-optimizer compare --baseline results/old/report.json --current results/report.json
 `);
 }
 
@@ -110,12 +113,12 @@ async function main(): Promise<void> {
 
     if (!baselinePath) {
       console.error('ERROR: --baseline <path> is required for compare mode.');
-      console.error('  Example: skill-benchmark compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
       process.exit(1);
     }
     if (!currentPath) {
       console.error('ERROR: --current <path> is required for compare mode.');
-      console.error('  Example: skill-benchmark compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
       process.exit(1);
     }
 

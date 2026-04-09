@@ -31,12 +31,11 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
       },
       tasks: "./tasks.json",
       llm: {
-        baseUrl: "https://openrouter.ai/api/v1",
         apiKeyEnv: "OPENROUTER_API_KEY",
-        format: "openai",
+        format: "pi",
         timeout: 240000,
         models: [
-          { id: "openai/gpt-4o", name: "GPT-4o", tier: "flagship" },
+          { id: "openrouter/openai/gpt-5.4", name: "GPT-5.4", tier: "flagship" },
           { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", tier: "mid" }
         ]
       },
@@ -126,5 +125,5 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
   console.log('  1. Edit benchmark.config.json with your surface (sdk/cli/mcp) details');
   console.log('     For SDK benchmarks, set sdk.language to typescript, python, or rust.');
   console.log('  2. Edit tasks.json with your test cases');
-  console.log('  3. Run: npx skill-benchmark run');
+  console.log('  3. Run: npx skill-optimizer run');
 }

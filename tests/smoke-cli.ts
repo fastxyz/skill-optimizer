@@ -199,7 +199,7 @@ await test('extract factory dispatches surface=cli', async () => {
 });
 
 await test('loadCliCommands: accepts flat command schema', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-cli-'));
   try {
     const file = join(dir, 'commands.json');
     writeFileSync(file, JSON.stringify([
@@ -218,7 +218,7 @@ await test('loadCliCommands: accepts flat command schema', () => {
 });
 
 await test('loadCliCommands: rejects entries without command', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-cli-'));
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-cli-'));
   try {
     const file = join(dir, 'commands.json');
     writeFileSync(file, JSON.stringify([
