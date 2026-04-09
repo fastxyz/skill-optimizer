@@ -47,7 +47,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
     lines.push(`**Fetched At:** ${skillVersion.fetchedAt}`);
   }
   if (report.config) {
-    lines.push(`**Benchmark:** ${report.config.name} (mode: ${report.config.mode})`);
+    lines.push(`**Benchmark:** ${report.config.name} (surface: ${report.config.surface})`);
   }
   lines.push('');
 
@@ -61,7 +61,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
   lines.push(`| Total Evaluations | ${summary.totalEvaluations} |`);
   lines.push(`| Overall Pass Rate | ${pct(summary.overallPassRate)} |`);
   lines.push(`| Avg Recall | ${fixed2(summary.avgToolRecall)} |`);
-  lines.push(`| Method Coverage | ${pct(summary.methodCoveragePercent)} |`);
+  lines.push(`| Action Coverage | ${pct(summary.methodCoveragePercent)} |`);
   lines.push('');
 
   // 3. Per-model results table
@@ -130,10 +130,10 @@ export function generateMarkdown(report: BenchmarkReport): string {
   }
   lines.push('');
 
-  // 6. Method Coverage table
-  lines.push('## Method Coverage');
+  // 6. Known-action coverage table
+  lines.push('## Known Action Coverage');
   lines.push('');
-  lines.push('| Method | Covered | Tasks |');
+  lines.push('| Action | Covered | Tasks |');
   lines.push('|--------|---------|-------|');
   for (const mc of coverage) {
     const icon = mc.covered ? '✔' : '✘';
@@ -161,7 +161,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
     lines.push(`**Prompt:** ${firstResult.task.prompt}`);
     lines.push('');
     lines.push(
-      `**Expected Tools:** ${firstResult.task.expected_tools.map(t => `\`${t.method}\``).join(', ')}`,
+      `**Expected Actions:** ${firstResult.task.expected_tools.map(t => `\`${t.method}\``).join(', ')}`,
     );
     lines.push('');
     lines.push('| Model | Status | Recall | Latency |');
@@ -186,6 +186,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
  */
 export function printSummary(report: BenchmarkReport): void {
   const { summary, results } = report;
+  const surface = report.config?.surface ?? 'unknown';
 
   // Collect model display info
   const modelNameMap = new Map<string, string>();
@@ -212,7 +213,7 @@ export function printSummary(report: BenchmarkReport): void {
     '─'.repeat(COL_RECALL + 2) +
     '+';
 
-  console.log('\nSkill Benchmark — Task-Based Agent Evaluation');
+  console.log(`\nSkill Benchmark — Surface-Based SDK/CLI/MCP Evaluation (surface: ${surface})`);
   console.log(divider);
   console.log(
     '| ' +

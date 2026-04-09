@@ -3,9 +3,9 @@ import { chatOpenAI, chatWithToolsOpenAI, chatAgentLoopOpenAI } from './openai-f
 import { chatAnthropic, chatWithToolsAnthropic, chatAgentLoopAnthropic } from './anthropic-format.js';
 
 export interface LLMClient {
-  /** Regular chat — LLM returns text (code mode) */
+  /** Regular chat — LLM returns text output (SDK/CLI surfaces) */
   chat(modelId: string, system: string, user: string): Promise<LLMResponse>;
-  /** Chat with tools — LLM returns structured tool_calls (MCP mode) */
+  /** Chat with tools — LLM returns structured tool_calls (MCP surface) */
   chatWithTools(modelId: string, system: string, user: string, tools: McpToolDefinition[]): Promise<LLMResponse>;
   /** Agentic multi-turn loop — LLM can call tools and receive results across multiple turns */
   chatAgentLoop(

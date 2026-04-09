@@ -33,39 +33,6 @@
           }
         }
       ]
-    },
-    {
-      "id": "deposit-large-amount",
-      "prompt": "Please bridge 500 USDC from Arbitrum Sepolia to fast1r8u3i6o1p4a7s9d2f5g8h3j6k1l4z7x9c2v5b8n3m6q1w4e7r9t2y5u.",
-      "expected_fetches": ["references/allset-sdk.md"],
-      "expected_tools": [
-        { "method": "createEvmWallet" },
-        { "method": "createEvmExecutor" },
-        { "method": "AllSetProvider.constructor" },
-        {
-          "method": "AllSetProvider.sendToFast",
-          "args": {
-            "token": "USDC",
-            "to": "fast1r8u3i6o1p4a7s9d2f5g8h3j6k1l4z7x9c2v5b8n3m6q1w4e7r9t2y5u"
-          }
-        }
-      ]
-    },
-    {
-      "id": "withdraw-to-different-address",
-      "prompt": "Please move 10 fastUSDC from my FAST wallet to 0x5B8c2D1e4F7a9C3d6E2f1A8b4C7d9E5f2A6b3C1d on Arbitrum Sepolia.",
-      "expected_fetches": ["references/allset-sdk.md"],
-      "expected_tools": [
-        { "method": "FastProvider.constructor" },
-        { "method": "FastWallet.fromKeyfile" },
-        { "method": "AllSetProvider.constructor" },
-        {
-          "method": "AllSetProvider.sendToExternal",
-          "args": {
-            "to": "0x5B8c2D1e4F7a9C3d6E2f1A8b4C7d9E5f2A6b3C1d"
-          }
-        }
-      ]
     }
   ]
 }

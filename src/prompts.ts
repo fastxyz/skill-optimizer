@@ -1,12 +1,11 @@
 import type { FetchedSkill, TaskDefinition } from './types.js';
 
-export type PromptMode = 'code' | 'mcp';
-export type CodeStyle = 'sdk';
+export type PromptSurface = 'sdk' | 'cli' | 'mcp';
 
 export interface PromptOptions {
-  mode: PromptMode;
-  style?: CodeStyle; // only used when mode === 'code'
+  surface: PromptSurface;
   agentic?: boolean;
+  shell?: 'bash' | 'sh';
 }
 
 /**
@@ -14,58 +13,46 @@ export interface PromptOptions {
  *
  * @param skill - The fetched skill documentation (may be null if no skill configured)
  * @param sdkName - The name of the SDK/tool set from config
- * @param styleOrOptions - Either a CodeStyle string (backward compat) or a PromptOptions object
+ * @param options - Prompt options
  */
 export function buildSystemPrompt(
   skill: FetchedSkill | null,
   sdkName: string,
-  styleOrOptions: CodeStyle | PromptOptions = 'sdk',
+  options: PromptOptions,
 ): string {
-  const opts: PromptOptions =
-    typeof styleOrOptions === 'string'
-      ? { mode: 'code', style: styleOrOptions }
-      : styleOrOptions;
+  const guidanceSection = skill
+    ? `\n\nOptional guidance context (SKILL.md):\n--- GUIDANCE ---\n${skill.content}\n--- END GUIDANCE ---`
+    : '';
 
-  // ── MCP mode ──────────────────────────────────────────────────────────
-  if (opts.mode === 'mcp') {
-    const skillSection = skill
-      ? `\n\nIf the documentation below provides additional context about parameters, refer to it:\n\n--- DOCUMENTATION ---\n${skill.content}\n--- END DOCUMENTATION ---`
-      : '';
-
+  if (options.surface === 'mcp') {
     return (
-      `You are a helpful assistant with access to tools. The user will ask you to accomplish tasks using ${sdkName}.\n` +
-      `Use the provided tools to accomplish each task. Call the appropriate tool(s) with the correct arguments.\n` +
-      `Do NOT write code. Do NOT invent tools that are not provided. Only use the tools available to you.\n` +
-      `If multiple steps are needed, call multiple tools in sequence.` +
-      skillSection
+      `You are a helpful assistant with access to tools for ${sdkName}.\n` +
+      `Use the provided tools to complete the task.\n` +
+      `Output must be tool calls only. Do not include code blocks or prose explanations.\n` +
+      `Never invent tool names that are not available.` +
+      guidanceSection
     );
   }
 
-  // ── Code mode (sdk) ───────────────────────────────────────────────────
-  const style = opts.style ?? 'sdk';
-
-  if (!skill) {
-    return `You are a helpful coding assistant. Write clean, working code.`;
-  }
-
-  let formatInstruction: string;
-  switch (style) {
-    case 'sdk':
-    default:
-      formatInstruction =
-        `Respond with a single TypeScript code block.\n` +
-        `Use only the SDK methods from the documentation. Do not invent methods or APIs.`;
-      break;
+  if (options.surface === 'cli') {
+    const shell = options.shell ?? 'bash';
+    return (
+      `You are a command-line assistant for ${sdkName}.\n` +
+      `Respond with exactly one fenced code block tagged ${shell}.\n` +
+      `The block must contain commands only (no comments, no explanations, no surrounding prose).\n` +
+      `Use only commands documented in the provided context.` +
+      guidanceSection
+    );
   }
 
   return (
-    `You are an expert developer. The user will ask you to accomplish tasks using ${sdkName}.\n` +
-    `Use ONLY the documentation below.\n` +
-    (opts.agentic
-      ? `A \`web_fetch\` tool is available if you need to retrieve additional documentation referenced by the skill.\n`
+    `You are an expert developer using ${sdkName}.\n` +
+    `Respond with exactly one fenced TypeScript code block.\n` +
+    `Use SDK APIs only; do not invent SDK classes or methods.\n` +
+    (options.agentic
+      ? `A \`web_fetch\` tool is available for additional documentation lookup when needed.\n`
       : '') +
-    `${formatInstruction}\n\n` +
-    `--- DOCUMENTATION ---\n${skill.content}\n--- END DOCUMENTATION ---`
+    guidanceSection
   );
 }
 
@@ -73,42 +60,31 @@ export function buildSystemPrompt(
  * Build the user prompt for a specific task.
  *
  * @param task - The task definition
- * @param styleOrOptions - Either a CodeStyle string (backward compat) or a PromptOptions object
+ * @param options - Prompt options
  */
 export function buildTaskPrompt(
   task: TaskDefinition,
-  styleOrOptions: CodeStyle | PromptOptions = 'sdk',
+  options: PromptOptions,
 ): string {
-  const opts: PromptOptions =
-    typeof styleOrOptions === 'string'
-      ? { mode: 'code', style: styleOrOptions }
-      : styleOrOptions;
-
-  // ── MCP mode ──────────────────────────────────────────────────────────
-  if (opts.mode === 'mcp') {
+  if (options.surface === 'mcp') {
     return (
       `Task: ${task.prompt}\n\n` +
-      `Use the provided tools to accomplish this task. Call the correct tool(s) with the appropriate arguments. ` +
-      `Do not write code — only make tool calls.`
+      `Use only tool calls to complete this task. Do not write code.`
     );
   }
 
-  // ── Code mode (sdk) ───────────────────────────────────────────────────
-  const style = opts.style ?? 'sdk';
-
-  let outputInstruction: string;
-  switch (style) {
-    case 'sdk':
-    default:
-      outputInstruction =
-        `Write a complete, runnable TypeScript script that accomplishes this task. ` +
-        `Use only the SDK/API from the documentation provided. ` +
-        (opts.agentic
-          ? `Use any available documentation tools as needed. `
-          : '') +
-        `Include all necessary imports and wrap in an async main function if needed.`;
-      break;
+  if (options.surface === 'cli') {
+    const shell = options.shell ?? 'bash';
+    return (
+      `Task: ${task.prompt}\n\n` +
+      `Return exactly one fenced ${shell} block with commands only. No prose.`
+    );
   }
 
-  return `Task: ${task.prompt}\n\n${outputInstruction}`;
+  return (
+    `Task: ${task.prompt}\n\n` +
+    `Write a complete TypeScript solution in a single fenced code block. ` +
+    `Use only the documented SDK APIs. ` +
+    (options.agentic ? 'Use available documentation tools if needed. ' : '')
+  );
 }

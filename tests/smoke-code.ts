@@ -1,8 +1,14 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
 import { extractCodeBlock } from '../src/extractors/code-extractor.js';
 import { extractFromCode, extractAllFromCode } from '../src/extractors/code-analyzer.js';
+import { extract } from '../src/extractors/index.js';
 import { evaluateTask } from '../src/evaluator.js';
 import { computeCoverage } from '../src/coverage.js';
-import type { ExtractedCall, TaskDefinition, ModelConfig } from '../src/types.js';
+import { initBenchmark } from '../src/init.js';
+import type { ExtractedCall, TaskDefinition, ModelConfig, BenchmarkConfig, LLMResponse } from '../src/types.js';
 
 // ── Test harness ───────────────────────────────────────────────────────────
 
@@ -56,7 +62,7 @@ function makeCall(method: string, args: Record<string, unknown> = {}): Extracted
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-console.log('\n=== Code Mode Smoke Tests ===\n');
+console.log('\n=== SDK Surface Smoke Tests ===\n');
 
 // Group 1: extractCodeBlock
 
@@ -217,6 +223,48 @@ await test('extractFromCode: resolves identifier-backed nested arguments', async
   assertEqual((wallet[1] as Record<string, unknown>).type as string, 'evm', 'wallet[1].type arg');
 });
 
+await test('extract factory dispatches surface=sdk', async () => {
+  const config: BenchmarkConfig = {
+    name: 'test-sdk',
+    surface: 'sdk',
+    sdk: { language: 'typescript' },
+    tasks: 'tasks.json',
+    llm: {
+      baseUrl: '',
+      apiKeyEnv: 'OPENROUTER_API_KEY',
+      format: 'openai',
+      models: [],
+    },
+  };
+
+  const response: LLMResponse = {
+    content: '```ts\nconst provider = new FastProvider("testnet");\n```',
+  };
+
+  const { calls, generatedCode } = await extract(response, config);
+  assertEqual(generatedCode, 'const provider = new FastProvider("testnet");', 'should preserve extracted TypeScript block');
+  assertEqual(calls.length, 1, 'one call expected');
+  assertEqual(calls[0].method, 'FastProvider.constructor', 'method should be parsed');
+});
+
+await test('initBenchmark scaffolds sdk apiSurface', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-benchmark-init-'));
+  try {
+    initBenchmark(dir);
+    const config = JSON.parse(readFileSync(join(dir, 'benchmark.config.json'), 'utf-8')) as {
+      surface: string;
+      sdk: { apiSurface?: string[]; methods?: string[] };
+    };
+
+    assertEqual(config.surface, 'sdk', 'scaffold should default to sdk surface');
+    assert(Array.isArray(config.sdk.apiSurface), 'scaffold should emit sdk.apiSurface');
+    assert(config.sdk.apiSurface!.length > 0, 'scaffold apiSurface should contain entries');
+    assertEqual(config.sdk.methods, undefined, 'scaffold should not emit deprecated sdk.methods');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // Group 3: evaluateTask
 
 await test('evaluateTask: perfect match → taskPassed=true', () => {
@@ -228,6 +276,7 @@ await test('evaluateTask: perfect match → taskPassed=true', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -249,6 +298,7 @@ await test('evaluateTask: hallucinated method → hallucinationRate > 0', () => 
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -269,6 +319,7 @@ await test('evaluateTask: missing expected method → taskPassed=false', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -310,6 +361,7 @@ await test('evaluateTask: nested expected args match recursively', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -346,6 +398,7 @@ await test('evaluateTask: nested expected args fail when nested field differs', 
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -438,6 +491,7 @@ await test('evaluateTask: resolves raw calls via bindings + task expectations', 
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -467,6 +521,7 @@ await test('evaluateTask: resolves constructor-based bindings', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,

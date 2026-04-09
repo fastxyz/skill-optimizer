@@ -1,7 +1,7 @@
 {
   "name": "fast-sdk",
-  "mode": "code",
-  "code": {
+  "surface": "sdk",
+  "sdk": {
     "language": "typescript"
   },
   "skill": {

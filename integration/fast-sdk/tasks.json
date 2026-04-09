@@ -11,16 +11,6 @@
       ]
     },
     {
-      "id": "check-token-balance",
-      "prompt": "Please check my testUSDC balance on testnet.",
-      "expected_fetches": ["references/fast-sdk.md"],
-      "expected_tools": [
-        { "method": "FastProvider.constructor" },
-        { "method": "FastWallet.fromKeyfile" },
-        { "method": "FastWallet.balance", "args": { "_positional_0": "/testUSDC|USDC/" } }
-      ]
-    },
-    {
       "id": "send-tokens",
       "prompt": "Please send 10.5 FAST on testnet to fast1p4n8x2m6q9r3t7v5y2u8i4o6p9a3s7d2f5g8h1j4k7l2z5x8c3v6b9n1m4q.",
       "expected_fetches": ["references/fast-sdk.md"],
@@ -32,23 +22,6 @@
           "args": {
             "to": "fast1p4n8x2m6q9r3t7v5y2u8i4o6p9a3s7d2f5g8h1j4k7l2z5x8c3v6b9n1m4q",
             "amount": "10.5"
-          }
-        }
-      ]
-    },
-    {
-      "id": "send-custom-token",
-      "prompt": "Please send 50 testUSDC on testnet to fast1k4t8y2u6i9o3p5a7s2d4f8g1h6j9k3l5z7x2c4v8b1n6m9q3w5e2r7t.",
-      "expected_fetches": ["references/fast-sdk.md"],
-      "expected_tools": [
-        { "method": "FastProvider.constructor" },
-        { "method": "FastWallet.fromKeyfile" },
-        {
-          "method": "FastWallet.send",
-          "args": {
-            "to": "fast1k4t8y2u6i9o3p5a7s2d4f8g1h6j9k3l5z7x2c4v8b1n6m9q3w5e2r7t",
-            "amount": "50",
-            "token": "/testUSDC|USDC/"
           }
         }
       ]

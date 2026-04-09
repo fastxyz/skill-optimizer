@@ -15,11 +15,11 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
   } else {
     const config = {
       name: "my-sdk",
-      mode: "code",
-      code: {
+      surface: "sdk",
+      sdk: {
         language: "typescript",
         classes: ["MyClient"],
-        methods: [
+        apiSurface: [
           "MyClient.constructor",
           "MyClient.getData",
           "MyClient.sendData"
@@ -83,7 +83,7 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
     console.log(`[init] Created ${tasksPath}`);
   }
 
-  // tools.json (MCP mode example)
+  // tools.json (MCP surface example)
   if (existsSync(toolsPath)) {
     console.log(`[init] Skipping ${toolsPath} (already exists)`);
   } else {
@@ -119,11 +119,11 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
       }
     ];
     writeFileSync(toolsPath, JSON.stringify(tools, null, 2) + '\n', 'utf-8');
-    console.log(`[init] Created ${toolsPath} (MCP mode example)`);
+    console.log(`[init] Created ${toolsPath} (MCP surface example)`);
   }
 
   console.log('\n[init] Done! Next steps:');
-  console.log('  1. Edit benchmark.config.json with your SDK/tool details');
+  console.log('  1. Edit benchmark.config.json with your surface (sdk/cli/mcp) details');
   console.log('  2. Edit tasks.json with your test cases');
   console.log('  3. Run: npx skill-benchmark run');
 }

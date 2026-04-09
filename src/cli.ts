@@ -53,7 +53,7 @@ function positionals(args: string[]): string[] {
 
 function printUsage(): void {
   console.log(`
-Skill Benchmark CLI — Test SDK/MCP skill documentation quality
+Skill Benchmark CLI — Test SDK/CLI/MCP guidance quality
 
 Usage:
   skill-benchmark init                          Scaffold config and example tasks
@@ -175,7 +175,7 @@ async function main(): Promise<void> {
 
   // Determine output dir — resolve relative to the config file's directory (matching the runner)
   const configFileDir = options.configPath ? dirname(resolve(options.configPath)) : process.cwd();
-  const reportConfig = report.config as { name: string; mode: string; outputDir?: string };
+  const reportConfig = report.config as { name: string; surface: string; outputDir?: string };
   const outputDir = resolve(configFileDir, reportConfig?.outputDir ?? 'benchmark-results');
 
   // Generate and save Markdown report alongside JSON
@@ -194,7 +194,8 @@ async function main(): Promise<void> {
   console.log(
     `\nDone. ${passedCount}/${summary.totalEvaluations} evaluations passed ` +
       `(${(summary.overallPassRate * 100).toFixed(1)}%). ` +
-      `Coverage: ${(summary.methodCoveragePercent * 100).toFixed(1)}%.`,
+      `Coverage: ${(summary.methodCoveragePercent * 100).toFixed(1)}% ` +
+      `(surface: ${reportConfig.surface}).`,
   );
 
   process.exit(0);

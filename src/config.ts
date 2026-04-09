@@ -1,6 +1,12 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import type { BenchmarkConfig, TaskDefinition, McpToolDefinition, ModelConfig } from './types.js';
+import type {
+  BenchmarkConfig,
+  TaskDefinition,
+  McpToolDefinition,
+  CliCommandDefinition,
+  ModelConfig,
+} from './types.js';
 
 const DEFAULT_CONFIG_NAME = 'benchmark.config.json';
 
@@ -43,20 +49,32 @@ export function loadConfig(configPath?: string): { config: BenchmarkConfig; conf
  */
 function validateConfig(config: BenchmarkConfig, path: string): void {
   if (!config.name) throw new Error(`Config ${path}: "name" is required`);
-  if (!config.mode) throw new Error(`Config ${path}: "mode" is required (must be "code" or "mcp")`);
-  if (config.mode !== 'code' && config.mode !== 'mcp') {
-    throw new Error(`Config ${path}: "mode" must be "code" or "mcp", got "${config.mode}"`);
+  if (!config.surface) {
+    throw new Error(`Config ${path}: "surface" is required (must be "sdk", "cli", or "mcp")`);
   }
 
-  if (config.mode === 'code') {
-    if (!config.code) throw new Error(`Config ${path}: "code" section is required when mode is "code"`);
-    if (!config.code.language) {
-      throw new Error(`Config ${path}: "code.language" is required (e.g. "typescript")`);
+  if (config.surface !== 'sdk' && config.surface !== 'cli' && config.surface !== 'mcp') {
+    throw new Error(
+      `Config ${path}: "surface" must be "sdk", "cli", or "mcp", got "${config.surface}"`
+    );
+  }
+
+  if (config.surface === 'sdk') {
+    if (!config.sdk) throw new Error(`Config ${path}: "sdk" section is required when surface is "sdk"`);
+    if (!config.sdk.language) {
+      throw new Error(`Config ${path}: "sdk.language" is required (e.g. "typescript")`);
     }
   }
 
-  if (config.mode === 'mcp') {
-    if (!config.mcp) throw new Error(`Config ${path}: "mcp" section is required when mode is "mcp"`);
+  if (config.surface === 'cli') {
+    if (!config.cli) throw new Error(`Config ${path}: "cli" section is required when surface is "cli"`);
+    if (!config.cli.commands) {
+      throw new Error(`Config ${path}: "cli.commands" path is required`);
+    }
+  }
+
+  if (config.surface === 'mcp') {
+    if (!config.mcp) throw new Error(`Config ${path}: "mcp" section is required when surface is "mcp"`);
     if (!config.mcp.tools) throw new Error(`Config ${path}: "mcp.tools" path is required`);
   }
 
@@ -138,6 +156,55 @@ export function loadMcpTools(toolsPath: string, baseDir?: string): McpToolDefini
   }
 
   return tools;
+}
+
+/**
+ * Load CLI command definitions from the commands.json path specified in config.
+ */
+export function loadCliCommands(commandsPath: string, baseDir?: string): CliCommandDefinition[] {
+  const resolved = resolve(baseDir ?? process.cwd(), commandsPath);
+  if (!existsSync(resolved)) {
+    throw new Error(`CLI commands file not found: ${resolved}`);
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(resolved, 'utf-8');
+  } catch (err) {
+    throw new Error(`Failed to read CLI commands: ${resolved}: ${err instanceof Error ? err.message : err}`);
+  }
+
+  let commands: CliCommandDefinition[];
+  try {
+    commands = JSON.parse(raw) as CliCommandDefinition[];
+  } catch (err) {
+    throw new Error(`Invalid JSON in CLI commands file: ${resolved}: ${err instanceof Error ? err.message : err}`);
+  }
+
+  if (!Array.isArray(commands)) {
+    throw new Error(`CLI commands file ${resolved}: must be a JSON array of command definitions`);
+  }
+
+  for (const [index, command] of commands.entries()) {
+    if (!command || typeof command !== 'object') {
+      throw new Error(`CLI commands file ${resolved}: entry ${index} must be an object`);
+    }
+    if (typeof command.command !== 'string' || command.command.trim() === '') {
+      throw new Error(`CLI commands file ${resolved}: entry ${index} must include a non-empty "command" string`);
+    }
+    if (command.options !== undefined && !Array.isArray(command.options)) {
+      throw new Error(`CLI commands file ${resolved}: entry ${index} options must be an array when present`);
+    }
+    if (Array.isArray(command.options)) {
+      for (const [optionIndex, option] of command.options.entries()) {
+        if (!option || typeof option !== 'object' || typeof option.name !== 'string' || option.name.trim() === '') {
+          throw new Error(`CLI commands file ${resolved}: entry ${index} option ${optionIndex} must include a non-empty "name" string`);
+        }
+      }
+    }
+  }
+
+  return commands;
 }
 
 /**

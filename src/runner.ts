@@ -16,7 +16,7 @@ import type {
   ToolExecutor,
   McpToolDefinition,
 } from './types.js';
-import { loadConfig, loadTasks, loadMcpTools, slugify, getModelBySlug, getModelsByTier } from './config.js';
+import { loadConfig, loadTasks, loadMcpTools, loadCliCommands, slugify, getModelBySlug, getModelsByTier } from './config.js';
 import { createLLMClient } from './llm/index.js';
 import { extract } from './extractors/index.js';
 import { fetchSkill } from './skill-fetcher.js';
@@ -87,24 +87,28 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   console.log(`  Skill Benchmark — ${config.name}`);
   console.log('================================================================\n');
 
-  // 2. Load tasks first (needed for knownMethods derivation)
+  // 2. Load tasks first (needed for known action derivation)
   let tasks = loadTasks(config.tasks, configDir);
 
-  // 3. Determine known methods (for precision/hallucination tracking)
+  // 3. Determine known actions (for precision/hallucination tracking)
   let knownMethods: Set<string>;
+  let cliCommands: ReturnType<typeof loadCliCommands> | undefined = undefined;
   let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
-  if (config.mode === 'code') {
-    // Derive from task expected_tools + optional apiSurface
+  if (config.surface === 'sdk') {
+    // Derive from task expected_tools + optional sdk.apiSurface
     const fromTasks = new Set<string>();
     for (const task of tasks) {
       for (const tool of task.expected_tools) {
         fromTasks.add(tool.method);
       }
     }
-    const apiSurface = config.code?.apiSurface ?? [];
+    const apiSurface = config.sdk?.apiSurface ?? config.sdk?.methods ?? [];
     knownMethods = new Set([...fromTasks, ...apiSurface]);
+  } else if (config.surface === 'cli') {
+    cliCommands = loadCliCommands(config.cli!.commands, configDir);
+    knownMethods = new Set(cliCommands.map((c) => c.command));
   } else {
-    // MCP mode: load tools once, reuse for both knownMethods and chatWithTools
+    // MCP surface: load tools once, reuse for both knownMethods and chatWithTools
     mcpToolDefs = loadMcpTools(config.mcp!.tools, configDir);
     knownMethods = new Set(mcpToolDefs.map(t => t.function.name));
   }
@@ -118,9 +122,11 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log(`[tasks] Filtered to task: ${options.taskId}`);
   }
 
-  // 4. Log MCP tools (already loaded in step 2)
-  if (config.mode === 'mcp' && mcpToolDefs) {
+  // 4. Log known definitions (already loaded in step 3)
+  if (config.surface === 'mcp' && mcpToolDefs) {
     console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${config.mcp!.tools}`);
+  } else if (config.surface === 'cli' && cliCommands) {
+    console.log(`[cli] Loaded ${cliCommands.length} command definitions from ${config.cli!.commands}`);
   }
 
   // 5. Fetch skill doc (optional — may be null)
@@ -135,12 +141,13 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
 
   // 6. Build system prompt
-  const style = config.code?.style ?? 'sdk';
-  const promptOptions = config.mode === 'mcp'
-    ? { mode: 'mcp' as const }
-    : { mode: 'code' as const, style, agentic: Boolean(config.agentic) };
+  const promptOptions = {
+    surface: config.surface,
+    agentic: Boolean(config.agentic),
+    shell: config.cli?.shell,
+  };
   const systemPrompt = buildSystemPrompt(skill, config.name, promptOptions);
-  console.log(`[prompt] Mode: ${config.mode}, style: ${style}`);
+  console.log(`[prompt] Surface: ${config.surface}`);
   console.log(`[prompt] System prompt: ${systemPrompt.length} chars\n`);
 
   // 7. Create LLM client
@@ -198,7 +205,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
             [buildWebFetchTool()], ref.executor, config.agentic.maxTurns ?? 5,
           );
           fetchedPaths = ref.fetchedPaths;
-        } else if (config.mode === 'mcp' && mcpToolDefs) {
+        } else if (config.surface === 'mcp' && mcpToolDefs) {
           llmResponse = await client.chatWithTools(
             model.id,
             systemPrompt,
@@ -206,6 +213,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
             mcpToolDefs,
           );
         } else {
+          // SDK and CLI surfaces both use plain chat transport.
           llmResponse = await client.chat(
             model.id,
             systemPrompt,
@@ -230,17 +238,36 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       let bindings: Map<string, string> | undefined;
 
       try {
-        const extracted = await extract(llmResponse!, config);
+        const extractionConfig = config.surface === 'cli' && cliCommands
+          ? {
+              ...config,
+              cli: {
+                ...config.cli,
+                commandDefinitions: cliCommands,
+              },
+            }
+          : config;
+
+        const extracted = await extract(llmResponse!, extractionConfig as BenchmarkConfig);
         extractedCalls = extracted.calls;
         generatedCode = extracted.generatedCode;
         bindings = extracted.bindings;
 
-        if (config.mode === 'code') {
+        if (config.surface === 'sdk') {
           if (generatedCode) {
-            console.log(`  [${slug}] Code extracted: ${generatedCode.length} chars`);
+            console.log(`  [${slug}] TypeScript extracted: ${generatedCode.length} chars`);
           } else if (!error) {
-            console.log(`  [${slug}] WARNING: No code block found`);
-            error = error ?? 'No code block in response';
+            console.log(`  [${slug}] WARNING: No TypeScript block found`);
+            error = error ?? 'No TypeScript code block in response';
+          }
+        }
+
+        if (config.surface === 'cli') {
+          if (generatedCode) {
+            console.log(`  [${slug}] Command block extracted: ${generatedCode.length} chars`);
+          } else if (!error) {
+            console.log(`  [${slug}] WARNING: No shell command block found`);
+            error = error ?? 'No shell command block in response';
           }
         }
 
@@ -264,6 +291,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         error,
         knownMethods,
         bindings,
+        surface: config.surface,
       });
 
       if (config.agentic && task.expected_fetches) {
@@ -291,7 +319,12 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       mkdirSync(taskModelDir, { recursive: true });
       writeFileSync(resolve(taskModelDir, 'response.md'), rawResponse, 'utf-8');
       if (generatedCode) {
-        writeFileSync(resolve(taskModelDir, 'code.ts'), generatedCode, 'utf-8');
+        const generatedFile = config.surface === 'sdk'
+          ? 'code.ts'
+          : config.surface === 'cli'
+            ? 'commands.sh'
+            : 'generated.txt';
+        writeFileSync(resolve(taskModelDir, generatedFile), generatedCode, 'utf-8');
       }
 
       // Rate limit
@@ -404,7 +437,10 @@ function buildBenchmarkReport(
 
   return {
     timestamp: new Date().toISOString(),
-    config: { name: config.name, mode: config.mode },
+    config: {
+      name: config.name,
+      surface: config.surface,
+    },
     skillVersion,
     results,
     coverage,

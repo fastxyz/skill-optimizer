@@ -15,11 +15,14 @@ export interface TokenUsage {
 
 // === Config (loaded from benchmark.config.json) ===
 
+export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp';
+
 export interface BenchmarkConfig {
   name: string;                    // e.g. "fast-sdk", "my-mcp-tools"
-  mode: 'code' | 'mcp';
-  code?: CodeModeConfig;
-  mcp?: McpModeConfig;
+  surface: BenchmarkSurface;
+  sdk?: SdkSurfaceConfig;
+  cli?: CliSurfaceConfig;
+  mcp?: McpSurfaceConfig;
   skill?: SkillConfig;
   tasks: string;                   // path to tasks.json
   llm: LLMConfig;
@@ -27,7 +30,7 @@ export interface BenchmarkConfig {
   agentic?: AgenticConfig;
 }
 
-export interface CodeModeConfig {
+export interface SdkSurfaceConfig {
   language: string;                // e.g. "typescript"
   style?: 'sdk';                   // defaults to 'sdk' if omitted
   // Optional: explicit API surface for coverage/hallucination reporting only.
@@ -40,9 +43,31 @@ export interface CodeModeConfig {
   methods?: string[];
 }
 
-export interface McpModeConfig {
+export interface CliSurfaceConfig {
+  shell?: 'bash' | 'sh';
+  commands: string;                // path to commands.json
+}
+
+export interface CliCommandOptionDefinition {
+  name: string;
+  description?: string;
+  aliases?: string[];
+  takesValue?: boolean;
+}
+
+export interface CliCommandDefinition {
+  command: string;
+  description?: string;
+  options?: CliCommandOptionDefinition[];
+}
+
+export interface McpSurfaceConfig {
   tools: string;                   // path to tools.json (OpenAI function calling format)
 }
+
+// Backward-compatible aliases retained for internal usage.
+export type CodeModeConfig = SdkSurfaceConfig;
+export type McpModeConfig = McpSurfaceConfig;
 
 export interface SkillConfig {
   source: string;                  // "github:org/repo/path", "./file.md", "https://url"
@@ -123,7 +148,7 @@ export interface TaskDefinition {
 export interface ExtractedCall {
   method: string;                  // normalized: "FastWallet.send" or "send_tokens"
   args: Record<string, unknown>;
-  line: number;                    // line in code (0 for MCP mode)
+  line: number;                    // line in code (0 for MCP surface)
   raw: string;                     // raw source text or JSON
 }
 
@@ -131,7 +156,7 @@ export interface ExtractedCall {
 
 export interface LLMResponse {
   content: string;                 // text content from LLM
-  toolCalls?: ToolCallResult[];    // structured tool calls (MCP mode)
+  toolCalls?: ToolCallResult[];    // structured tool calls (MCP surface)
   usage?: TokenUsage;
 }
 
@@ -212,7 +237,7 @@ export interface TaskSummary {
 
 export interface BenchmarkReport {
   timestamp: string;
-  config: { name: string; mode: 'code' | 'mcp' };
+  config: { name: string; surface: BenchmarkSurface };
   skillVersion: SkillVersion;
   results: TaskResult[];
   coverage: MethodCoverage[];

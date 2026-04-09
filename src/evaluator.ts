@@ -402,6 +402,7 @@ export function evaluateTask(params: {
   error?: string;
   knownMethods: Set<string>;
   bindings?: Map<string, string>;  // variable → source function/class from extractor
+  surface: 'sdk' | 'cli' | 'mcp';
 }): TaskResult {
   const {
     task,
@@ -413,6 +414,7 @@ export function evaluateTask(params: {
     error,
     knownMethods,
     bindings,
+    surface,
   } = params;
 
   // ── Resolve raw calls if bindings provided ──
@@ -479,21 +481,15 @@ export function evaluateTask(params: {
   const argAccuracy = methodsFoundCount === 0 ? 1.0
     : toolMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
 
-  // SDK-only hallucination tracking
-  // Only flag calls that use a known SDK prefix but with a non-existent method.
-  // e.g. FastClient.doMagic() is hallucinated if FastClient.* methods exist but doMagic doesn't.
-  // tokens.forEach(), myHelper(), console.log() are NOT hallucinations — just normal code.
+  // Surface-aware hallucination tracking
   const allExtractedMethods = extractedCalls.map(c => c.method);
   const expectedMethods = new Set(task.expected_tools.map(t => t.method));
 
   // Derive SDK prefixes from knownMethods
   const sdkPrefixes = new Set<string>();
-  const sdkStandalone = new Set<string>();
   for (const m of knownMethods) {
     if (m.includes('.')) {
       sdkPrefixes.add(m.split('.')[0]);
-    } else {
-      sdkStandalone.add(m);
     }
   }
 
@@ -502,25 +498,20 @@ export function evaluateTask(params: {
     m => knownMethods.has(m) && !expectedMethods.has(m)
   );
 
-  // Hallucinated: depends on mode
-  // Code mode: only flag calls that use a known SDK prefix but with a non-existent method
-  // MCP mode: any tool call not in knownMethods is hallucinated (no JS builtin noise)
   const hallucinatedCalls = allExtractedMethods.filter(m => {
     if (knownMethods.has(m)) return false;
-    const dotIdx = m.indexOf('.');
-    if (dotIdx !== -1) {
+
+    if (surface === 'sdk') {
+      // SDK: only dotted calls that look like SDK API usage are hallucinations.
+      // Unknown helpers (non-dotted names) should not be flagged.
+      const dotIdx = m.indexOf('.');
+      if (dotIdx === -1) return false;
       const prefix = m.slice(0, dotIdx);
-      // Code mode: only flag if the prefix is a known SDK type
-      if (sdkPrefixes.has(prefix)) return true;
-      return false;
+      return sdkPrefixes.has(prefix);
     }
-    // Standalone name not in knownMethods:
-    // In MCP mode (flat tool names), this is a hallucination
-    // In code mode (JS code), this is just a helper function — not a hallucination
-    // Use heuristic: if knownMethods has no dotted entries, we're likely in MCP mode
-    const hasDottedMethods = [...knownMethods].some(k => k.includes('.'));
-    if (!hasDottedMethods) return true; // MCP mode: flat names, so unknown = hallucinated
-    return false; // Code mode: standalone unknown name is just user code
+
+    // CLI/MCP: unknown command path or tool name is hallucinated.
+    return true;
   });
 
   const hallucinationRate = extractedCalls.length === 0 ? 0

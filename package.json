@@ -16,7 +16,7 @@
     "dev": "tsx src/cli.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts"
+    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts"
   },
   "dependencies": {
     "tree-sitter-wasms": "^0.1.13",
