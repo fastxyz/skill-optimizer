@@ -26,7 +26,7 @@ export function createRepoStateManager() {
 
     async restoreCheckpoint(targetRepo: ResolvedOptimizeManifest['targetRepo'], checkpoint: string): Promise<void> {
       await git(targetRepo.path, ['restore', `--source=${checkpoint}`, '--staged', '--worktree', '.']);
-      await git(targetRepo.path, ['clean', '-fd']);
+      await git(targetRepo.path, buildCleanArgs(targetRepo.cleanIgnorePaths ?? []));
     },
 
     async listChangedFiles(targetRepo: ResolvedOptimizeManifest['targetRepo']): Promise<string[]> {
@@ -84,6 +84,14 @@ function normalizeRelativePath(path: string): string {
 function buildIterationCommitMessage(summary: string): string {
   const normalized = summary.trim().replace(/\s+/g, ' ');
   return `chore(optimize): ${normalized || 'accept optimizer iteration'}`;
+}
+
+function buildCleanArgs(cleanIgnorePaths: string[]): string[] {
+  const args = ['clean', '-fdx'];
+  for (const ignoredPath of cleanIgnorePaths) {
+    args.push('-e', ignoredPath);
+  }
+  return args;
 }
 
 async function git(cwd: string, args: string[], env?: Record<string, string>): Promise<{ stdout: string; stderr: string }> {

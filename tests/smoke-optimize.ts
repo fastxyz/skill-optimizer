@@ -207,6 +207,36 @@ await test('loadOptimizeManifest: applies defaults', () => {
   }
 });
 
+await test('loadOptimizeManifest: defaults optimize.model to the first benchmark model', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
+  try {
+    const file = join(dir, 'skill-benchmark.json');
+    writeFileSync(file, JSON.stringify({
+      name: 'opt-default-model',
+      target: {
+        surface: 'sdk',
+        repoPath: '../sdk',
+        sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openrouter/openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' }],
+      },
+      optimize: {
+        allowedPaths: ['src'],
+        validation: ['npm test'],
+      },
+    }), 'utf-8');
+
+    const manifest = loadOptimizeManifest(file);
+    assertEqual(manifest.mutation?.provider, 'openrouter', 'mutation provider should default from the first benchmark model');
+    assertEqual(manifest.mutation?.model, 'openai/gpt-5.4', 'mutation model should default from the first benchmark model');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 await test('loadOptimizeManifest: allows empty target validation commands', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
@@ -910,6 +940,65 @@ await test('createRepoStateManager: ignores optimizer artifacts during clean-git
 
     const result = await manager.ensureReady(targetRepo);
     assertEqual(result, 'ready', 'optimizer artifacts should not block reruns');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('createRepoStateManager: restoreCheckpoint removes ignored files outside preserved paths', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-restore-ignore-'));
+  try {
+    execFileSync('git', ['init'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['config', 'user.name', 'OpenCode'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['config', 'user.email', 'opencode@example.com'], { cwd: dir, encoding: 'utf-8' });
+
+    writeFileSync(join(dir, '.gitignore'), '.skill-optimizer/\ndist/\n', 'utf-8');
+    writeFileSync(join(dir, 'tracked.txt'), 'v1\n', 'utf-8');
+    execFileSync('git', ['add', '.'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['commit', '-m', 'init'], { cwd: dir, encoding: 'utf-8' });
+
+    mkdirSync(join(dir, '.skill-optimizer'), { recursive: true });
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    writeFileSync(join(dir, '.skill-optimizer', 'report.json'), '{}\n', 'utf-8');
+    writeFileSync(join(dir, 'dist', 'leak.txt'), 'secret\n', 'utf-8');
+
+    const manager = createRepoStateManager();
+    const targetRepo = {
+      path: dir,
+      surface: 'sdk' as const,
+      allowedPaths: ['tracked.txt'],
+      validation: ['true'],
+      requireCleanGit: true,
+      cleanIgnorePaths: ['.skill-optimizer'],
+    } as any;
+
+    const checkpoint = await manager.captureCheckpoint(targetRepo);
+    await manager.restoreCheckpoint(targetRepo, checkpoint);
+
+    assert(!existsSync(join(dir, 'dist', 'leak.txt')), 'restoreCheckpoint should remove ignored files outside preserved paths');
+    assert(existsSync(join(dir, '.skill-optimizer', 'report.json')), 'restoreCheckpoint should preserve optimizer artifacts');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('collectGitChangedFiles: includes ignored files', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-git-ignored-'));
+  try {
+    execFileSync('git', ['init'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['config', 'user.name', 'OpenCode'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['config', 'user.email', 'opencode@example.com'], { cwd: dir, encoding: 'utf-8' });
+
+    writeFileSync(join(dir, '.gitignore'), 'dist/\n', 'utf-8');
+    writeFileSync(join(dir, 'tracked.txt'), 'v1\n', 'utf-8');
+    execFileSync('git', ['add', '.'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['commit', '-m', 'init'], { cwd: dir, encoding: 'utf-8' });
+
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    writeFileSync(join(dir, 'dist', 'leak.txt'), 'oops\n', 'utf-8');
+
+    const files = await collectGitChangedFiles(dir);
+    assert(files.includes('dist/leak.txt'), 'should include ignored file changes for scope enforcement');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

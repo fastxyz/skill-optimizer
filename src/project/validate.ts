@@ -113,9 +113,6 @@ export function validateProjectConfig(config: ProjectConfig, configPath: string)
       throw new Error(`Project config ${configPath}: surface-changing optimization requires benchmark.taskGeneration.enabled=true`);
     }
     if (optimize.enabled !== false) {
-      if (!optimize.model) {
-        throw new Error(`Project config ${configPath}: "optimize.model" is required when optimization is enabled`);
-      }
       if (!Array.isArray(optimize.allowedPaths) || optimize.allowedPaths.length === 0) {
         throw new Error(`Project config ${configPath}: "optimize.allowedPaths" must be a non-empty array when optimization is enabled`);
       }

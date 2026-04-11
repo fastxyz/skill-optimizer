@@ -101,6 +101,14 @@ function collectExportedLiteralCandidates(sourceFile: ts.SourceFile, constants: 
       continue;
     }
 
+    if (ts.isExportAssignment(statement)) {
+      const value = readLiteralValue(statement.expression, constants, new Set());
+      if (value !== undefined) {
+        candidates.push(value);
+      }
+      continue;
+    }
+
     if (!ts.isExportDeclaration(statement) || !statement.exportClause || statement.moduleSpecifier) {
       continue;
     }

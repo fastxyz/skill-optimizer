@@ -114,6 +114,36 @@ await test('extracts command options including takesValue mappings', () => {
   }
 });
 
+await test('discovers default-exported command arrays', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cli-discovery-default-export-'));
+  const sourcePath = join(dir, 'commands.ts');
+
+  try {
+    writeFileSync(
+      sourcePath,
+      [
+        'const COMMANDS = [',
+        '  {',
+        "    command: 'tickets:archive',",
+        "    description: 'Archive a ticket',",
+        '    options: [',
+        "      { name: '--id', takesValue: true },",
+        '    ],',
+        '  },',
+        '];',
+        'export default COMMANDS;',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const snapshot = discoverCliSurfaceFromSources([sourcePath]);
+    assertEqual(snapshot.actions.length, 1, 'should discover one default-exported command');
+    assertEqual(snapshot.actions[0].name, 'tickets:archive', 'default export should be discovered');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 await test('discovery remains static and does not execute source file', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cli-discovery-'));
   const sourcePath = join(dir, 'commands.ts');

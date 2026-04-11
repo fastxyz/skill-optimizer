@@ -4,13 +4,14 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 export async function collectGitChangedFiles(cwd: string): Promise<string[]> {
-  const [unstaged, staged, untracked] = await Promise.all([
+  const [unstaged, staged, untracked, ignored] = await Promise.all([
     gitList(cwd, ['diff', '--name-only']),
     gitList(cwd, ['diff', '--name-only', '--cached']),
     gitList(cwd, ['ls-files', '--others', '--exclude-standard']),
+    gitList(cwd, ['ls-files', '--others', '-i', '--exclude-standard']),
   ]);
 
-  return [...new Set([...unstaged, ...staged, ...untracked])].sort();
+  return [...new Set([...unstaged, ...staged, ...untracked, ...ignored])].sort();
 }
 
 async function gitList(cwd: string, args: string[]): Promise<string[]> {
