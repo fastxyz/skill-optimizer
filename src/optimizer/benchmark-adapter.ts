@@ -1,19 +1,32 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { runBenchmark } from '../benchmark/runner.js';
 import type { BenchmarkReport } from '../benchmark/types.js';
 
-export function createBenchmarkAdapter(): { run(configPath: string): Promise<BenchmarkReport> } {
+export interface BenchmarkAdapterRunOptions {
+  outputDir: string;
+  label: string;
+}
+
+export interface BenchmarkAdapterRunResult {
+  report: BenchmarkReport;
+  reportPath: string;
+}
+
+export function createBenchmarkAdapter(): {
+  run(configPath: string, opts: BenchmarkAdapterRunOptions): Promise<BenchmarkAdapterRunResult>;
+} {
   return {
-    async run(configPath: string) {
-      const outputDir = mkdtempSync(join(tmpdir(), 'skill-benchmark-optimize-'));
-      try {
-        return await runBenchmark({ configPath, outputDir });
-      } finally {
-        rmSync(outputDir, { recursive: true, force: true });
-      }
+    async run(configPath: string, opts: BenchmarkAdapterRunOptions) {
+      const runOutputDir = resolve(opts.outputDir, opts.label);
+      mkdirSync(runOutputDir, { recursive: true });
+
+      const report = await runBenchmark({ configPath, outputDir: runOutputDir });
+      return {
+        report,
+        reportPath: resolve(runOutputDir, 'report.json'),
+      };
     },
   };
 }

@@ -7,17 +7,20 @@ export interface OptimizeTaskGenerationConfig {
   enabled?: boolean;
   maxGenerated?: number;
   seed?: number;
+  outputDir?: string;
 }
 
 export interface OptimizeTargetRepo {
   path: string;
   surface: BenchmarkSurface;
   allowedPaths: string[];
+  surfacePaths?: string[];
   validation: string[];
   requireCleanGit?: boolean;
 }
 
 export interface OptimizePolicy {
+  mode?: 'stable-surface' | 'surface-changing';
   maxIterations?: number;
   stabilityWindow?: number;
   minOverallPassDelta?: number;
@@ -29,6 +32,7 @@ export interface OptimizeMutationConfig {
   model: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   apiKeyEnv?: string;
+  reportContextMaxBytes?: number;
 }
 
 export interface OptimizeManifest {
@@ -44,10 +48,12 @@ export interface ResolvedOptimizeManifest {
     path: string;
     surface: BenchmarkSurface;
     allowedPaths: string[];
+    surfacePaths?: string[];
     validation: string[];
     requireCleanGit: boolean;
   };
   optimizer: {
+    mode: 'stable-surface' | 'surface-changing';
     maxIterations: number;
     stabilityWindow: number;
     minOverallPassDelta: number;
@@ -55,9 +61,18 @@ export interface ResolvedOptimizeManifest {
       enabled: boolean;
       maxGenerated: number;
       seed: number;
+      outputDir: string;
     };
   };
-  mutation?: OptimizeMutationConfig;
+  mutation?: OptimizeMutationConfig & {
+    reportContextMaxBytes: number;
+  };
+}
+
+export interface TaskGenerationResult {
+  benchmarkConfigPath: string;
+  taskCount: number;
+  rejectedCount: number;
 }
 
 export interface FailureBucket {
@@ -70,6 +85,7 @@ export interface FailureBucket {
 export interface MutationCandidate {
   summary: string;
   changedFiles: string[];
+  toolActivity?: string[];
 }
 
 export interface ValidationCommandResult {
@@ -102,6 +118,7 @@ export interface OptimizeResult {
   bestReport: BenchmarkReport;
   iterations: OptimizeIteration[];
   stopReason: StopReason;
+  generation?: TaskGenerationResult;
 }
 
 export interface MutationContext {
@@ -109,11 +126,15 @@ export interface MutationContext {
   iteration: number;
   currentReport: BenchmarkReport;
   failureBuckets: FailureBucket[];
+  reportPath: string | null;
 }
 
 export interface OptimizeLoopDependencies {
   benchmark: {
-    run(configPath: string): Promise<BenchmarkReport>;
+    run(
+      configPath: string,
+      opts: { outputDir: string; label: string },
+    ): Promise<{ report: BenchmarkReport; reportPath: string }>;
   };
   repo: {
     ensureReady(targetRepo: ResolvedOptimizeManifest['targetRepo']): Promise<string>;
@@ -124,6 +145,12 @@ export interface OptimizeLoopDependencies {
   };
   mutation: {
     apply(context: MutationContext): Promise<MutationCandidate>;
+  };
+  taskGenerator?: {
+    generate(
+      manifest: ResolvedOptimizeManifest,
+      opts: { outputDir: string },
+    ): Promise<TaskGenerationResult>;
   };
   validation: {
     run(targetRepo: ResolvedOptimizeManifest['targetRepo']): Promise<ValidationResult>;

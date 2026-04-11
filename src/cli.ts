@@ -2,6 +2,7 @@
 
 import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 
 loadDotenv({ override: true });
@@ -12,6 +13,9 @@ import { loadReport, compareReports, printComparison } from './benchmark/compare
 import { printSummary, generateMarkdown } from './benchmark/reporter.js';
 import { printCoverage } from './benchmark/coverage.js';
 import { initBenchmark } from './benchmark/init.js';
+import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
+import { loadProjectConfig, parseModelRef } from './project/index.js';
+import { createDefaultPiTaskGenerator, generateTasksForProject } from './tasks/index.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -33,19 +37,45 @@ function hasFlag(args: string[], flag: string): boolean {
 }
 
 /** Return all positional (non-flag) arguments. */
-function positionals(args: string[]): string[] {
+const BOOLEAN_FLAGS = new Set([
+  '--help',
+  '-h',
+  '--no-cache',
+  '--skip-generation',
+]);
+
+const VALUE_FLAGS = new Set([
+  '--baseline',
+  '--config',
+  '--current',
+  '--max-iterations',
+  '--model',
+  '--task',
+  '--tier',
+]);
+
+export function positionals(args: string[]): string[] {
   const result: string[] = [];
   let i = 0;
   while (i < args.length) {
     const arg = args[i]!;
-    if (arg.startsWith('--')) {
-      // skip flag + its value (if next token is not a flag)
+    if (BOOLEAN_FLAGS.has(arg)) {
+      i += 1;
+      continue;
+    }
+
+    if (VALUE_FLAGS.has(arg)) {
       const next = args[i + 1];
       if (next && !next.startsWith('--')) {
         i += 2;
       } else {
         i += 1;
       }
+      continue;
+    }
+
+    if (arg.startsWith('--')) {
+      throw new Error(`Unknown flag: ${arg}`);
     } else {
       result.push(arg);
       i++;
@@ -60,15 +90,26 @@ Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
   skill-optimizer init                          Scaffold config and example tasks
+  skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
+  skill-optimizer benchmark [options]           Run the benchmark
   skill-optimizer run [options]                 Run the benchmark
+  skill-optimizer optimize [options]            Run the optimization loop
   skill-optimizer compare [options]             Compare two benchmark reports
 
 Run options:
-  --config <path>                               Config file (default: benchmark.config.json)
+  --config <path>                               Config file (default: skill-benchmark.json)
   --tier <flagship|mid|low>                     Filter models by tier
   --task <task-id>                              Run a single task
   --model <slug>                                Run a single model
   --no-cache                                    Force fresh skill fetch
+
+Optimize options:
+  --config <path>                               Config file (default: skill-benchmark.json)
+  --max-iterations <n>                          Override optimization iteration cap
+  --skip-generation                             Disable task generation for this run
+
+Generate-tasks options:
+  --config <path>                               Config file (default: skill-benchmark.json)
 
 Compare options:
   --baseline <path>                             Path to baseline report.json
@@ -76,12 +117,15 @@ Compare options:
 
 Examples:
   skill-optimizer init
+  skill-optimizer benchmark --config ./skill-benchmark.json
   skill-optimizer run
   skill-optimizer run --config ./my-config.json
   skill-optimizer run --tier flagship
   skill-optimizer run --task send-tokens
   skill-optimizer run --model gpt-4o
   skill-optimizer run --no-cache
+  skill-optimizer generate-tasks --config ./skill-benchmark.json
+  skill-optimizer optimize --config ./skill-benchmark.json
   skill-optimizer compare --baseline results/old/report.json --current results/report.json
 `);
 }
@@ -143,6 +187,68 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // ── Optimize mode ──────────────────────────────────────────────────────────
+  if (command === 'optimize') {
+    const configPath = getFlag(args, '--config');
+    try {
+      const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(configPath ?? 'skill-benchmark.json', {
+        maxIterationsRaw: getFlag(args, '--max-iterations'),
+        skipGeneration: hasFlag(args, '--skip-generation'),
+      });
+      printOptimizeSummary(result, resolvedManifest, ledgerPath);
+    } catch (err) {
+      console.error(`\nFATAL: Optimize failed: ${err instanceof Error ? err.message : err}`);
+      if (err instanceof Error && err.stack) {
+        console.error(err.stack);
+      }
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  // ── Generate-tasks mode ───────────────────────────────────────────────────
+  if (command === 'generate-tasks') {
+    const configPath = getFlag(args, '--config') ?? 'skill-benchmark.json';
+    try {
+      const project = loadProjectConfig(configPath);
+      if (!project.benchmark.taskGeneration.enabled) {
+        throw new Error('benchmark.taskGeneration.enabled must be true to use generate-tasks');
+      }
+      const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
+      const { provider, model } = parseModelRef(modelRef);
+      const deps = createDefaultPiTaskGenerator({
+        provider,
+        model,
+        apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
+      });
+      const result = await generateTasksForProject({
+        configPath,
+        maxTasks: project.benchmark.taskGeneration.maxTasks,
+        seed: project.benchmark.taskGeneration.seed,
+        outputDir: project.benchmark.taskGeneration.outputDir,
+        deps,
+      });
+      console.log('');
+      console.log(`Generated tasks: ${result.kept.length} (rejected: ${result.rejected.length})`);
+      console.log(`Frozen config: ${result.artifacts.benchmarkPath}`);
+      console.log(`Frozen snapshot: ${result.artifacts.snapshotPath}`);
+      console.log(`Generated tasks file: ${result.artifacts.tasksPath}`);
+    } catch (err) {
+      console.error(`\nFATAL: Task generation failed: ${err instanceof Error ? err.message : err}`);
+      if (err instanceof Error && err.stack) {
+        console.error(err.stack);
+      }
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (command && command !== 'run' && command !== 'benchmark') {
+    console.error(`ERROR: Unknown command '${command}'.`);
+    printUsage();
+    process.exit(1);
+  }
+
   // ── Benchmark mode (default, also handles explicit 'run' command) ─────────────
   const tierRaw = getFlag(args, '--tier');
   const validTiers: Tier[] = ['flagship', 'mid', 'low'];
@@ -151,13 +257,43 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const options = {
+  let options = {
     configPath: getFlag(args, '--config'),
     tier: tierRaw as Tier | undefined,
     taskId: getFlag(args, '--task'),
     modelSlug: getFlag(args, '--model'),
     noCache: hasFlag(args, '--no-cache'),
   };
+
+  try {
+    const project = loadProjectConfig(options.configPath ?? 'skill-benchmark.json');
+    if (project.benchmark.taskGeneration.enabled) {
+      const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
+      const { provider, model } = parseModelRef(modelRef);
+      const deps = createDefaultPiTaskGenerator({
+        provider,
+        model,
+        apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
+      });
+      const generation = await generateTasksForProject({
+        configPath: options.configPath ?? 'skill-benchmark.json',
+        maxTasks: project.benchmark.taskGeneration.maxTasks,
+        seed: project.benchmark.taskGeneration.seed,
+        outputDir: project.benchmark.taskGeneration.outputDir,
+        deps,
+      });
+      options = {
+        ...options,
+        configPath: generation.artifacts.benchmarkPath,
+      };
+    }
+  } catch (err) {
+    console.error(`\nFATAL: Benchmark setup failed: ${err instanceof Error ? err.message : err}`);
+    if (err instanceof Error && err.stack) {
+      console.error(err.stack);
+    }
+    process.exit(1);
+  }
 
   let report;
   try {
@@ -204,7 +340,14 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-main().catch(err => {
-  console.error('Unhandled error:', err);
-  process.exit(1);
-});
+function isExecutedDirectly(): boolean {
+  const entry = process.argv[1];
+  return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
+}
+
+if (isExecutedDirectly()) {
+  main().catch(err => {
+    console.error('Unhandled error:', err);
+    process.exit(1);
+  });
+}

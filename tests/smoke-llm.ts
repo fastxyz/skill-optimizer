@@ -4,6 +4,7 @@
  */
 
 import { createLLMClient } from '../src/benchmark/llm/index.js';
+import { __setPiImplementationsForTest } from '../src/benchmark/llm/pi-format.js';
 import type { LLMConfig, McpToolDefinition } from '../src/benchmark/types.js';
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,13 @@ const anthropicConfig: LLMConfig = {
   models: [],
 };
 
+const piConfig: LLMConfig = {
+  format: 'pi',
+  apiKeyEnv: '__TEST_API_KEY__',
+  timeout: 5_000,
+  models: [],
+};
+
 const sampleTools: McpToolDefinition[] = [
   {
     type: 'function',
@@ -108,6 +116,12 @@ console.log('\n=== LLM Format Handler Smoke Tests ===\n');
 
 // --- Group 1: createLLMClient factory ---
 
+await test('createLLMClient: creates client for pi format', () => {
+  const client = createLLMClient(piConfig);
+  assert(typeof client.chat === 'function', 'client.chat should be a function');
+  assert(typeof client.chatWithTools === 'function', 'client.chatWithTools should be a function');
+});
+
 await test('createLLMClient: creates client for openai format', () => {
   const client = createLLMClient(openaiConfig);
   assert(typeof client.chat === 'function', 'client.chat should be a function');
@@ -132,6 +146,144 @@ await test('createLLMClient: throws when apiKeyEnv is set but env var is missing
     );
   }
   assert(threw, 'should have thrown for missing env var');
+});
+
+await test('pi format: uses provider/model id and runtime auth override for text chat', async () => {
+  let capturedModel: string | null = null;
+  let capturedApiKey: string | undefined;
+
+  __setPiImplementationsForTest({
+    async resolve(modelId, apiKeyOverride) {
+      capturedModel = modelId;
+      capturedApiKey = apiKeyOverride;
+      return {
+        model: { id: 'openai/gpt-5.4', provider: 'openrouter', api: 'openai-completions', name: 'GPT-5.4' } as any,
+        auth: { apiKey: apiKeyOverride, headers: { 'x-test-header': 'yes' } },
+      };
+    },
+    async completeSimple(_model, context, options) {
+      assertEqual(context.systemPrompt, 'sys', 'system prompt passed through');
+      assertEqual((context.messages[0] as any).content, 'user', 'user content passed through');
+      assertEqual(options?.apiKey, 'test-key-12345', 'api key override should be forwarded');
+      assertEqual(options?.headers?.['x-test-header'], 'yes', 'resolved headers should be forwarded');
+      return {
+        role: 'assistant',
+        api: 'openai-completions',
+        provider: 'openrouter',
+        model: 'openai/gpt-5.4',
+        stopReason: 'stop',
+        timestamp: Date.now(),
+        usage: { input: 1, output: 2, cacheRead: 0, cacheWrite: 0, totalTokens: 3, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [{ type: 'text', text: 'hello from pi' }],
+      } as any;
+    },
+    async complete() {
+      throw new Error('unexpected complete() call');
+    },
+  });
+
+  const client = createLLMClient(piConfig);
+  const result = await client.chat('openrouter/openai/gpt-5.4', 'sys', 'user');
+
+  assertEqual(capturedModel, 'openrouter/openai/gpt-5.4', 'model id should be resolved through pi');
+  assertEqual(capturedApiKey, 'test-key-12345', 'api key override should be passed into pi resolution');
+  assertEqual(result.content, 'hello from pi', 'pi text response should be surfaced');
+
+  __setPiImplementationsForTest(null);
+});
+
+await test('pi format: converts tool calls for MCP chat', async () => {
+  __setPiImplementationsForTest({
+    async resolve() {
+      return {
+        model: { id: 'openai/gpt-5.4', provider: 'openrouter', api: 'openai-completions', name: 'GPT-5.4' } as any,
+        auth: { apiKey: 'test-key-12345', headers: {} },
+      };
+    },
+    async completeSimple() {
+      throw new Error('unexpected completeSimple() call');
+    },
+    async complete(_model, context, options) {
+      assert(Array.isArray(context.tools), 'tools should be passed to pi complete()');
+      assertEqual(context.tools?.[0]?.name, 'get_weather', 'tool name should be preserved');
+      assertEqual(options?.apiKey, 'test-key-12345', 'resolved auth should be forwarded');
+      return {
+        role: 'assistant',
+        api: 'openai-completions',
+        provider: 'openrouter',
+        model: 'openai/gpt-5.4',
+        stopReason: 'toolUse',
+        timestamp: Date.now(),
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [
+          { type: 'toolCall', id: 'call-1', name: 'get_weather', arguments: { city: 'NYC' } },
+        ],
+      } as any;
+    },
+  });
+
+  const client = createLLMClient(piConfig);
+  const result = await client.chatWithTools('openrouter/openai/gpt-5.4', 'sys', 'user', sampleTools);
+
+  assertEqual(result.toolCalls?.[0]?.name, 'get_weather', 'pi tool call name should be surfaced');
+  assertEqual((result.toolCalls?.[0]?.arguments as any).city, 'NYC', 'pi tool call args should be surfaced');
+
+  __setPiImplementationsForTest(null);
+});
+
+await test('pi format: agent loop feeds tool results back with original tool call ids', async () => {
+  const toolCallIds: string[] = [];
+  let callCount = 0;
+
+  __setPiImplementationsForTest({
+    async resolve() {
+      return {
+        model: { id: 'openai/gpt-5.4', provider: 'openrouter', api: 'openai-completions', name: 'GPT-5.4' } as any,
+        auth: { apiKey: 'test-key-12345', headers: {} },
+      };
+    },
+    async completeSimple() {
+      throw new Error('unexpected completeSimple() call');
+    },
+    async complete(_model, context) {
+      callCount += 1;
+      if (callCount === 1) {
+        return {
+          role: 'assistant',
+          api: 'openai-completions',
+          provider: 'openrouter',
+          model: 'openai/gpt-5.4',
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+          usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+          content: [
+            { type: 'toolCall', id: 'tool-123', name: 'get_weather', arguments: { city: 'NYC' } },
+          ],
+        } as any;
+      }
+
+      const toolResult = context.messages[context.messages.length - 1] as any;
+      toolCallIds.push(toolResult.toolCallId);
+      return {
+        role: 'assistant',
+        api: 'openai-completions',
+        provider: 'openrouter',
+        model: 'openai/gpt-5.4',
+        stopReason: 'stop',
+        timestamp: Date.now(),
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [{ type: 'text', text: 'done' }],
+      } as any;
+    },
+  });
+
+  const client = createLLMClient(piConfig);
+  const result = await client.chatAgentLoop('openrouter/openai/gpt-5.4', 'sys', 'user', sampleTools, async () => 'sunny', 3);
+
+  assertEqual(toolCallIds[0], 'tool-123', 'tool result should reference original tool call id');
+  assertEqual(result.content, 'done', 'final agent-loop text should be returned');
+
+  __setPiImplementationsForTest(null);
 });
 
 // --- Group 2: OpenAI format handler ---

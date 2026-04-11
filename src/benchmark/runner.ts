@@ -16,6 +16,7 @@ import type {
   ToolExecutor,
   McpToolDefinition,
 } from './types.js';
+import { getExpectedActionName, getExpectedActions } from './types.js';
 import { loadConfig, loadTasks, loadMcpTools, loadCliCommands, slugify, getModelBySlug, getModelsByTier } from './config.js';
 import { createLLMClient } from './llm/index.js';
 import { extract } from './extractors/index.js';
@@ -68,6 +69,21 @@ function createReferenceExecutor(baseUrl: string, allowedPaths: string[]): { exe
   return { executor, fetchedPaths: fetched };
 }
 
+function formatMcpResponseContent(
+  textContent: string,
+  toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>,
+): string {
+  const parts: string[] = [];
+  const trimmed = textContent.trim();
+  if (trimmed) {
+    parts.push(trimmed);
+  }
+  if (toolCalls.length > 0) {
+    parts.push(`Tool calls:\n${JSON.stringify(toolCalls, null, 2)}`);
+  }
+  return parts.join('\n\n');
+}
+
 export interface RunnerOptions {
   configPath?: string;
   tier?: Tier;
@@ -96,11 +112,11 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   let cliCommands: ReturnType<typeof loadCliCommands> | undefined = undefined;
   let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
   if (config.surface === 'sdk') {
-    // Derive from task expected_tools + optional sdk.apiSurface
+    // Derive from task expected actions + optional sdk.apiSurface
     const fromTasks = new Set<string>();
     for (const task of tasks) {
-      for (const tool of task.expected_tools) {
-        fromTasks.add(tool.method);
+      for (const action of getExpectedActions(task)) {
+        fromTasks.add(getExpectedActionName(action));
       }
     }
     const apiSurface = config.sdk?.apiSurface ?? config.sdk?.methods ?? [];
@@ -110,7 +126,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     knownMethods = new Set(cliCommands.map((c) => c.command));
   } else {
     // MCP surface: load tools once, reuse for both knownMethods and chatWithTools
-    mcpToolDefs = loadMcpTools(config.mcp!.tools, configDir);
+    mcpToolDefs = config.mcpToolDefinitions ?? (config.mcp ? loadMcpTools(config.mcp.tools, configDir) : []);
     knownMethods = new Set(mcpToolDefs.map(t => t.function.name));
   }
   console.log(`[tasks] Loaded ${tasks.length} tasks from ${config.tasks}`);
@@ -125,7 +141,8 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
 
   // 4. Log known definitions (already loaded in step 3)
   if (config.surface === 'mcp' && mcpToolDefs) {
-    console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${config.mcp!.tools}`);
+    const sourceLabel = config.surfaceSnapshot ? 'surface snapshot' : config.mcp?.tools ?? 'MCP manifest';
+    console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${sourceLabel}`);
   } else if (config.surface === 'cli' && cliCommands) {
     console.log(`[cli] Loaded ${cliCommands.length} command definitions from ${config.cli!.commands}`);
   }
@@ -225,9 +242,28 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
           );
         }
         rawResponse = llmResponse.content;
+        if (config.surface === 'mcp' && (llmResponse.toolCalls?.length ?? 0) > 0) {
+          rawResponse = formatMcpResponseContent(llmResponse.content, llmResponse.toolCalls ?? []);
+        }
         tokenUsage = llmResponse.usage;
         llmLatencyMs = Date.now() - start;
-        console.log(`  [${slug}] Response: ${rawResponse.length} chars (${llmLatencyMs}ms)`);
+        const toolCallCount = llmResponse.toolCalls?.length ?? 0;
+        if (config.surface === 'mcp') {
+          const toolLabel = `${toolCallCount} tool call${toolCallCount === 1 ? '' : 's'}`;
+          if (toolCallCount > 0 && llmResponse.content.length === 0) {
+            console.log(
+              `  [${slug}] Structured response: ${toolLabel}, no text reply (${llmLatencyMs}ms)`,
+            );
+          } else if (toolCallCount > 0) {
+            console.log(
+              `  [${slug}] Structured response: ${toolLabel} + ${llmResponse.content.length} chars text (${llmLatencyMs}ms)`,
+            );
+          } else {
+            console.log(`  [${slug}] Text response: ${llmResponse.content.length} chars (${llmLatencyMs}ms)`);
+          }
+        } else {
+          console.log(`  [${slug}] Response: ${rawResponse.length} chars (${llmLatencyMs}ms)`);
+        }
       } catch (err) {
         llmLatencyMs = Date.now() - start;
         error = err instanceof Error ? err.message : String(err);
@@ -359,6 +395,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     tasks.length,
     models.length,
     config,
+    outputDir,
   );
 
   // 13. Save report
@@ -379,6 +416,7 @@ function buildBenchmarkReport(
   totalTasks: number,
   totalModels: number,
   config: BenchmarkConfig,
+  outputDir: string,
 ): BenchmarkReport {
   const passed = results.filter(r => r.metrics.taskPassed).length;
   const totalEvals = results.length;
@@ -449,6 +487,7 @@ function buildBenchmarkReport(
     config: {
       name: config.name,
       surface: config.surface,
+      outputDir,
     },
     skillVersion,
     results,

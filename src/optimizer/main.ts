@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { config as loadDotenv } from 'dotenv';
+
+loadDotenv({ override: true });
 
 import {
   createBenchmarkAdapter,
@@ -11,15 +15,17 @@ import {
   PiCodingMutationExecutor,
   runOptimizeLoop,
 } from './index.js';
+import { createDefaultPiTaskGenerator, generateTasksForProject } from '../tasks/index.js';
 
 function printUsage(): void {
   console.log(`
 Usage:
-  tsx src/optimizer/main.ts <optimize-config.json> [--max-iterations <n>]
+  tsx src/optimizer/main.ts <skill-benchmark.json> [--max-iterations <n>] [--skip-generation]
 
 Examples:
-  tsx src/optimizer/main.ts ./optimize.config.json
-  tsx src/optimizer/main.ts ./optimize.config.json --max-iterations 8
+  tsx src/optimizer/main.ts ./skill-benchmark.json
+  tsx src/optimizer/main.ts ./skill-benchmark.json --max-iterations 8
+  tsx src/optimizer/main.ts ./skill-benchmark.json --skip-generation
 `);
 }
 
@@ -46,11 +52,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(manifestPath, {
+    maxIterationsRaw: getFlag(args, '--max-iterations'),
+    skipGeneration: args.includes('--skip-generation'),
+  });
+
+  printOptimizeSummary(result, resolvedManifest, ledgerPath);
+}
+
+export async function runOptimizeFromConfig(
+  manifestPath: string,
+  options: { maxIterationsRaw?: string; skipGeneration?: boolean } = {},
+) {
   const manifest = loadOptimizeManifest(manifestPath);
-  const maxIterationsRaw = getFlag(args, '--max-iterations');
-  const maxIterations = maxIterationsRaw ? Number(maxIterationsRaw) : undefined;
-  if (maxIterationsRaw && (!Number.isInteger(maxIterations) || (maxIterations ?? 0) <= 0)) {
-    throw new Error(`Invalid --max-iterations value '${maxIterationsRaw}'. Must be a positive integer.`);
+  const maxIterations = options.maxIterationsRaw ? Number(options.maxIterationsRaw) : undefined;
+  if (options.maxIterationsRaw && (!Number.isInteger(maxIterations) || (maxIterations ?? 0) <= 0)) {
+    throw new Error(`Invalid --max-iterations value '${options.maxIterationsRaw}'. Must be a positive integer.`);
   }
 
   const resolvedManifest = maxIterations
@@ -59,31 +76,99 @@ async function main(): Promise<void> {
         optimizer: {
           ...manifest.optimizer,
           maxIterations,
+          taskGeneration: {
+            ...manifest.optimizer.taskGeneration,
+            enabled: options.skipGeneration ? false : manifest.optimizer.taskGeneration.enabled,
+          },
         },
       }
-    : manifest;
+    : {
+        ...manifest,
+        optimizer: {
+          ...manifest.optimizer,
+          taskGeneration: {
+            ...manifest.optimizer.taskGeneration,
+            enabled: options.skipGeneration ? false : manifest.optimizer.taskGeneration.enabled,
+          },
+        },
+      };
 
-  const ledgerPath = resolve(dirname(resolve(manifestPath)), 'optimize-ledger.json');
+  const taskGenerator = resolvedManifest.optimizer.taskGeneration.enabled
+    ? {
+        generate: async (loopManifest: typeof resolvedManifest, opts: { outputDir: string }) => {
+          const mutation = loopManifest.mutation;
+          if (!mutation) {
+            throw new Error('Optimize manifest must define a mutation section when task generation is enabled');
+          }
+
+          const deps = createDefaultPiTaskGenerator({
+            provider: mutation.provider,
+            model: mutation.model,
+            apiKeyEnv: mutation.apiKeyEnv,
+          });
+          const generation = await generateTasksForProject({
+            configPath: loopManifest.benchmarkConfig,
+            maxTasks: loopManifest.optimizer.taskGeneration.maxGenerated,
+            seed: loopManifest.optimizer.taskGeneration.seed,
+            outputDir: opts.outputDir,
+            deps,
+          });
+          return {
+            benchmarkConfigPath: generation.artifacts.benchmarkPath,
+            taskCount: generation.kept.length,
+            rejectedCount: generation.rejected.length,
+          };
+        },
+      }
+    : undefined;
+
+  const ledgerPath = resolve(resolvedManifest.optimizer.taskGeneration.outputDir, 'optimize-ledger.json');
   const result = await runOptimizeLoop(resolvedManifest, {
     benchmark: createBenchmarkAdapter(),
     repo: createRepoStateManager(),
     mutation: new PiCodingMutationExecutor(),
+    taskGenerator,
     validation: createValidationRunner(),
     ledger: createJsonLedger(ledgerPath),
   });
 
+  return { result, resolvedManifest, ledgerPath };
+}
+
+export function printOptimizeSummary(
+  result: Awaited<ReturnType<typeof runOptimizeLoop>>,
+  resolvedManifest: Awaited<ReturnType<typeof loadOptimizeManifest>>,
+  ledgerPath: string,
+): void {
   console.log('');
+  if (result.generation) {
+    console.log(`Generated tasks: ${result.generation.taskCount} (rejected: ${result.generation.rejectedCount})`);
+    console.log(`Frozen config: ${result.generation.benchmarkConfigPath}`);
+  }
   console.log(`Baseline overall pass rate: ${(result.baselineReport.summary.overallPassRate * 100).toFixed(1)}%`);
   console.log(`Best overall pass rate: ${(result.bestReport.summary.overallPassRate * 100).toFixed(1)}%`);
   console.log(`Iterations: ${result.iterations.length}`);
-  console.log(`Stop reason: ${result.stopReason}`);
-  console.log(`Ledger: ${ledgerPath}`);
+  if (result.stopReason === 'stable') {
+    console.log(
+      `Stop reason: stable (${resolvedManifest.optimizer.stabilityWindow} consecutive iterations without a meaningful improvement)`,
+    );
+  } else {
+    console.log(`Stop reason: max iterations reached (${resolvedManifest.optimizer.maxIterations})`);
+  }
+  console.log(`Run log: ${ledgerPath}`);
 }
 
-main().catch((error) => {
-  console.error(`FATAL: ${error instanceof Error ? error.message : String(error)}`);
-  if (error instanceof Error && error.stack) {
-    console.error(error.stack);
-  }
-  process.exit(1);
-});
+function isExecutedDirectly(): boolean {
+  const entry = process.argv[1];
+  return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
+}
+
+if (isExecutedDirectly()) {
+  main().catch((error) => {
+    console.error(`FATAL: ${error instanceof Error ? error.message : String(error)}`);
+    if (error instanceof Error && error.stack) {
+      console.error(error.stack);
+    }
+    process.exit(1);
+  });
+}

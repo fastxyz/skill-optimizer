@@ -1,4 +1,5 @@
 import type { BenchmarkReport, TaskResult } from './types.js';
+import { getExpectedActions, getExpectedActionName } from './types.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ export function generateMarkdown(report: BenchmarkReport): string {
     lines.push(`**Prompt:** ${firstResult.task.prompt}`);
     lines.push('');
     lines.push(
-      `**Expected Actions:** ${firstResult.task.expected_tools.map(t => `\`${t.method}\``).join(', ')}`,
+      `**Expected Actions:** ${getExpectedActions(firstResult.task).map((t) => `\`${getExpectedActionName(t)}\``).join(', ')}`,
     );
     lines.push('');
     lines.push('| Model | Status | Recall | Latency |');

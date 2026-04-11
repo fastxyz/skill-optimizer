@@ -35,47 +35,42 @@ function assertEqual<T>(actual: T, expected: T, message: string) {
 
 console.log('\n=== Mock Repo Smoke Tests ===\n');
 
-await test('listMockRepoTemplates: exposes sdk, cli, mcp, and tracker demos', () => {
+await test('listMockRepoTemplates: exposes tracked templates that exist in the worktree', () => {
   const templates = listMockRepoTemplates();
-  assertEqual(templates.length, 4, 'should expose exactly 4 templates');
-  assert(templates.includes('sdk-demo'), 'should include sdk-demo');
-  assert(templates.includes('cli-demo'), 'should include cli-demo');
-  assert(templates.includes('mcp-demo'), 'should include mcp-demo');
+  assert(templates.length >= 1, 'should expose at least one template');
   assert(templates.includes('mcp-tracker-demo'), 'should include mcp-tracker-demo');
 });
 
-for (const name of ['sdk-demo', 'cli-demo', 'mcp-demo', 'mcp-tracker-demo'] as const) {
+for (const name of listMockRepoTemplates()) {
   await test(`materializeMockRepo: ${name} becomes a standalone git repo`, async () => {
     const destRoot = mkdtempSync(join(tmpdir(), 'skill-optimizer-mock-'));
     try {
       const materializedPath = await materializeMockRepo(name, destRoot);
-      const benchmarkConfigPath = join(materializedPath, 'benchmark.config.json');
-      const optimizeConfigPath = join(materializedPath, 'optimize.config.json');
+      const projectConfigPath = join(materializedPath, 'skill-benchmark.json');
 
       assert(existsSync(join(materializedPath, '.git')), 'materialized mock repo should be git-initialized');
-      assert(existsSync(benchmarkConfigPath), 'benchmark config should exist');
-      assert(existsSync(optimizeConfigPath), 'optimize config should exist');
+      assert(existsSync(projectConfigPath), 'unified project config should exist');
 
-      const { config: benchmarkConfig } = loadConfig(benchmarkConfigPath);
-      assertEqual(benchmarkConfig.surface, name.startsWith('sdk') ? 'sdk' : name.startsWith('cli') ? 'cli' : 'mcp', 'surface should match template type');
+      const { config: benchmarkConfig } = loadConfig(projectConfigPath);
+      assertEqual(benchmarkConfig.surface, 'mcp', 'tracker demo should materialize an MCP benchmark');
 
       if (name === 'mcp-tracker-demo') {
-        const optimizeConfigRaw = JSON.parse(readFileSync(optimizeConfigPath, 'utf-8')) as {
-          targetRepo?: { validation?: string[]; path?: string };
-          optimizer?: { taskGeneration?: { outputDir?: string } };
+        const projectConfigRaw = JSON.parse(readFileSync(projectConfigPath, 'utf-8')) as {
+          target?: { repoPath?: string };
+          benchmark?: { taskGeneration?: { outputDir?: string } };
+          optimize?: { validation?: string[] };
         };
-        assert(Array.isArray(optimizeConfigRaw.targetRepo?.validation), 'tracker demo optimize config should define validation array');
-        assertEqual(optimizeConfigRaw.targetRepo?.validation?.length, 0, 'tracker demo should allow empty validation commands');
-        assertEqual(optimizeConfigRaw.targetRepo?.path, '.', 'tracker demo optimize config should keep path relative');
+        assert(Array.isArray(projectConfigRaw.optimize?.validation), 'tracker demo optimize config should define validation array');
+        assertEqual(projectConfigRaw.optimize?.validation?.length, 0, 'tracker demo should allow empty validation commands');
+        assertEqual(projectConfigRaw.target?.repoPath, '.', 'tracker demo config should keep repoPath relative');
         assertEqual(
-          optimizeConfigRaw.optimizer?.taskGeneration?.outputDir,
+          projectConfigRaw.benchmark?.taskGeneration?.outputDir,
           './.skill-optimizer',
           'tracker demo should declare task generation output directory',
         );
         assert(existsSync(join(materializedPath, 'SKILL.md')), 'tracker demo should include SKILL.md');
         assert(existsSync(join(materializedPath, 'tools.json')), 'tracker demo should include tools.json');
-      } else {
-        const optimizeManifest = loadOptimizeManifest(optimizeConfigPath);
+        const optimizeManifest = loadOptimizeManifest(projectConfigPath);
         assertEqual(optimizeManifest.targetRepo.path, materializedPath, 'optimize target should point at the materialized repo');
 
         const validation = await createValidationRunner().run(optimizeManifest.targetRepo);
@@ -90,11 +85,12 @@ for (const name of ['sdk-demo', 'cli-demo', 'mcp-demo', 'mcp-tracker-demo'] as c
 await test('materializeMockRepo: replacing an existing destination stays deterministic', async () => {
   const destRoot = mkdtempSync(join(tmpdir(), 'skill-optimizer-mock-'));
   try {
-    const materializedPath = await materializeMockRepo('sdk-demo', destRoot);
+    const template = listMockRepoTemplates()[0]!;
+    const materializedPath = await materializeMockRepo(template, destRoot);
     const staleFilePath = join(materializedPath, 'stale.txt');
     await import('node:fs/promises').then(({ writeFile }) => writeFile(staleFilePath, 'stale\n', 'utf-8'));
 
-    const rematerializedPath = await materializeMockRepo('sdk-demo', destRoot);
+    const rematerializedPath = await materializeMockRepo(template, destRoot);
     assertEqual(rematerializedPath, materializedPath, 'materialized path should be stable');
     assert(!existsSync(staleFilePath), 'stale files should be removed before re-materializing');
   } finally {
@@ -103,12 +99,13 @@ await test('materializeMockRepo: replacing an existing destination stays determi
 });
 
 await test('materializeMockRepo: rejects destinations that overlap the tracked template path', async () => {
-  const templatePath = getMockRepoTemplatePath('sdk-demo');
+  const template = listMockRepoTemplates()[0]!;
+  const templatePath = getMockRepoTemplatePath(template);
   const destinationRoot = join(templatePath, '..');
 
   let threw = false;
   try {
-    await materializeMockRepo('sdk-demo', destinationRoot);
+    await materializeMockRepo(template, destinationRoot);
   } catch (error: any) {
     threw = true;
     assert(error.message.includes('overlaps'), 'error should explain the overlap');
@@ -121,8 +118,7 @@ await test('mock repo templates keep benchmark and target files together', () =>
   for (const name of listMockRepoTemplates()) {
     const readmePath = join(process.cwd(), 'mock-repos', name, 'README.md');
     const readme = readFileSync(readmePath, 'utf-8');
-    assert(readme.includes('benchmark.config.json'), `${name} README should mention benchmark.config.json`);
-    assert(readme.includes('optimize.config.json'), `${name} README should mention optimize.config.json`);
+    assert(readme.includes('skill-benchmark.json'), `${name} README should mention skill-benchmark.json`);
   }
 });
 

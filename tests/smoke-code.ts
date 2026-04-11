@@ -108,13 +108,16 @@ await test('extractSdkCodeBlock: finds rust block', () => {
 await test('loadConfig: rejects unsupported sdk language', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-lang-'));
   try {
-    const configPath = join(dir, 'benchmark.config.json');
+    const configPath = join(dir, 'skill-benchmark.json');
     writeFileSync(configPath, JSON.stringify({
       name: 'bad-sdk',
-      surface: 'sdk',
-      sdk: { language: 'java' },
-      tasks: './tasks.json',
-      llm: {
+      target: {
+        surface: 'sdk',
+        repoPath: '.',
+        sdk: { language: 'java' },
+      },
+      benchmark: {
+        tasks: './tasks.json',
         baseUrl: 'https://example.com',
         format: 'openai',
         models: [{ id: 'test/model', name: 'Test Model', tier: 'flagship' }],
@@ -299,15 +302,17 @@ await test('initBenchmark scaffolds sdk apiSurface', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
     initBenchmark(dir);
-    const config = JSON.parse(readFileSync(join(dir, 'benchmark.config.json'), 'utf-8')) as {
-      surface: string;
-      sdk: { apiSurface?: string[]; methods?: string[] };
+    const config = JSON.parse(readFileSync(join(dir, 'skill-benchmark.json'), 'utf-8')) as {
+      target: {
+        surface: string;
+        sdk: { apiSurface?: string[]; methods?: string[] };
+      };
     };
 
-    assertEqual(config.surface, 'sdk', 'scaffold should default to sdk surface');
-    assert(Array.isArray(config.sdk.apiSurface), 'scaffold should emit sdk.apiSurface');
-    assert(config.sdk.apiSurface!.length > 0, 'scaffold apiSurface should contain entries');
-    assertEqual(config.sdk.methods, undefined, 'scaffold should not emit deprecated sdk.methods');
+    assertEqual(config.target.surface, 'sdk', 'scaffold should default to sdk surface');
+    assert(Array.isArray(config.target.sdk.apiSurface), 'scaffold should emit sdk.apiSurface');
+    assert(config.target.sdk.apiSurface!.length > 0, 'scaffold apiSurface should contain entries');
+    assertEqual(config.target.sdk.methods, undefined, 'scaffold should not emit deprecated sdk.methods');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

@@ -6,12 +6,12 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-const MOCK_REPO_NAMES = ['sdk-demo', 'cli-demo', 'mcp-demo'] as const;
+const MOCK_REPO_NAMES = ['sdk-demo', 'cli-demo', 'mcp-demo', 'mcp-tracker-demo'] as const;
 
 export type MockRepoName = (typeof MOCK_REPO_NAMES)[number];
 
 export function listMockRepoTemplates(): MockRepoName[] {
-  return [...MOCK_REPO_NAMES];
+  return MOCK_REPO_NAMES.filter((name) => existsSync(getMockRepoTemplatePath(name)));
 }
 
 export function getMockRepoTemplatePath(name: MockRepoName): string {

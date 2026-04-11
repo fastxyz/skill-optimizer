@@ -1,8 +1,9 @@
 import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 
 import { analyzeFailures } from './failure-analysis.js';
 import type { BenchmarkReport } from '../benchmark/types.js';
+import { getExpectedActionName } from '../benchmark/types.js';
 import type {
   MutationCandidate,
   OptimizeIteration,
@@ -18,6 +19,7 @@ export async function runOptimizeLoop(
   deps: OptimizeLoopDependencies,
 ): Promise<OptimizeResult> {
   const resolvedManifest = resolveManifest(manifest);
+  const sourceBenchmarkConfig = resolvedManifest.benchmarkConfig;
   console.log(`[optimize] Target repo: ${resolvedManifest.targetRepo.path}`);
   await deps.repo.ensureReady(resolvedManifest.targetRepo);
   console.log('[optimize] Repository is ready.');
@@ -39,6 +41,9 @@ export async function runOptimizeLoop(
       `[optimize] Using generated benchmark config: ${generation.benchmarkConfigPath} ` +
         `(tasks=${generation.taskCount}, rejected=${generation.rejectedCount})`,
     );
+  }
+  if (resolvedManifest.optimizer.mode === 'surface-changing' && !resolvedManifest.optimizer.taskGeneration.enabled) {
+    throw new Error('surface-changing optimize mode requires task generation to stay enabled so new epochs can regenerate tasks');
   }
 
   let acceptedCheckpoint = await deps.repo.captureCheckpoint(resolvedManifest.targetRepo);
@@ -134,6 +139,50 @@ export async function runOptimizeLoop(
         console.log('[optimize] Validation introduced out-of-scope changes. Restoring checkpoint.');
         iteration.validation = postValidationScopeValidation;
         await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
+        iterations.push(iteration);
+        await deps.ledger.record({ type: 'iteration', iteration });
+        continue;
+      }
+
+      const surfaceChanged = didSurfaceChange(changedFiles, resolvedManifest);
+      if (surfaceChanged && resolvedManifest.optimizer.mode === 'surface-changing') {
+        console.log('[optimize] Callable surface changed. Starting a new benchmark epoch...');
+        if (resolvedManifest.optimizer.taskGeneration.enabled) {
+          if (!deps.taskGenerator) {
+            throw new Error('Optimize loop requires a task generator to regenerate tasks after surface changes');
+          }
+          const regenerated = await deps.taskGenerator.generate(
+            { ...resolvedManifest, benchmarkConfig: sourceBenchmarkConfig },
+            { outputDir },
+          );
+          resolvedManifest.benchmarkConfig = regenerated.benchmarkConfigPath;
+          generation = regenerated;
+          console.log(
+            `[optimize] New epoch uses regenerated benchmark config: ${regenerated.benchmarkConfigPath} ` +
+              `(tasks=${regenerated.taskCount}, rejected=${regenerated.rejectedCount})`,
+          );
+        }
+
+        const epochBaseline = await deps.benchmark.run(resolvedManifest.benchmarkConfig, {
+          outputDir,
+          label: `epoch-${index + 1}-baseline`,
+        });
+        iteration.accepted = true;
+        iteration.scoreAfter = epochBaseline.report.summary.overallPassRate;
+        iteration.delta = epochBaseline.report.summary.overallPassRate - bestReport.summary.overallPassRate;
+        bestReport = epochBaseline.report;
+        lastReportPath = epochBaseline.reportPath;
+        acceptedCheckpoint = await deps.repo.updateAcceptedCheckpoint(
+          resolvedManifest.targetRepo,
+          acceptedCheckpoint,
+          candidate,
+          changedFiles,
+        );
+        consecutiveStableIterations = 0;
+        console.log(
+          `[optimize] Started new epoch baseline at ${(bestReport.summary.overallPassRate * 100).toFixed(1)}% ` +
+            `(report: ${epochBaseline.reportPath}).`,
+        );
         iterations.push(iteration);
         await deps.ledger.record({ type: 'iteration', iteration });
         continue;
@@ -246,11 +295,11 @@ function summarizeTopFailures(report: BenchmarkReport, limit = 3): string[] {
     existing.failCount += 1;
     existing.models.add(result.model.name);
 
-    for (const match of result.toolMatches) {
+    for (const match of result.actionMatches ?? result.toolMatches) {
       if (!match.methodFound) {
-        existing.missing.add(match.expected.method);
+        existing.missing.add(getExpectedActionName(match.expected));
       } else if (!match.argsCorrect) {
-        existing.badArgs.add(match.expected.method);
+        existing.badArgs.add(getExpectedActionName(match.expected));
       }
     }
 
@@ -274,7 +323,9 @@ function summarizeTopFailures(report: BenchmarkReport, limit = 3): string[] {
 }
 
 function validateChangedFiles(changedFiles: string[], manifest: ResolvedOptimizeManifest) {
-  const disallowedFiles = changedFiles.filter((file) => !isAllowedPath(file, manifest.targetRepo.allowedPaths));
+  const disallowedFiles = changedFiles.filter(
+    (file) => !isFrameworkArtifactPath(file, manifest) && !isAllowedPath(file, manifest.targetRepo.allowedPaths),
+  );
   if (disallowedFiles.length === 0) {
     return null;
   }
@@ -291,6 +342,23 @@ function validateChangedFiles(changedFiles: string[], manifest: ResolvedOptimize
       },
     ],
   };
+}
+
+function didSurfaceChange(changedFiles: string[], manifest: ResolvedOptimizeManifest): boolean {
+  const surfacePaths = manifest.targetRepo.surfacePaths ?? [];
+  const relevantSurfacePaths = new Set(
+    surfacePaths.map((surfacePath) => normalizeRelativePath(toRelativeTargetPath(surfacePath, manifest))),
+  );
+
+  return changedFiles.some((file) => relevantSurfacePaths.has(normalizeRelativePath(file)));
+}
+
+function toRelativeTargetPath(path: string, manifest: ResolvedOptimizeManifest): string {
+  if (path.startsWith('/') || path.startsWith('\\')) {
+    return relative(manifest.targetRepo.path, path);
+  }
+
+  return path;
 }
 
 function isAllowedPath(file: string, allowedPaths: string[]): boolean {
@@ -310,9 +378,21 @@ async function getChangedFiles(
   manifest: ResolvedOptimizeManifest,
   candidate: MutationCandidate,
 ): Promise<string[]> {
-  return deps.repo.listChangedFiles
+  const changedFiles = deps.repo.listChangedFiles
     ? deps.repo.listChangedFiles(manifest.targetRepo)
     : [...candidate.changedFiles];
+  return (await changedFiles).filter((file) => !isFrameworkArtifactPath(file, manifest));
+}
+
+function isFrameworkArtifactPath(file: string, manifest: ResolvedOptimizeManifest): boolean {
+  const artifactDir = relative(manifest.targetRepo.path, manifest.optimizer.taskGeneration.outputDir);
+  if (!artifactDir || artifactDir.startsWith('..')) {
+    return false;
+  }
+
+  const normalizedFile = normalizeRelativePath(file);
+  const normalizedArtifactDir = normalizeRelativePath(artifactDir);
+  return normalizedFile === normalizedArtifactDir || normalizedFile.startsWith(`${normalizedArtifactDir}/`);
 }
 
 function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest): ResolvedOptimizeManifest {
@@ -325,6 +405,7 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
     benchmarkConfig: unresolved.benchmarkConfig,
     targetRepo: {
       ...unresolved.targetRepo,
+      surfacePaths: unresolved.targetRepo.surfacePaths ?? [],
       requireCleanGit: unresolved.targetRepo.requireCleanGit ?? true,
     },
     optimizer: {
@@ -337,6 +418,7 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
         seed: unresolved.optimizer?.taskGeneration?.seed ?? 1,
         outputDir: resolve(unresolved.optimizer?.taskGeneration?.outputDir ?? '.skill-optimizer'),
       },
+      mode: unresolved.optimizer?.mode ?? 'stable-surface',
     },
     mutation: unresolved.mutation
       ? {

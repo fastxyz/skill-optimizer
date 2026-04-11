@@ -1,3 +1,10 @@
+import type {
+  ActionArgSchema,
+  ActionAttempt,
+  ActionCatalog,
+  ActionDefinition,
+} from '../actions/types.js';
+
 // === Core ===
 export type Tier = 'flagship' | 'mid' | 'low';
 
@@ -29,6 +36,8 @@ export interface BenchmarkConfig {
   llm: LLMConfig;
   output?: OutputConfig;
   agentic?: AgenticConfig;
+  surfaceSnapshot?: SurfaceSnapshot;
+  mcpToolDefinitions?: McpToolDefinition[];
 }
 
 export interface SdkSurfaceConfig {
@@ -76,9 +85,9 @@ export interface SkillConfig {
 }
 
 export interface LLMConfig {
-  baseUrl: string;                 // e.g. "https://openrouter.ai/api/v1"
+  baseUrl?: string;                // required for direct openai/anthropic formats
   apiKeyEnv?: string;              // e.g. "OPENROUTER_API_KEY" — reads from process.env
-  format: 'openai' | 'anthropic';
+  format: 'openai' | 'anthropic' | 'pi';
   timeout?: number;                // ms, default 240000
   headers?: Record<string, string>; // extra headers
   models: ModelConfig[];
@@ -127,10 +136,14 @@ export interface FetchedSkill {
 
 // === Task Definition (loaded from tasks.json) ===
 
-export interface ExpectedTool {
-  method: string;                  // SDK: "FastWallet.send", MCP: "send_tokens"
+export interface ExpectedAction {
+  name?: string;                   // Unified action name (SDK method, CLI command, or MCP tool)
+  method?: string;                 // Transitional alias for older internal code paths
   args?: Record<string, unknown>;  // expected arg values (supports nested objects/arrays, strings, regexes, sentinels)
 }
+
+// Transitional alias retained while internal code paths migrate.
+export type ExpectedTool = ExpectedAction;
 
 export interface TaskVerification {
   code_pattern?: string;           // regex pattern to match in generated code
@@ -139,19 +152,15 @@ export interface TaskVerification {
 export interface TaskDefinition {
   id: string;
   prompt: string;
-  expected_tools: ExpectedTool[];
+  expected_actions?: ExpectedAction[];
+  expected_tools?: ExpectedAction[]; // transitional alias populated by the loader
   verify?: TaskVerification[];
   expected_fetches?: string[];
 }
 
 // === Extracted from generated code or tool_calls ===
 
-export interface ExtractedCall {
-  method: string;                  // normalized: "FastWallet.send" or "send_tokens"
-  args: Record<string, unknown>;
-  line: number;                    // line in code (0 for MCP surface)
-  raw: string;                     // raw source text or JSON
-}
+export type ExtractedCall = ActionAttempt;
 
 // === LLM Response ===
 
@@ -170,8 +179,8 @@ export type ToolExecutor = (name: string, args: Record<string, unknown>) => Prom
 
 // === Evaluation ===
 
-export interface ToolMatch {
-  expected: ExpectedTool;
+export interface ActionMatch {
+  expected: ExpectedAction;
   found: ExtractedCall | null;
   methodFound: boolean;
   argsCorrect: boolean;
@@ -183,13 +192,17 @@ export interface ToolMatch {
   }>;
 }
 
+// Transitional alias retained while internal code paths migrate.
+export type ToolMatch = ActionMatch;
+
 export interface TaskResult {
   task: TaskDefinition;
   model: ModelConfig;
   generatedCode: string | null;
   rawResponse: string;
   extractedCalls: ExtractedCall[];
-  toolMatches: ToolMatch[];
+  actionMatches?: ActionMatch[];
+  toolMatches: ActionMatch[]; // transitional alias
   codePatternResults?: Record<string, boolean>;
   metrics: {
     toolPrecision: number;
@@ -197,8 +210,10 @@ export interface TaskResult {
     taskPassed: boolean;
     toolSelectionAccuracy: number;
     argAccuracy: number;
-    unnecessaryCalls: string[];
-    hallucinatedCalls: string[];
+    unnecessaryActions?: string[];
+    unnecessaryCalls: string[]; // transitional alias
+    hallucinatedActions?: string[];
+    hallucinatedCalls: string[]; // transitional alias
     hallucinationRate: number;
     fetchRecall?: number;
     fetchPrecision?: number;
@@ -215,6 +230,15 @@ export interface MethodCoverage {
   method: string;
   tasksCovering: string[];
   covered: boolean;
+}
+
+export type SurfaceActionArg = ActionArgSchema;
+
+export type SurfaceAction = Omit<ActionDefinition, 'key'>;
+
+export interface SurfaceSnapshot extends Omit<ActionCatalog, 'actions'> {
+  surface: BenchmarkSurface;
+  actions: SurfaceAction[];
 }
 
 // === Report ===
@@ -238,7 +262,7 @@ export interface TaskSummary {
 
 export interface BenchmarkReport {
   timestamp: string;
-  config: { name: string; surface: BenchmarkSurface };
+  config: { name: string; surface: BenchmarkSurface; outputDir?: string };
   skillVersion: SkillVersion;
   results: TaskResult[];
   coverage: MethodCoverage[];
@@ -257,6 +281,14 @@ export interface BenchmarkReport {
     perTask: Record<string, TaskSummary>;
     perTier: Record<Tier, { passRate: number; avgRecall: number; avgToolSelectionAccuracy: number; avgArgAccuracy: number }>;
   };
+}
+
+export function getExpectedActionName(action: ExpectedAction): string {
+  return action.name || action.method || '';
+}
+
+export function getExpectedActions(task: TaskDefinition): ExpectedAction[] {
+  return task.expected_actions ?? task.expected_tools ?? [];
 }
 
 // === Comparison ===

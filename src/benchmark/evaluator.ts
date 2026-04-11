@@ -7,6 +7,7 @@ import type {
   ModelConfig,
   TokenUsage,
 } from './types.js';
+import { getExpectedActionName, getExpectedActions } from './types.js';
 
 // ── Argument matching ──────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ export function matchTools(
   const usedIndices = new Set<number>();
 
   return expectedTools.map((expected) => {
+    const expectedMethod = getExpectedActionName(expected);
     // If there are args to check, try to find a perfect match (method + args) first.
     // Otherwise, find the first unused extracted call that matches the method name.
     const hasExpectedArgs = expected.args && Object.keys(expected.args).length > 0;
@@ -168,7 +170,7 @@ export function matchTools(
       let perfectMatchIndex = -1;
       for (let i = 0; i < extractedCalls.length; i++) {
         if (usedIndices.has(i)) continue;
-        if (extractedCalls[i].method !== expected.method) continue;
+        if (extractedCalls[i].method !== expectedMethod) continue;
         // Check args
         const trialArgResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
         let allArgsMatch = true;
@@ -206,7 +208,7 @@ export function matchTools(
       let fallbackIndex = -1;
       for (let i = 0; i < extractedCalls.length; i++) {
         if (usedIndices.has(i)) continue;
-        if (extractedCalls[i].method === expected.method) {
+        if (extractedCalls[i].method === expectedMethod) {
           fallbackIndex = i;
           break;
         }
@@ -247,7 +249,7 @@ export function matchTools(
     let foundIndex = -1;
     for (let i = 0; i < extractedCalls.length; i++) {
       if (usedIndices.has(i)) continue;
-      if (extractedCalls[i].method === expected.method) {
+        if (extractedCalls[i].method === expectedMethod) {
         foundIndex = i;
         break;
       }
@@ -280,7 +282,7 @@ export function matchTools(
 
 /**
  * Resolve raw extracted calls (e.g. 'f.setup') into typed calls (e.g. 'FastClient.setup')
- * using variable bindings from the extractor and type prefixes from task expected_tools.
+ * using variable bindings from the extractor and type prefixes from task expected actions.
  *
  * Algorithm:
  * 1. Collect type prefixes from expected tools (e.g. 'FastClient' from 'FastClient.setup')
@@ -297,8 +299,9 @@ function resolveCallsFromBindings(
   // 1. Collect type prefixes from expected tools.
   const expectedPrefixes = new Set<string>();
   for (const tool of expectedTools) {
-    if (tool.method.includes('.')) {
-      expectedPrefixes.add(tool.method.split('.')[0]);
+    const expectedMethod = getExpectedActionName(tool);
+    if (expectedMethod.includes('.')) {
+      expectedPrefixes.add(expectedMethod.split('.')[0]);
     }
   }
 
@@ -315,10 +318,11 @@ function resolveCallsFromBindings(
   // Inferred matches (e.g. fast is a factory, or wallet is an instance-returning method).
   const expectedPrefixMethods = new Map<string, Set<string>>(); // prefix → set of method names
   for (const tool of expectedTools) {
-    const dotIdx = tool.method.indexOf('.');
+    const expectedMethod = getExpectedActionName(tool);
+    const dotIdx = expectedMethod.indexOf('.');
     if (dotIdx !== -1) {
-      const prefix = tool.method.slice(0, dotIdx);
-      const method = tool.method.slice(dotIdx + 1);
+      const prefix = expectedMethod.slice(0, dotIdx);
+      const method = expectedMethod.slice(dotIdx + 1);
       if (!expectedPrefixMethods.has(prefix)) expectedPrefixMethods.set(prefix, new Set());
       expectedPrefixMethods.get(prefix)!.add(method);
     }
@@ -409,12 +413,13 @@ export function evaluateTask(params: {
 
   // ── Resolve raw calls if bindings provided ──
   let extractedCalls = params.extractedCalls;
+  const expectedActions = getExpectedActions(task);
   if (bindings && bindings.size > 0) {
-    extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, task.expected_tools);
+    extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, expectedActions);
   }
 
   // ── Tool matching ──
-  const toolMatches = matchTools(task.expected_tools, extractedCalls);
+  const toolMatches = matchTools(expectedActions, extractedCalls);
 
   // ── Code pattern checks ──
   const codePatternResults: Record<string, boolean> = {};
@@ -446,7 +451,7 @@ export function evaluateTask(params: {
   }
 
   // ── Metrics ──
-  const expectedCount = task.expected_tools.length;
+  const expectedCount = expectedActions.length;
   const matchedCount = toolMatches.filter((m) => m.matched).length;
 
   // Recall: matched / expected. If 0 expected, recall = 1.0
@@ -473,7 +478,7 @@ export function evaluateTask(params: {
 
   // Surface-aware hallucination tracking
   const allExtractedMethods = extractedCalls.map(c => c.method);
-  const expectedMethods = new Set(task.expected_tools.map(t => t.method));
+  const expectedMethods = new Set(expectedActions.map((action) => getExpectedActionName(action)));
 
   // Derive SDK prefixes from knownMethods
   const sdkPrefixes = new Set<string>();
@@ -513,6 +518,7 @@ export function evaluateTask(params: {
     generatedCode,
     rawResponse,
     extractedCalls,
+    actionMatches: toolMatches,
     toolMatches,
     codePatternResults: hasCodePatterns ? codePatternResults : undefined,
     metrics: {
@@ -521,7 +527,9 @@ export function evaluateTask(params: {
       taskPassed,
       toolSelectionAccuracy,
       argAccuracy,
+      unnecessaryActions: unnecessaryCalls,
       unnecessaryCalls,
+      hallucinatedActions: hallucinatedCalls,
       hallucinatedCalls,
       hallucinationRate,
     },

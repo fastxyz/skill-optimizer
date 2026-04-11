@@ -157,6 +157,7 @@ function makeManifest(): OptimizeManifest {
       requireCleanGit: true,
     },
     optimizer: {
+      mode: 'stable-surface' as any,
       maxIterations: 5,
       stabilityWindow: 2,
       minOverallPassDelta: 0.01,
@@ -175,12 +176,21 @@ console.log('\n=== Optimizer Smoke Tests ===\n');
 await test('loadOptimizeManifest: applies defaults', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'optimize.config.json');
+    const file = join(dir, 'skill-benchmark.json');
     writeFileSync(file, JSON.stringify({
-      benchmarkConfig: './benchmark.config.json',
-      targetRepo: {
-        path: '../sdk',
+      name: 'opt-defaults',
+      target: {
         surface: 'sdk',
+        repoPath: '../sdk',
+        sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openrouter/openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' }],
+      },
+      optimize: {
+        model: 'openrouter/openai/gpt-5.4',
         allowedPaths: ['src'],
         validation: ['npm test'],
       },
@@ -200,12 +210,21 @@ await test('loadOptimizeManifest: applies defaults', () => {
 await test('loadOptimizeManifest: allows empty target validation commands', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'optimize.config.json');
+    const file = join(dir, 'skill-benchmark.json');
     writeFileSync(file, JSON.stringify({
-      benchmarkConfig: './benchmark.config.json',
-      targetRepo: {
-        path: '../sdk',
+      name: 'opt-validation',
+      target: {
         surface: 'sdk',
+        repoPath: '../sdk',
+        sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openrouter/openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' }],
+      },
+      optimize: {
+        model: 'openrouter/openai/gpt-5.4',
         allowedPaths: ['src'],
         validation: [],
       },
@@ -221,12 +240,21 @@ await test('loadOptimizeManifest: allows empty target validation commands', () =
 await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'optimize.config.json');
+    const file = join(dir, 'skill-benchmark.json');
     writeFileSync(file, JSON.stringify({
-      benchmarkConfig: './benchmark.config.json',
-      targetRepo: {
-        path: '../sdk',
+      name: 'opt-clean-git',
+      target: {
         surface: 'sdk',
+        repoPath: '../sdk',
+        sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openrouter/openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' }],
+      },
+      optimize: {
+        model: 'openrouter/openai/gpt-5.4',
         allowedPaths: ['src'],
         validation: ['npm test'],
         requireCleanGit: false,
@@ -250,29 +278,32 @@ await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
 await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'optimize.config.json');
+    const file = join(dir, 'skill-benchmark.json');
     writeFileSync(file, JSON.stringify({
-      benchmarkConfig: './benchmark.config.json',
-      targetRepo: {
-        path: '../sdk',
+      name: 'opt-invalid-values',
+      target: {
         surface: 'sdk',
-        allowedPaths: ['src'],
-        validation: ['npm test'],
+        repoPath: '../sdk',
+        sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
       },
-      optimizer: {
-        maxIterations: 0,
-        stabilityWindow: 0,
-        minOverallPassDelta: -0.1,
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openrouter/openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' }],
         taskGeneration: {
           enabled: false,
-          maxGenerated: 0,
+          maxTasks: 0,
           seed: -1,
           outputDir: '',
         },
       },
-      mutation: {
-        provider: 'openai-codex',
-        model: 'gpt-5.4',
+      optimize: {
+        model: 'openrouter/openai/gpt-5.4',
+        allowedPaths: ['src'],
+        validation: ['npm test'],
+        maxIterations: 0,
+        stabilityWindow: 0,
+        minImprovement: -0.1,
         reportContextMaxBytes: 0,
       },
     }), 'utf-8');
@@ -283,7 +314,7 @@ await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () 
     } catch (error: any) {
         threw = true;
         assert(
-        error.message.includes('maxIterations') || error.message.includes('stabilityWindow') || error.message.includes('minOverallPassDelta') || error.message.includes('maxGenerated') || error.message.includes('seed') || error.message.includes('outputDir') || error.message.includes('reportContextMaxBytes'),
+        error.message.includes('maxIterations') || error.message.includes('stabilityWindow') || error.message.includes('minImprovement') || error.message.includes('maxTasks') || error.message.includes('seed') || error.message.includes('outputDir') || error.message.includes('reportContextMaxBytes'),
         'error should mention invalid optimizer numeric field',
       );
     }
@@ -338,6 +369,97 @@ await test('runOptimizeLoop: stops after max iterations', async () => {
   assertEqual(result.iterations.length, 3, 'should run 3 iterations');
   assertEqual(result.stopReason, 'max-iterations', 'should stop on max iterations');
   assertEqual(runCount, 4, 'baseline plus one benchmark run per iteration');
+});
+
+await test('runOptimizeLoop: starts a new epoch baseline after accepted surface change', async () => {
+  const manifest = makeManifest() as OptimizeManifest & {
+    optimizer: OptimizeManifest['optimizer'] & { mode: 'surface-changing' };
+    targetRepo: OptimizeManifest['targetRepo'] & { surfacePaths: string[] };
+  };
+  manifest.optimizer.mode = 'surface-changing';
+  manifest.optimizer.maxIterations = 1;
+  manifest.optimizer.taskGeneration!.enabled = true;
+  manifest.targetRepo.surfacePaths = ['src/server.ts'];
+
+  const benchmarkLabels: string[] = [];
+  let generationCount = 0;
+  const deps: OptimizeLoopDependencies = {
+    benchmark: {
+      run: async (_configPath, opts) => {
+        benchmarkLabels.push(opts.label);
+        const score = opts.label === 'baseline' ? 0.4 : opts.label === 'iteration-1' ? 0.6 : 0.55;
+        return makeBenchmarkRunResult(makeReport(score), opts);
+      },
+    },
+    repo: {
+      ensureReady: async () => 'clean',
+      captureCheckpoint: async () => 'checkpoint-1',
+      restoreCheckpoint: async () => {},
+      updateAcceptedCheckpoint: async () => 'checkpoint-2',
+    },
+    mutation: {
+      apply: async () => ({ summary: 'rename tool', changedFiles: ['src/server.ts'] }),
+    },
+    taskGenerator: {
+      generate: async () => {
+        generationCount += 1;
+        return {
+          benchmarkConfigPath: `/tmp/generated-${generationCount}.json`,
+          taskCount: 3,
+          rejectedCount: 0,
+        };
+      },
+    },
+    validation: {
+      run: async () => ({ ok: true, commands: [] }),
+    },
+    ledger: {
+      record: async () => {},
+    },
+  };
+
+  const result = await runOptimizeLoop(manifest, deps);
+  assertEqual(generationCount, 2, 'surface-changing mode should regenerate tasks after accepted surface changes');
+  assertEqual(benchmarkLabels.join(','), 'baseline,epoch-2-baseline', 'should start a new epoch baseline after the surface change is accepted');
+  assertEqual(result.bestReport.summary.overallPassRate, 0.55, 'best report should become the new epoch baseline');
+});
+
+await test('runOptimizeLoop: rejects surface-changing mode when task generation is disabled', async () => {
+  const manifest = makeManifest() as OptimizeManifest & {
+    optimizer: OptimizeManifest['optimizer'] & { mode: 'surface-changing' };
+  };
+  manifest.optimizer.mode = 'surface-changing';
+  manifest.optimizer.taskGeneration!.enabled = false;
+
+  const deps: OptimizeLoopDependencies = {
+    benchmark: {
+      run: async (_configPath, opts) => makeBenchmarkRunResult(makeReport(0.4), opts),
+    },
+    repo: {
+      ensureReady: async () => 'clean',
+      captureCheckpoint: async () => 'checkpoint-1',
+      restoreCheckpoint: async () => {},
+      updateAcceptedCheckpoint: async () => 'checkpoint-2',
+    },
+    mutation: {
+      apply: async () => ({ summary: 'noop', changedFiles: [] }),
+    },
+    validation: {
+      run: async () => ({ ok: true, commands: [] }),
+    },
+    ledger: {
+      record: async () => {},
+    },
+  };
+
+  let threw = false;
+  try {
+    await runOptimizeLoop(manifest, deps);
+  } catch (error: any) {
+    threw = true;
+    assert(error.message.includes('surface-changing optimize mode requires task generation'), 'error should explain the invariant');
+  }
+  assert(threw, 'surface-changing mode without generation should throw');
 });
 
 await test('runOptimizeLoop: applies defaults to partially specified manifests', async () => {

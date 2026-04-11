@@ -1,107 +1,32 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { resolve } from 'node:path';
 import type {
   BenchmarkConfig,
   TaskDefinition,
   McpToolDefinition,
   CliCommandDefinition,
   ModelConfig,
+  ExpectedAction,
 } from './types.js';
+import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, toBenchmarkConfig } from '../project/index.js';
 
-const DEFAULT_CONFIG_NAME = 'benchmark.config.json';
+const DEFAULT_CONFIG_NAME = DEFAULT_PROJECT_CONFIG_NAME;
+const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
+
+function isSafeTaskId(taskId: string): boolean {
+  return SAFE_TASK_ID.test(taskId) && taskId !== '.' && taskId !== '..';
+}
 
 /**
  * Load benchmark config from the given path or search for benchmark.config.json
  * in the current working directory.
  */
 export function loadConfig(configPath?: string): { config: BenchmarkConfig; configDir: string } {
-  const resolvedPath = configPath
-    ? resolve(configPath)
-    : resolve(process.cwd(), DEFAULT_CONFIG_NAME);
-
-  if (!existsSync(resolvedPath)) {
-    throw new Error(
-      `Config file not found: ${resolvedPath}\n` +
-      `Run 'skill-optimizer init' to create one, or specify --config <path>.`
-    );
-  }
-
-  let raw: string;
-  try {
-    raw = readFileSync(resolvedPath, 'utf-8');
-  } catch (err) {
-    throw new Error(`Failed to read config: ${resolvedPath}: ${err instanceof Error ? err.message : err}`);
-  }
-
-  let config: BenchmarkConfig;
-  try {
-    config = JSON.parse(raw) as BenchmarkConfig;
-  } catch (err) {
-    throw new Error(`Invalid JSON in config: ${resolvedPath}: ${err instanceof Error ? err.message : err}`);
-  }
-
-  validateConfig(config, resolvedPath);
-  return { config, configDir: dirname(resolvedPath) };
-}
-
-/**
- * Validate required config fields.
- */
-function validateConfig(config: BenchmarkConfig, path: string): void {
-  if (!config.name) throw new Error(`Config ${path}: "name" is required`);
-  if (!config.surface) {
-    throw new Error(`Config ${path}: "surface" is required (must be "sdk", "cli", or "mcp")`);
-  }
-
-  if (config.surface !== 'sdk' && config.surface !== 'cli' && config.surface !== 'mcp') {
-    throw new Error(
-      `Config ${path}: "surface" must be "sdk", "cli", or "mcp", got "${config.surface}"`
-    );
-  }
-
-  if (config.surface === 'sdk') {
-    if (!config.sdk) throw new Error(`Config ${path}: "sdk" section is required when surface is "sdk"`);
-    if (!config.sdk.language) {
-      throw new Error(`Config ${path}: "sdk.language" is required (e.g. "typescript")`);
-    }
-    if (!['typescript', 'python', 'rust'].includes(config.sdk.language)) {
-      throw new Error(
-        `Config ${path}: "sdk.language" must be one of "typescript", "python", or "rust", got "${config.sdk.language}"`,
-      );
-    }
-  }
-
-  if (config.surface === 'cli') {
-    if (!config.cli) throw new Error(`Config ${path}: "cli" section is required when surface is "cli"`);
-    if (!config.cli.commands) {
-      throw new Error(`Config ${path}: "cli.commands" path is required`);
-    }
-  }
-
-  if (config.surface === 'mcp') {
-    if (!config.mcp) throw new Error(`Config ${path}: "mcp" section is required when surface is "mcp"`);
-    if (!config.mcp.tools) throw new Error(`Config ${path}: "mcp.tools" path is required`);
-  }
-
-  if (!config.tasks) throw new Error(`Config ${path}: "tasks" path is required`);
-
-  if (!config.llm) throw new Error(`Config ${path}: "llm" section is required`);
-  if (!config.llm.format) throw new Error(`Config ${path}: "llm.format" is required ("openai", "anthropic", or "pi")`);
-  if (config.llm.format !== 'openai' && config.llm.format !== 'anthropic' && config.llm.format !== 'pi') {
-    throw new Error(`Config ${path}: "llm.format" must be "openai", "anthropic", or "pi", got "${config.llm.format}"`);
-  }
-  if ((config.llm.format === 'openai' || config.llm.format === 'anthropic') && !config.llm.baseUrl) {
-    throw new Error(`Config ${path}: "llm.baseUrl" is required for ${config.llm.format} format`);
-  }
-  if (!config.llm.models || !Array.isArray(config.llm.models) || config.llm.models.length === 0) {
-    throw new Error(`Config ${path}: "llm.models" must be a non-empty array`);
-  }
-
-  for (const model of config.llm.models) {
-    if (!model.id) throw new Error(`Config ${path}: each model must have an "id"`);
-    if (!model.name) throw new Error(`Config ${path}: each model must have a "name"`);
-    if (!model.tier) throw new Error(`Config ${path}: each model must have a "tier" (flagship, mid, low)`);
-  }
+  const project = loadProjectConfig(configPath ?? DEFAULT_CONFIG_NAME);
+  return {
+    config: toBenchmarkConfig(project),
+    configDir: project.configDir,
+  };
 }
 
 /**
@@ -121,7 +46,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
     throw new Error(`Failed to read tasks: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
 
-  let parsed: { tasks: TaskDefinition[] };
+  let parsed: { tasks: Array<TaskDefinition & { expected_tools?: unknown; expected_actions?: unknown }> };
   try {
     parsed = JSON.parse(raw) as { tasks: TaskDefinition[] };
   } catch (err) {
@@ -132,7 +57,76 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
     throw new Error(`Tasks file ${resolved}: must have a "tasks" array at the root`);
   }
 
-  return parsed.tasks;
+  return parsed.tasks.map((task, index) => normalizeTaskDefinition(task, resolved, index));
+}
+
+function normalizeTaskDefinition(
+  task: TaskDefinition & { expected_tools?: unknown; expected_actions?: unknown },
+  resolvedPath: string,
+  index: number,
+): TaskDefinition {
+  if (typeof task.id !== 'string' || task.id.trim() === '') {
+    throw new Error(`Tasks file ${resolvedPath}: task at index ${index} must include a non-empty string id`);
+  }
+  if (!isSafeTaskId(task.id)) {
+    throw new Error(`Tasks file ${resolvedPath}: task id "${task.id}" must match ${SAFE_TASK_ID.toString()} and cannot be . or ..`);
+  }
+  if (typeof task.prompt !== 'string' || task.prompt.trim() === '') {
+    throw new Error(`Tasks file ${resolvedPath}: task ${task.id} must include a non-empty string prompt`);
+  }
+
+  const rawExpectedActions = Array.isArray(task.expected_actions)
+    ? task.expected_actions
+    : Array.isArray(task.expected_tools)
+      ? task.expected_tools
+      : null;
+
+  if (!rawExpectedActions) {
+    throw new Error(`Tasks file ${resolvedPath}: task at index ${index} must include an expected_actions array`);
+  }
+
+  const expected_actions = rawExpectedActions.map((rawAction, actionIndex) => normalizeExpectedAction(rawAction, resolvedPath, index, actionIndex));
+
+  return {
+    id: task.id,
+    prompt: task.prompt,
+    expected_actions,
+    expected_tools: expected_actions,
+    verify: task.verify,
+    expected_fetches: task.expected_fetches,
+  };
+}
+
+function normalizeExpectedAction(
+  rawAction: unknown,
+  resolvedPath: string,
+  taskIndex: number,
+  actionIndex: number,
+): ExpectedAction {
+  if (!rawAction || typeof rawAction !== 'object') {
+    throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must be an object`);
+  }
+
+  const candidate = rawAction as { name?: unknown; method?: unknown; args?: unknown };
+  const name = typeof candidate.name === 'string'
+    ? candidate.name
+    : typeof candidate.method === 'string'
+      ? candidate.method
+      : null;
+
+  if (!name || name.trim() === '') {
+    throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must include a non-empty name`);
+  }
+
+  if (candidate.args !== undefined && (!candidate.args || typeof candidate.args !== 'object' || Array.isArray(candidate.args))) {
+    throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} args must be an object when present`);
+  }
+
+  return {
+    name,
+    method: name,
+    args: (candidate.args as Record<string, unknown> | undefined) ?? {},
+  };
 }
 
 /**

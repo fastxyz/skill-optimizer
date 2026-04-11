@@ -2,11 +2,14 @@
 
 ## Project Overview
 
-`skill-optimizer` measures whether LLMs pick the right SDK methods, CLI commands, or MCP tools from docs and task prompts.
+`skill-optimizer` measures whether LLMs pick the right SDK methods, CLI commands, or MCP tools from docs and task prompts, and can run a benchmark-driven optimization loop over an allowed target repo.
 
-The repo has two main halves:
+The repo now has four important layers:
 
-- `src/benchmark/`: loads configs and tasks, builds prompts, calls models, extracts actions, evaluates them, and writes reports
+- `src/project/`: unified `skill-benchmark.json` config loading, validation, and path resolution
+- `src/runtime/pi/`: shared Pi auth/model/runtime helpers
+- `src/tasks/`: shared task generation, grounding, and artifact freezing from discovered surfaces
+- `src/benchmark/`: loads tasks and surface definitions, builds prompts, calls models, extracts actions, evaluates them, and writes reports
 - `src/optimizer/`: runs a benchmark-driven optimization loop against a constrained target repo
 
 The benchmark is static. Do not change behavior in ways that execute model-produced code or shell commands as part of evaluation.
@@ -18,50 +21,62 @@ npm run build
 npm run typecheck
 npm test
 npx tsx src/cli.ts --help
-tsx src/optimizer/main.ts --help
+npx tsx src/cli.ts generate-tasks --help
+npx tsx src/cli.ts optimize --help
 ```
 
 Typical benchmark run:
 
 ```bash
 export OPENROUTER_API_KEY=...
-npx skill-optimizer run --config ./benchmark.config.json
+npx skill-optimizer run --config ./skill-benchmark.json
+```
+
+Generate tasks only:
+
+```bash
+npx skill-optimizer generate-tasks --config ./skill-benchmark.json
 ```
 
 Typical optimizer run:
 
 ```bash
 tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
-pi /login
-tsx src/optimizer/main.ts ./.tmp/mock-repos/mcp-tracker-demo/optimize.config.json
+npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-benchmark.json
 ```
 
 ## Important Files
 
-- `src/cli.ts`: benchmark CLI entrypoint
+- `src/cli.ts`: public CLI entrypoint (`init`, `run`, `optimize`, `compare`)
+- `src/project/types.ts`: unified public project config types
+- `src/project/load.ts`: unified `skill-benchmark.json` loader
+- `src/runtime/pi/models.ts`: shared Pi model/auth resolution
+- `src/tasks/index.ts`: shared task generation entrypoint over discovered surfaces
 - `src/benchmark/runner.ts`: orchestration for benchmark execution
-- `src/benchmark/types.ts`: benchmark config, task, report, and metric types
-- `src/benchmark/init.ts`: scaffolded starter config and task generation
-- `src/optimizer/main.ts`: optimizer CLI entrypoint
+- `src/benchmark/types.ts`: benchmark report, metric, and extraction types
+- `src/benchmark/init.ts`: scaffolded starter `skill-benchmark.json`
 - `src/optimizer/loop.ts`: accept/reject iteration loop
-- `src/optimizer/manifest.ts`: optimize manifest validation and defaults
+- `src/optimizer/manifest.ts`: adapter from unified project config into the current optimizer loop
 - `src/optimizer/mock-repos.ts`: tracked template materialization and isolated git init
 - `mock-repos/mcp-tracker-demo/`: current richer demo target for optimizer testing
 
 ## Invariants
 
 - Keep benchmark evaluation static. Extraction and matching are allowed; executing generated code is not.
-- Keep path resolution relative to the config or manifest file being loaded.
+- Keep path resolution relative to the unified config file being loaded.
 - `targetRepo.allowedPaths` is the optimizer safety boundary. Do not widen edits outside it during mutation.
 - `requireCleanGit` must remain effectively enforced for optimizer targets.
+- Optimizer-owned artifacts under the configured task-generation output dir must not be treated as target-repo mutations.
+- Stable-surface optimize runs assume the callable surface is frozen for the duration of the run. If a change renames commands/tools/APIs, the surface must be rediscovered and the benchmark snapshot regenerated before further comparisons are meaningful.
 - Materialized mock repos must stay isolated from tracked templates.
 - Documentation examples should match the current CLI and config schema.
 
 ## Editing Guidance
 
 - Prefer small changes in the existing architecture over broad refactors.
-- When updating config or manifest types, also update the README examples and any scaffolding in `src/benchmark/init.ts` if needed.
-- When changing optimizer behavior, verify both the loop and the manifest defaults still agree.
+- When updating config or project types, also update the README examples and any scaffolding in `src/benchmark/init.ts` if needed.
+- When changing optimizer behavior, verify both the loop and the unified project defaults still agree.
+- Code-first surface discovery is now active for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifests/declared surface metadata still exist as transitional internal fallbacks, but new public examples should prefer code-first discovery.
 - Be careful around mock repo references: code may support template names that are not currently present in the working tree.
 
 ## Testing Guidance
@@ -73,5 +88,5 @@ tsx src/optimizer/main.ts ./.tmp/mock-repos/mcp-tracker-demo/optimize.config.jso
 ## Environment Notes
 
 - Do not commit `.env` or secrets.
-- Pi-based examples use `llm.format: "pi"` and typically expect `OPENROUTER_API_KEY` for benchmark runs.
-- Optimizer runs are usually done through `pi /login` for the orchestrator path.
+- Pi-based examples use `benchmark.format: "pi"` and typically expect `OPENROUTER_API_KEY`.
+- The current unified config also allows the optimizer model to use `OPENROUTER_API_KEY`.

@@ -1,4 +1,5 @@
 import type { TaskDefinition, MethodCoverage } from './types.js';
+import { getExpectedActions, getExpectedActionName } from './types.js';
 
 // ── Coverage computation ───────────────────────────────────────────────────
 
@@ -13,7 +14,7 @@ export function computeCoverage(tasks: TaskDefinition[], allMethods: string[]): 
     const tasksCovering: string[] = [];
 
     for (const task of tasks) {
-      const covers = task.expected_tools.some((tool) => tool.method === method);
+      const covers = getExpectedActions(task).some((tool) => getExpectedActionName(tool) === method);
       if (covers) {
         tasksCovering.push(task.id);
       }
