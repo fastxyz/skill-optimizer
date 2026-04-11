@@ -15,6 +15,7 @@ export interface OptimizeTargetRepo {
   surface: BenchmarkSurface;
   allowedPaths: string[];
   surfacePaths?: string[];
+  cleanIgnorePaths?: string[];
   validation: string[];
   requireCleanGit?: boolean;
 }
@@ -49,6 +50,7 @@ export interface ResolvedOptimizeManifest {
     surface: BenchmarkSurface;
     allowedPaths: string[];
     surfacePaths?: string[];
+    cleanIgnorePaths?: string[];
     validation: string[];
     requireCleanGit: boolean;
   };

@@ -145,6 +145,17 @@ export async function runOptimizeLoop(
       }
 
       const surfaceChanged = didSurfaceChange(changedFiles, resolvedManifest);
+      if (surfaceChanged && resolvedManifest.optimizer.mode === 'stable-surface') {
+        console.log('[optimize] Callable surface changed during stable-surface mode. Restoring checkpoint.');
+        iteration.validation = buildInvariantValidationError(
+          'surface-invariant',
+          'stable-surface mode rejects callable surface changes; switch to surface-changing mode to allow them',
+        );
+        await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
+        iterations.push(iteration);
+        await deps.ledger.record({ type: 'iteration', iteration });
+        continue;
+      }
       if (surfaceChanged && resolvedManifest.optimizer.mode === 'surface-changing') {
         console.log('[optimize] Callable surface changed. Starting a new benchmark epoch...');
         if (resolvedManifest.optimizer.taskGeneration.enabled) {
@@ -330,15 +341,19 @@ function validateChangedFiles(changedFiles: string[], manifest: ResolvedOptimize
     return null;
   }
 
+  return buildInvariantValidationError('scope-check', `Changed files outside allowed paths: ${disallowedFiles.join(', ')}`);
+}
+
+function buildInvariantValidationError(command: string, message: string) {
   return {
     ok: false,
     commands: [
       {
-        command: 'scope-check',
+        command,
         ok: false,
         exitCode: 1,
         stdout: '',
-        stderr: `Changed files outside allowed paths: ${disallowedFiles.join(', ')}`,
+        stderr: message,
       },
     ],
   };
@@ -406,6 +421,10 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
     targetRepo: {
       ...unresolved.targetRepo,
       surfacePaths: unresolved.targetRepo.surfacePaths ?? [],
+      cleanIgnorePaths: unresolved.targetRepo.cleanIgnorePaths ?? deriveCleanIgnorePaths(
+        unresolved.targetRepo.path,
+        unresolved.optimizer?.taskGeneration?.outputDir,
+      ),
       requireCleanGit: unresolved.targetRepo.requireCleanGit ?? true,
     },
     optimizer: {
@@ -427,4 +446,17 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
         }
       : undefined,
   };
+}
+
+function deriveCleanIgnorePaths(targetRepoPath: string, outputDir?: string): string[] {
+  if (!outputDir) {
+    return [];
+  }
+
+  const relativeOutputDir = relative(targetRepoPath, resolve(outputDir));
+  if (!relativeOutputDir || relativeOutputDir.startsWith('..')) {
+    return [];
+  }
+
+  return [relativeOutputDir];
 }

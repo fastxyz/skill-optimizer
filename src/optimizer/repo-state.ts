@@ -10,7 +10,10 @@ export function createRepoStateManager() {
   return {
     async ensureReady(targetRepo: ResolvedOptimizeManifest['targetRepo']): Promise<string> {
       const status = await git(targetRepo.path, ['status', '--porcelain']);
-      if (targetRepo.requireCleanGit && status.stdout.trim() !== '') {
+      const dirtyPaths = parseStatusPaths(status.stdout).filter(
+        (file) => !isIgnoredCleanPath(file, targetRepo.cleanIgnorePaths ?? []),
+      );
+      if (targetRepo.requireCleanGit && dirtyPaths.length > 0) {
         throw new Error(`Target repo must be clean before optimize runs: ${targetRepo.path}`);
       }
       return 'ready';
@@ -56,6 +59,26 @@ export function createRepoStateManager() {
       return result.stdout.trim();
     },
   };
+}
+
+function parseStatusPaths(statusOutput: string): string[] {
+  return statusOutput
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => line.slice(3));
+}
+
+function isIgnoredCleanPath(file: string, ignoredPaths: string[]): boolean {
+  const normalizedFile = normalizeRelativePath(file);
+  return ignoredPaths.some((ignoredPath) => {
+    const normalizedIgnored = normalizeRelativePath(ignoredPath);
+    return normalizedFile === normalizedIgnored || normalizedFile.startsWith(`${normalizedIgnored}/`);
+  });
+}
+
+function normalizeRelativePath(path: string): string {
+  return path.replace(/^\.\//, '').replace(/^\/+/, '').replace(/\/+$/, '');
 }
 
 function buildIterationCommitMessage(summary: string): string {

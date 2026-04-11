@@ -424,6 +424,46 @@ await test('runOptimizeLoop: starts a new epoch baseline after accepted surface 
   assertEqual(result.bestReport.summary.overallPassRate, 0.55, 'best report should become the new epoch baseline');
 });
 
+await test('runOptimizeLoop: rejects surface changes in stable-surface mode', async () => {
+  const manifest = makeManifest() as OptimizeManifest & {
+    targetRepo: OptimizeManifest['targetRepo'] & { surfacePaths: string[] };
+  };
+  manifest.optimizer!.maxIterations = 1;
+  manifest.targetRepo.surfacePaths = ['src/server.ts'];
+
+  let restoreCalls = 0;
+  let runCount = 0;
+  const deps: OptimizeLoopDependencies = {
+    benchmark: {
+      run: async (_configPath, opts) => {
+        runCount += 1;
+        return makeBenchmarkRunResult(makeReport(runCount === 1 ? 0.4 : 0.9), opts);
+      },
+    },
+    repo: {
+      ensureReady: async () => 'clean',
+      captureCheckpoint: async () => 'checkpoint-1',
+      restoreCheckpoint: async () => { restoreCalls += 1; },
+      updateAcceptedCheckpoint: async () => 'checkpoint-2',
+    },
+    mutation: {
+      apply: async () => ({ summary: 'rename tool anyway', changedFiles: ['src/server.ts'] }),
+    },
+    validation: {
+      run: async () => ({ ok: true, commands: [] }),
+    },
+    ledger: {
+      record: async () => {},
+    },
+  };
+
+  const result = await runOptimizeLoop(manifest, deps);
+  assertEqual(result.iterations[0]?.accepted, false, 'stable-surface mode should reject surface changes');
+  assert(result.iterations[0]?.validation.commands[0]?.stderr.includes('stable-surface'), 'validation should explain why the change was rejected');
+  assertEqual(restoreCalls, 1, 'restoreCheckpoint should run after rejecting a surface change');
+  assertEqual(runCount, 1, 'benchmark rerun should be skipped when the callable surface changed');
+});
+
 await test('runOptimizeLoop: rejects surface-changing mode when task generation is disabled', async () => {
   const manifest = makeManifest() as OptimizeManifest & {
     optimizer: OptimizeManifest['optimizer'] & { mode: 'surface-changing' };
@@ -840,6 +880,37 @@ await test('createRepoStateManager: commits accepted changes without git identit
     } else {
       process.env.GIT_CONFIG_GLOBAL = previousGitConfigGlobal;
     }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('createRepoStateManager: ignores optimizer artifacts during clean-git check', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-clean-ignore-'));
+  try {
+    execFileSync('git', ['init'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['config', 'user.name', 'OpenCode'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['config', 'user.email', 'opencode@example.com'], { cwd: dir, encoding: 'utf-8' });
+
+    writeFileSync(join(dir, 'tracked.txt'), 'v1\n', 'utf-8');
+    execFileSync('git', ['add', '.'], { cwd: dir, encoding: 'utf-8' });
+    execFileSync('git', ['commit', '-m', 'init'], { cwd: dir, encoding: 'utf-8' });
+
+    mkdirSync(join(dir, '.skill-optimizer'), { recursive: true });
+    writeFileSync(join(dir, '.skill-optimizer', 'report.json'), '{}\n', 'utf-8');
+
+    const manager = createRepoStateManager();
+    const targetRepo = {
+      path: dir,
+      surface: 'sdk' as const,
+      allowedPaths: ['tracked.txt'],
+      validation: ['true'],
+      requireCleanGit: true,
+      cleanIgnorePaths: ['.skill-optimizer'],
+    } as any;
+
+    const result = await manager.ensureReady(targetRepo);
+    assertEqual(result, 'ready', 'optimizer artifacts should not block reruns');
+  } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
