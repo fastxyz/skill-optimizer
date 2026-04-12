@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "description": "Benchmark and optimizer for evaluating SDK, CLI, and MCP guidance with static action matching.",
   "license": "MIT",
-  "author": "David Bucur",
-  "homepage": "https://github.com/bucurdavid/skill-optimizer#readme",
+  "author": "Pi2 Labs",
+  "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
   "bugs": {
-    "url": "https://github.com/bucurdavid/skill-optimizer/issues"
+    "url": "https://github.com/fastxyz/skill-optimizer/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bucurdavid/skill-optimizer.git"
+    "url": "git+https://github.com/fastxyz/skill-optimizer.git"
   },
   "keywords": [
     "benchmark",
