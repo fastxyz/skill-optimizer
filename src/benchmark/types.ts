@@ -291,7 +291,7 @@ export interface BenchmarkReport {
     totalModels: number;
     totalEvaluations: number;
     overallPassRate: number;
-    weightedAverage: number;
+    weightedAverage?: number;
     avgToolRecall: number;
     avgToolPrecision: number;
     avgToolSelectionAccuracy: number;
