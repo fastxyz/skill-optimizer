@@ -16,7 +16,8 @@ export function renderVerdictConsole(
   for (const reason of report.verdict.reasons) {
     lines.push(`  - ${reason}`);
   }
-  lines.push(renderCoverageBlock(report.scopeCoverage));
+  const cov = renderCoverageBlock(report.scopeCoverage);
+  if (cov) lines.push(cov);
   if (recommendations.length > 0) {
     lines.push('');
     lines.push('Recommendations:');
