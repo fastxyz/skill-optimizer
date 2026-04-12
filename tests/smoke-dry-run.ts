@@ -58,6 +58,7 @@ function testDryRunMaxTasksTooSmall() {
     writeFileSync(cfgPath, JSON.stringify(base, null, 2));
 
     const result = run(['--dry-run', '--config', cfgPath]);
+    assert.ok(result.status !== null, `process was killed by signal: ${result.signal}`);
     assert.notStrictEqual(result.status, 0, `expected non-zero exit, got: ${result.stdout}`);
     const combined = result.stderr + result.stdout;
     assert.ok(combined.includes('maxTasks'), `expected maxTasks in output, got: ${combined}`);

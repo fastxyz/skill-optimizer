@@ -155,7 +155,7 @@ async function runDryRun(configPath: string): Promise<void> {
   console.log(`Out of scope: ${outOfScope.length} — ${outOfScope.map((a) => a.name).join(', ')}`);
 
   const maxTasks = project.benchmark.taskGeneration.maxTasks;
-  if (inScope.length > 0 && maxTasks < inScope.length) {
+  if (project.benchmark.taskGeneration.enabled && inScope.length > 0 && maxTasks < inScope.length) {
     console.error(`\nERROR: maxTasks (${maxTasks}) < in-scope action count (${inScope.length}).`);
     console.error(`Raise benchmark.taskGeneration.maxTasks in ${project.configPath}, or tighten target.scope.exclude.`);
     process.exit(1);
