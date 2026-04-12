@@ -31,7 +31,7 @@
     "materialize:mock": "tsx src/optimizer/materialize-mock-repo.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts && tsx tests/smoke-scoring.ts && tsx tests/smoke-scope.ts"
+    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts && tsx tests/smoke-scoring.ts && tsx tests/smoke-scope.ts && tsx tests/smoke-coverage.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.66.1",
