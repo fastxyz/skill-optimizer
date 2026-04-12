@@ -38,6 +38,11 @@ export interface ProjectTargetConfig {
   mcp?: McpSurfaceConfig;
 }
 
+export interface ProjectBenchmarkVerdictConfig {
+  perModelFloor?: number;
+  targetWeightedAverage?: number;
+}
+
 export interface ProjectBenchmarkConfig {
   format?: LLMConfig['format'];
   baseUrl?: string;
@@ -50,6 +55,7 @@ export interface ProjectBenchmarkConfig {
   taskGeneration?: ProjectTaskGenerationConfig;
   output?: OutputConfig;
   agentic?: AgenticConfig;
+  verdict?: ProjectBenchmarkVerdictConfig;
 }
 
 export interface ProjectOptimizeConfig {
@@ -110,6 +116,7 @@ export interface ResolvedProjectBenchmarkConfig {
   taskGeneration: ResolvedProjectTaskGenerationConfig;
   output: { dir: string };
   agentic?: AgenticConfig;
+  verdict: { perModelFloor: number; targetWeightedAverage: number };
 }
 
 export interface ResolvedProjectOptimizeConfig {

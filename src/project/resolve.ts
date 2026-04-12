@@ -10,7 +10,9 @@ const DEFAULT_MAX_TASKS = 10;
 const DEFAULT_TASK_SEED = 1;
 const DEFAULT_OPTIMIZE_ITERATIONS = 5;
 const DEFAULT_STABILITY_WINDOW = 2;
-const DEFAULT_MIN_IMPROVEMENT = 0.01;
+const DEFAULT_MIN_IMPROVEMENT = 0.02;
+const DEFAULT_PER_MODEL_FLOOR = 0.6;
+const DEFAULT_TARGET_WEIGHTED_AVERAGE = 0.7;
 const DEFAULT_REPORT_CONTEXT_MAX_BYTES = 16_000;
 
 export function resolveProjectConfig(config: ProjectConfig, configPath: string): ResolvedProjectConfig {
@@ -105,6 +107,10 @@ export function resolveProjectConfig(config: ProjectConfig, configPath: string):
         dir: resolve(configDir, config.benchmark.output?.dir ?? DEFAULT_OUTPUT_DIR),
       },
       agentic: config.benchmark.agentic,
+      verdict: {
+        perModelFloor: config.benchmark.verdict?.perModelFloor ?? DEFAULT_PER_MODEL_FLOOR,
+        targetWeightedAverage: config.benchmark.verdict?.targetWeightedAverage ?? DEFAULT_TARGET_WEIGHTED_AVERAGE,
+      },
     },
     optimize: config.optimize
       ? {

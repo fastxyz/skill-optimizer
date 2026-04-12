@@ -89,6 +89,27 @@ export function validateProjectConfig(config: ProjectConfig, configPath: string)
     }
   }
 
+  if (benchmark.verdict !== undefined) {
+    if (benchmark.verdict.perModelFloor !== undefined) {
+      const v = benchmark.verdict.perModelFloor;
+      if (!Number.isFinite(v) || v < 0 || v > 1) {
+        throw new Error(`Project config ${configPath}: "benchmark.verdict.perModelFloor" must be between 0 and 1`);
+      }
+    }
+    if (benchmark.verdict.targetWeightedAverage !== undefined) {
+      const v = benchmark.verdict.targetWeightedAverage;
+      if (!Number.isFinite(v) || v < 0 || v > 1) {
+        throw new Error(`Project config ${configPath}: "benchmark.verdict.targetWeightedAverage" must be between 0 and 1`);
+      }
+    }
+  }
+
+  for (const model of benchmark.models) {
+    if (model.weight !== undefined && (!Number.isFinite(model.weight) || model.weight < 0)) {
+      throw new Error(`Project config ${configPath}: model "${model.id}" has invalid weight; must be a non-negative number`);
+    }
+  }
+
   if (benchmark.format && benchmark.format !== 'pi' && benchmark.format !== 'openai' && benchmark.format !== 'anthropic') {
     throw new Error(`Project config ${configPath}: "benchmark.format" must be pi, openai, or anthropic`);
   }
