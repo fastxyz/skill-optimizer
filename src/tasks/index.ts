@@ -2,6 +2,7 @@ import { discoverTaskSurface } from './discover.js';
 import { freezeTaskArtifacts } from './freeze.js';
 import { generateCandidateTasks } from './generate.js';
 import { groundTasks } from './ground.js';
+import { resolveScope } from './scope.js';
 
 import type { GenerateTasksForProjectResult, TaskGeneratorDeps } from './types.js';
 
@@ -25,12 +26,31 @@ export async function generateTasksForProject(
   const surface = discoverTaskSurface(params.configPath);
   console.log(`[optimize] Loaded ${surface.snapshot.surface} surface with ${surface.snapshot.actions.length} actions.`);
 
+  // Apply scope filter
+  const allActions = surface.snapshot.actions.map((a) => ({ key: a.name, ...a }));
+  const { inScope, outOfScope } = resolveScope(allActions, surface.project.target.scope);
+  if (inScope.length === 0) {
+    throw new Error(
+      `target.scope produced zero in-scope actions. Adjust target.scope.include/exclude in ${params.configPath}.`,
+    );
+  }
+  console.log(`[optimize] Scope filter: ${inScope.length} in scope, ${outOfScope.length} out of scope.`);
+
+  // Replace snapshot actions with in-scope only (for generation context)
+  const filteredSurface = {
+    ...surface,
+    snapshot: {
+      ...surface.snapshot,
+      actions: inScope.map(({ key: _key, ...rest }) => rest),
+    },
+  };
+
   console.log('[optimize] Generating candidate tasks...');
-  const generated = await generateCandidateTasks(surface, { maxTasks: params.maxTasks, seed: params.seed }, params.deps);
+  const generated = await generateCandidateTasks(filteredSurface, { maxTasks: params.maxTasks, seed: params.seed }, params.deps);
   console.log(`[optimize] Model proposed ${generated.length} tasks.`);
 
   console.log('[optimize] Grounding generated tasks against the discovered surface snapshot...');
-  const grounded = groundTasks(generated, surface.snapshot);
+  const grounded = groundTasks(generated, filteredSurface.snapshot);
   if (grounded.kept.length === 0) {
     throw new Error('Task generation produced zero valid tasks after grounding');
   }
@@ -43,15 +63,15 @@ export async function generateTasksForProject(
 
   console.log('[optimize] Freezing generated benchmark artifacts...');
   const artifacts = freezeTaskArtifacts({
-    project: surface.project,
-    snapshot: surface.snapshot,
+    project: filteredSurface.project,
+    snapshot: filteredSurface.snapshot,
     outputDir: params.outputDir,
     kept: grounded.kept,
     rejected: grounded.rejected,
   });
 
   return {
-    surface,
+    surface: filteredSurface,
     generated,
     kept: grounded.kept,
     rejected: grounded.rejected,
