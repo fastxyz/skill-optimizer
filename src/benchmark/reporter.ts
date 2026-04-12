@@ -177,26 +177,6 @@ export function generateMarkdown(report: BenchmarkReport): string {
     lines.push('');
   }
 
-  if (report.verdict) {
-    lines.push('## Verdict');
-    lines.push('');
-    lines.push(`**Result:** ${report.verdict.result}`);
-    lines.push('');
-    lines.push('| Policy | Value |');
-    lines.push('|--------|-------|');
-    lines.push(`| Per-model floor | ${pct(report.verdict.policy.perModelFloor)} |`);
-    lines.push(`| Target weighted average | ${pct(report.verdict.policy.targetWeightedAverage)} |`);
-    lines.push('');
-    if (report.verdict.reasons.length > 0) {
-      lines.push('**Reasons:**');
-      lines.push('');
-      for (const reason of report.verdict.reasons) {
-        lines.push(`- ${reason}`);
-      }
-      lines.push('');
-    }
-  }
-
   return lines.join('\n');
 }
 
@@ -281,13 +261,4 @@ export function printSummary(report: BenchmarkReport): void {
   console.log(`  Evaluations:    ${summary.totalEvaluations} (${summary.totalTasks} tasks × ${summary.totalModels} models)`);
   console.log('');
 
-  if (report.verdict) {
-    console.log(`Verdict: ${report.verdict.result}`);
-    if (report.verdict.result === 'FAIL') {
-      for (const reason of report.verdict.reasons) {
-        console.log(`  - ${reason}`);
-      }
-    }
-    console.log('');
-  }
 }

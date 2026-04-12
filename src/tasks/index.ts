@@ -6,6 +6,7 @@ import { resolveScope } from './scope.js';
 
 import type { GenerateTasksForProjectResult, TaskGeneratorDeps } from './types.js';
 
+export * from './default-pi-critic.js';
 export * from './default-pi-generator.js';
 export * from './discover.js';
 export * from './freeze.js';

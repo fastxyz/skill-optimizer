@@ -16,7 +16,10 @@ import { printCoverage } from './benchmark/coverage.js';
 import { initBenchmark } from './benchmark/init.js';
 import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
 import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
-import { createDefaultPiTaskGenerator, generateTasksForProject } from './tasks/index.js';
+import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic } from './tasks/index.js';
+import type { Recommendation } from './verdict/recommendations.js';
+import { generateRecommendations } from './verdict/recommendations.js';
+import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -197,6 +200,31 @@ async function main(): Promise<void> {
         skipGeneration: hasFlag(args, '--skip-generation'),
       });
       printOptimizeSummary(result, resolvedManifest, ledgerPath);
+      // Show verdict and recommendations for best report
+      const bestReport = result.bestReport;
+      if (bestReport.verdict) {
+        let recs: Recommendation[] = [];
+        if (bestReport.verdict.result === 'FAIL') {
+          try {
+            const mutation = resolvedManifest.mutation;
+            if (mutation) {
+              const criticDeps = createDefaultPiCritic({
+                provider: mutation.provider,
+                model: mutation.model,
+                apiKeyEnv: mutation.apiKeyEnv,
+              });
+              recs = await generateRecommendations(
+                bestReport,
+                criticDeps,
+                mutation.reportContextMaxBytes ?? 16_000,
+              );
+            }
+          } catch (err) {
+            console.error(`WARNING: Could not generate recommendations: ${err instanceof Error ? err.message : err}`);
+          }
+        }
+        console.log(renderVerdictConsole(bestReport, recs));
+      }
     } catch (err) {
       console.error(`\nFATAL: Optimize failed: ${err instanceof Error ? err.message : err}`);
       if (err instanceof Error && err.stack) {
@@ -322,10 +350,34 @@ async function main(): Promise<void> {
   const reportConfig = report.config as { name: string; surface: string; outputDir?: string };
   const outputDir = resolve(configFileDir, reportConfig?.outputDir ?? 'benchmark-results');
 
+  // Generate recommendations if verdict is FAIL
+  let recommendations: Recommendation[] = [];
+  if (report.verdict?.result === 'FAIL' && project) {
+    try {
+      const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
+      const { provider, model } = parseModelRef(modelRef);
+      const criticDeps = createDefaultPiCritic({
+        provider,
+        model,
+        apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
+      });
+      recommendations = await generateRecommendations(
+        report,
+        criticDeps,
+        project.optimize?.reportContextMaxBytes ?? 16_000,
+      );
+    } catch (err) {
+      console.error(`WARNING: Could not generate recommendations: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Print verdict
+  console.log(renderVerdictConsole(report, recommendations));
+
   // Generate and save Markdown report alongside JSON
   const mdPath = resolve(outputDir, 'report.md');
   try {
-    const markdown = generateMarkdown(report);
+    const markdown = generateMarkdown(report) + '\n\n' + renderVerdictMarkdown(report, recommendations);
     writeFileSync(mdPath, markdown, 'utf-8');
     console.log(`[output] Markdown report saved to ${mdPath}`);
   } catch (err) {
@@ -342,7 +394,7 @@ async function main(): Promise<void> {
       `(surface: ${reportConfig.surface}).`,
   );
 
-  process.exit(0);
+  process.exit(report.verdict?.result === 'FAIL' ? 1 : 0);
 }
 
 function isExecutedDirectly(): boolean {
