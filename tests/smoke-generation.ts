@@ -48,7 +48,7 @@ function makeFixture(): {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-generation-'));
   const skillPath = join(root, 'SKILL.md');
   const sourcePath = join(root, 'server.ts');
-  const benchmarkConfigPath = join(root, 'skill-benchmark.json');
+  const benchmarkConfigPath = join(root, 'skill-optimizer.json');
 
   writeFileSync(skillPath, '# Wallet skill\nUse MCP tools only.\n', 'utf-8');
   writeFileSync(sourcePath, [
@@ -388,7 +388,7 @@ await test('discoverTaskSurface: supports sdk code-first projects', () => {
   try {
     writeFileSync(join(root, 'SKILL.md'), '# SDK skill\nUse SDK methods.\n', 'utf-8');
     writeFileSync(join(root, 'index.ts'), 'export class Client { constructor(key: string) {} getBalance(accountId: string) {} }\n', 'utf-8');
-    writeFileSync(join(root, 'skill-benchmark.json'), JSON.stringify({
+    writeFileSync(join(root, 'skill-optimizer.json'), JSON.stringify({
       name: 'sdk-gen-smoke',
       target: {
         surface: 'sdk',
@@ -404,7 +404,7 @@ await test('discoverTaskSurface: supports sdk code-first projects', () => {
       },
     }, null, 2), 'utf-8');
 
-    const surface = discoverTaskSurface(join(root, 'skill-benchmark.json'));
+    const surface = discoverTaskSurface(join(root, 'skill-optimizer.json'));
     assertEqual(surface.snapshot.surface, 'sdk', 'surface should be sdk');
     assert(surface.snapshot.actions.some((action) => action.name === 'Client.getBalance'), 'sdk action should be discovered');
   } finally {
@@ -426,7 +426,7 @@ await test('discoverTaskSurface: supports cli code-first projects', () => {
       '  },',
       '];',
     ].join('\n'), 'utf-8');
-    writeFileSync(join(root, 'skill-benchmark.json'), JSON.stringify({
+    writeFileSync(join(root, 'skill-optimizer.json'), JSON.stringify({
       name: 'cli-gen-smoke',
       target: {
         surface: 'cli',
@@ -441,7 +441,7 @@ await test('discoverTaskSurface: supports cli code-first projects', () => {
       },
     }, null, 2), 'utf-8');
 
-    const surface = discoverTaskSurface(join(root, 'skill-benchmark.json'));
+    const surface = discoverTaskSurface(join(root, 'skill-optimizer.json'));
     assertEqual(surface.snapshot.surface, 'cli', 'surface should be cli');
     assert(surface.snapshot.actions.some((action) => action.name === 'wallet:create'), 'cli action should be discovered');
   } finally {
@@ -463,7 +463,7 @@ await test('cli discovery/task generation canonicalizes option keys for extracti
       '  },',
       '];',
     ].join('\n'), 'utf-8');
-    writeFileSync(join(root, 'skill-benchmark.json'), JSON.stringify({
+    writeFileSync(join(root, 'skill-optimizer.json'), JSON.stringify({
       name: 'cli-eval-smoke',
       target: {
         surface: 'cli',
@@ -478,7 +478,7 @@ await test('cli discovery/task generation canonicalizes option keys for extracti
       },
     }, null, 2), 'utf-8');
 
-    const surface = discoverTaskSurface(join(root, 'skill-benchmark.json'));
+    const surface = discoverTaskSurface(join(root, 'skill-optimizer.json'));
     assertEqual(surface.snapshot.actions[0]?.args[0]?.name, 'label', 'CLI arg names should be canonicalized without dashes');
 
     const grounded = groundTasks([

@@ -24,19 +24,19 @@ function assertEqual<T>(actual: T, expected: T, message: string) {
 console.log('\n=== CLI Entry Smoke Tests ===\n');
 
 await test('positionals keeps optimize command when boolean flag appears first', () => {
-  const result = positionals(['--skip-generation', 'optimize', '--config', './skill-benchmark.json']);
+  const result = positionals(['--skip-generation', 'optimize', '--config', './skill-optimizer.json']);
   assertEqual(result[0], 'optimize', 'optimize command should remain positional');
 });
 
 await test('positionals keeps run command when boolean flag appears first', () => {
-  const result = positionals(['--no-cache', 'run', '--config', './skill-benchmark.json']);
+  const result = positionals(['--no-cache', 'run', '--config', './skill-optimizer.json']);
   assertEqual(result[0], 'run', 'run command should remain positional');
 });
 
 await test('positionals rejects unknown flags instead of swallowing the command', () => {
   let threw = false;
   try {
-    positionals(['--verbose', 'optimize', '--config', './skill-benchmark.json']);
+    positionals(['--verbose', 'optimize', '--config', './skill-optimizer.json']);
   } catch (error: any) {
     threw = true;
     assertEqual(error.message, 'Unknown flag: --verbose', 'unknown flag error should be explicit');

@@ -176,7 +176,7 @@ console.log('\n=== Optimizer Smoke Tests ===\n');
 await test('loadOptimizeManifest: applies defaults', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'skill-benchmark.json');
+    const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-defaults',
       target: {
@@ -210,7 +210,7 @@ await test('loadOptimizeManifest: applies defaults', () => {
 await test('loadOptimizeManifest: defaults optimize.model to the first benchmark model', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'skill-benchmark.json');
+    const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-default-model',
       target: {
@@ -240,7 +240,7 @@ await test('loadOptimizeManifest: defaults optimize.model to the first benchmark
 await test('loadOptimizeManifest: allows empty target validation commands', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'skill-benchmark.json');
+    const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-validation',
       target: {
@@ -270,7 +270,7 @@ await test('loadOptimizeManifest: allows empty target validation commands', () =
 await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'skill-benchmark.json');
+    const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-clean-git',
       target: {
@@ -308,7 +308,7 @@ await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
 await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
-    const file = join(dir, 'skill-benchmark.json');
+    const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-invalid-values',
       target: {

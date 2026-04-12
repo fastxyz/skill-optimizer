@@ -104,7 +104,7 @@ await test('code-first MCP project config works without fallback manifest', () =
   const dir = mkdtempSync(join(tmpdir(), 'mcp-project-config-'));
   try {
     const serverPath = join(dir, 'server.ts');
-    const configPath = join(dir, 'skill-benchmark.json');
+    const configPath = join(dir, 'skill-optimizer.json');
 
     writeFileSync(serverPath, readFileSync(resolve(process.cwd(), 'mock-repos/mcp-tracker-demo/src/server.ts'), 'utf-8'), 'utf-8');
     writeFileSync(configPath, JSON.stringify({
@@ -135,7 +135,7 @@ await test('code-first MCP project config works without fallback manifest', () =
 await test('code-first discovery fails fast when MCP source is missing', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-project-config-'));
   try {
-    const configPath = join(dir, 'skill-benchmark.json');
+    const configPath = join(dir, 'skill-optimizer.json');
 
     writeFileSync(configPath, JSON.stringify({
       name: 'missing-source-mcp',
@@ -171,7 +171,7 @@ await test('code-first discovery fails fast when MCP source is missing', () => {
 await test('discovers mcp actions via public action discovery entrypoint', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-discovery-actions-'));
   const sourcePath = join(dir, 'server.ts');
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(
@@ -225,7 +225,7 @@ await test('discovers mcp actions via public action discovery entrypoint', () =>
 
 await test('discoverActions fails fast when MCP discovery source is missing and no fallback exists', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-actions-missing-source-'));
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(configPath, JSON.stringify({

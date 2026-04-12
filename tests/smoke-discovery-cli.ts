@@ -177,7 +177,7 @@ await test('discovery remains static and does not execute source file', () => {
 await test('discovers cli actions via public action discovery entrypoint', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cli-discovery-actions-'));
   const sourcePath = join(dir, 'commands.ts');
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(
@@ -255,7 +255,7 @@ await test('reads cli actions via actions-layer reader export', () => {
 await test('discoverActions uses manifest commands when CLI discovery mode is manifest', () => {
   const dir = mkdtempSync(join(tmpdir(), 'cli-discovery-manifest-'));
   const commandsPath = join(dir, 'commands.json');
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(commandsPath, JSON.stringify([

@@ -334,7 +334,7 @@ await test('buildSurfaceSnapshot returns expected legacy snapshot fields from di
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-bridge-'));
   try {
     const sourcePath = join(root, 'server.ts');
-    const configPath = join(root, 'skill-benchmark.json');
+    const configPath = join(root, 'skill-optimizer.json');
 
     writeFileSync(
       sourcePath,

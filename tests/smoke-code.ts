@@ -108,7 +108,7 @@ await test('extractSdkCodeBlock: finds rust block', () => {
 await test('loadConfig: rejects unsupported sdk language', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-lang-'));
   try {
-    const configPath = join(dir, 'skill-benchmark.json');
+    const configPath = join(dir, 'skill-optimizer.json');
     writeFileSync(configPath, JSON.stringify({
       name: 'bad-sdk',
       target: {
@@ -302,7 +302,7 @@ await test('initBenchmark scaffolds sdk apiSurface', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
     initBenchmark(dir);
-    const config = JSON.parse(readFileSync(join(dir, 'skill-benchmark.json'), 'utf-8')) as {
+    const config = JSON.parse(readFileSync(join(dir, 'skill-optimizer.json'), 'utf-8')) as {
       target: {
         surface: string;
         sdk: { apiSurface?: string[]; methods?: string[] };

@@ -196,7 +196,7 @@ await test('discovers alias names for re-exported SDK actions', () => {
 await test('project snapshot falls back to sdk.apiSurface when discovery returns zero actions', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sdk-discovery-'));
   const sourcePath = join(dir, 'index.ts');
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(sourcePath, 'const sendTokens = () => {}; export { sendTokens };\n', 'utf-8');
@@ -258,7 +258,7 @@ await test('parses files statically and never executes source code', () => {
 await test('discovers sdk actions via public action discovery entrypoint', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sdk-discovery-actions-'));
   const sourcePath = join(dir, 'client.ts');
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(
@@ -304,7 +304,7 @@ await test('discovers sdk actions via public action discovery entrypoint', () =>
 await test('discoverActions falls back to sdk.apiSurface when discovery returns zero actions', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sdk-discovery-actions-fallback-'));
   const sourcePath = join(dir, 'index.ts');
-  const configPath = join(dir, 'skill-benchmark.json');
+  const configPath = join(dir, 'skill-optimizer.json');
 
   try {
     writeFileSync(sourcePath, 'const sendTokens = () => {}; export { sendTokens };\n', 'utf-8');
