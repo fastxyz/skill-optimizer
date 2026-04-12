@@ -4,6 +4,10 @@
     "surface": "mcp",
     "repoPath": ".",
     "skill": "./SKILL.md",
+    "scope": {
+      "include": ["*"],
+      "exclude": []
+    },
     "discovery": {
       "mode": "auto",
       "sources": [
@@ -39,6 +43,10 @@
     },
     "output": {
       "dir": "./benchmark-results"
+    },
+    "verdict": {
+      "perModelFloor": 0.6,
+      "targetWeightedAverage": 0.7
     }
   },
   "optimize": {
@@ -55,7 +63,7 @@
     "validation": [],
     "maxIterations": 5,
     "stabilityWindow": 2,
-    "minImprovement": 0.01,
+    "minImprovement": 0.02,
     "reportContextMaxBytes": 16000
   }
 }

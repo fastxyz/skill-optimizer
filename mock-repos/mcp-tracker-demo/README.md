@@ -1,25 +1,31 @@
-# MCP Tracker Demo Mock Repo
+# mcp-tracker-demo
 
-This template is a richer MCP optimizer target for issue-tracker style workflows.
+A minimal MCP server used to demonstrate `skill-optimizer` end-to-end.
 
-The MCP tool schema now lives in code at `src/server.ts` and is discovered statically from exported literals.
+## What this shows
 
-The tool names and argument shapes are intentionally awkward, so benchmark quality depends on both:
+- How to configure `skill-optimizer.json` for an MCP surface
+- Task generation, benchmarking, and optimization against a small tool set
 
-- the discovered callable surface in `src/server.ts`
-- the guidance in `SKILL.md`
+## Quickstart
 
-`src/server.ts` is the primary discovery source for this template.
+```bash
+# From the skill-optimizer repo root:
+export OPENROUTER_API_KEY=sk-or-...
 
-Use these files together:
-- `skill-optimizer.json` for the unified benchmark + optimizer flow
-- `src/server.ts` for the primary MCP surface definition used by discovery
-- `benchmark.config.json` and `optimize.config.json` are legacy transitional files
+# Preview the surface without any LLM calls:
+npx skill-optimizer --dry-run --config mock-repos/mcp-tracker-demo/skill-optimizer.json
 
-This template now uses `optimize.mode: "surface-changing"` and allows edits to:
+# Run the benchmark only:
+npx skill-optimizer run --config mock-repos/mcp-tracker-demo/skill-optimizer.json
 
-- `src/`
-- `SKILL.md`
-- `README.md`
+# Run the full optimization loop:
+npx skill-optimizer optimize --config mock-repos/mcp-tracker-demo/skill-optimizer.json
+```
 
-So the orchestrator can rename or clarify the real MCP surface, not just rewrite docs. If a tool rename is accepted, the optimize loop starts a new benchmark epoch with a rediscovered surface and regenerated tasks.
+## Files
+
+- `SKILL.md` — the guidance document being evaluated and improved
+- `tools.json` — MCP tool definitions (used for manifest discovery)
+- `src/server.ts` — the actual server implementation (used for code-first discovery)
+- `skill-optimizer.json` — benchmark + optimizer config
