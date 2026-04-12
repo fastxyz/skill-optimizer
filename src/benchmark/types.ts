@@ -12,6 +12,7 @@ export interface ModelConfig {
   id: string;       // LLM model ID e.g. 'openai/gpt-4o'
   name: string;     // Display name e.g. 'GPT-4o'
   tier: Tier;
+  weight?: number;  // Optional; defaults to 1.0 at scoring time.
 }
 
 export interface TokenUsage {
@@ -241,6 +242,24 @@ export interface SurfaceSnapshot extends Omit<ActionCatalog, 'actions'> {
   actions: SurfaceAction[];
 }
 
+// === Verdict & Coverage ===
+
+export type Verdict = 'PASS' | 'FAIL';
+
+export interface VerdictPolicy {
+  perModelFloor: number;
+  targetWeightedAverage: number;
+}
+
+export interface CoverageReport {
+  inScopeActions: string[];
+  outOfScopeActions: string[];
+  coveredActions: string[];
+  uncoveredActions: string[];
+  tasksPerAction: Record<string, number>;
+  coverageViolation: boolean;
+}
+
 // === Report ===
 
 export interface ModelSummary {
@@ -266,11 +285,13 @@ export interface BenchmarkReport {
   skillVersion: SkillVersion;
   results: TaskResult[];
   coverage: MethodCoverage[];
+  scopeCoverage?: CoverageReport;
   summary: {
     totalTasks: number;
     totalModels: number;
     totalEvaluations: number;
     overallPassRate: number;
+    weightedAverage: number;
     avgToolRecall: number;
     avgToolPrecision: number;
     avgToolSelectionAccuracy: number;
@@ -280,6 +301,11 @@ export interface BenchmarkReport {
     perModel: Record<string, ModelSummary>;
     perTask: Record<string, TaskSummary>;
     perTier: Record<Tier, { passRate: number; avgRecall: number; avgToolSelectionAccuracy: number; avgArgAccuracy: number }>;
+  };
+  verdict?: {
+    policy: VerdictPolicy;
+    result: Verdict;
+    reasons: string[];
   };
 }
 

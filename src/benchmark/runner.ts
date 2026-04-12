@@ -497,6 +497,13 @@ function buildBenchmarkReport(
       totalModels,
       totalEvaluations: totalEvals,
       overallPassRate: totalEvals ? passed / totalEvals : 0,
+      weightedAverage: (() => {
+        const weights = config.llm.models.map((m) => ({ id: m.id, w: m.weight ?? 1 }));
+        const totalWeight = weights.reduce((acc, x) => acc + x.w, 0);
+        return totalWeight > 0
+          ? weights.reduce((acc, { id, w }) => acc + w * (perModel[id]?.passRate ?? 0), 0) / totalWeight
+          : 0;
+      })(),
       avgToolRecall: totalEvals
         ? results.reduce((s, r) => s + r.metrics.toolRecall, 0) / totalEvals
         : 0,
