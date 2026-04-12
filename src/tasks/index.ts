@@ -35,6 +35,14 @@ export async function generateTasksForProject(
   }
   console.log(`[optimize] Scope filter: ${inScope.length} in scope, ${outOfScope.length} out of scope.`);
 
+  const maxTasks = params.maxTasks;
+  if (maxTasks < inScope.length) {
+    throw new Error(
+      `benchmark.taskGeneration.maxTasks (${maxTasks}) is smaller than in-scope action count (${inScope.length}). ` +
+        `Raise maxTasks in ${params.configPath} or tighten target.scope.exclude.`,
+    );
+  }
+
   // Replace snapshot actions with in-scope only (for generation context)
   const filteredSurface = {
     ...surface,
