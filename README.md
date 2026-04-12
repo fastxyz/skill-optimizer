@@ -416,6 +416,7 @@ That mock repo now discovers its MCP surface from `src/server.ts` and runs in `s
 npm run build
 npm run typecheck
 npm test
+npm pack --dry-run
 ```
 
 Inspect the CLI locally:
@@ -430,3 +431,7 @@ npx tsx src/cli.ts --help
 - Pi examples in this repo typically use `OPENROUTER_API_KEY`
 - benchmark extraction/evaluation is static even when Pi is used for model/runtime integration
 - code-first discovery is the intended default direction, with manifest files currently serving as reliable fallback inputs
+
+## License
+
+MIT

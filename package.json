@@ -1,25 +1,54 @@
 {
   "name": "skill-optimizer",
   "version": "0.1.0",
-  "description": "Generic SDK/MCP skill documentation benchmark framework",
+  "description": "Benchmark and optimizer for evaluating SDK, CLI, and MCP guidance with static action matching.",
+  "license": "MIT",
+  "author": "David Bucur",
+  "homepage": "https://github.com/bucurdavid/skill-optimizer#readme",
+  "bugs": {
+    "url": "https://github.com/bucurdavid/skill-optimizer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bucurdavid/skill-optimizer.git"
+  },
+  "keywords": [
+    "benchmark",
+    "optimizer",
+    "mcp",
+    "sdk",
+    "cli",
+    "llm",
+    "tool-calling",
+    "evaluation"
+  ],
   "type": "module",
   "bin": {
     "skill-optimizer": "./dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist/",
     "mock-repos/"
   ],
   "scripts": {
     "benchmark": "tsx src/cli.ts run",
+    "clean": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
     "dev": "tsx src/cli.ts",
     "optimize": "tsx src/optimizer/main.ts",
     "materialize:mock": "tsx src/optimizer/materialize-mock-repo.ts",
+    "prepack": "npm run clean && npm run build",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts"
+    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.66.1",
