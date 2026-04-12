@@ -154,13 +154,14 @@ export async function generateCandidateTasksWithCoverage(
   config: TaskGeneratorConfig,
   deps: TaskGeneratorDeps,
   inScopeActions: ActionDefinition[],
+  outOfScopeActions: ActionDefinition[] = [],
 ): Promise<{ tasks: GeneratedTask[]; coverage: CoverageReport }> {
   // Iteration 1 — existing one-shot prompt
   const firstPass = await generateCandidateTasks(surface, config, deps);
 
   let uncovered = computeUncovered(inScopeActions, firstPass);
   if (uncovered.length === 0) {
-    return { tasks: firstPass, coverage: computeCoverage(inScopeActions, firstPass) };
+    return { tasks: firstPass, coverage: computeCoverage(inScopeActions, firstPass, outOfScopeActions) };
   }
 
   // Iteration 2 — focused retry for uncovered actions
@@ -195,5 +196,5 @@ export async function generateCandidateTasksWithCoverage(
     );
   }
 
-  return { tasks: combined, coverage: computeCoverage(inScopeActions, combined) };
+  return { tasks: combined, coverage: computeCoverage(inScopeActions, combined, outOfScopeActions) };
 }

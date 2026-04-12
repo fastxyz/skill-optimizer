@@ -7,7 +7,11 @@ function actionNamesOf(task: GeneratedTask): string[] {
   return list.map((a) => a.name ?? a.method ?? '').filter(Boolean);
 }
 
-export function computeCoverage(actions: ActionDefinition[], tasks: GeneratedTask[]): CoverageReport {
+export function computeCoverage(
+  actions: ActionDefinition[],
+  tasks: GeneratedTask[],
+  outOfScopeActions: ActionDefinition[] = [],
+): CoverageReport {
   const tasksPerAction: Record<string, number> = {};
   for (const action of actions) tasksPerAction[action.name] = 0;
   for (const task of tasks) {
@@ -19,7 +23,7 @@ export function computeCoverage(actions: ActionDefinition[], tasks: GeneratedTas
   const uncovered = actions.filter((a) => tasksPerAction[a.name] === 0).map((a) => a.name);
   return {
     inScopeActions: actions.map((a) => a.name),
-    outOfScopeActions: [],
+    outOfScopeActions: outOfScopeActions.map((a) => a.name),
     coveredActions: covered,
     uncoveredActions: uncovered,
     tasksPerAction,

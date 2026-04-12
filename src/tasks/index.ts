@@ -53,12 +53,16 @@ export async function generateTasksForProject(
   };
 
   console.log('[optimize] Generating candidate tasks...');
+  // Synthesize key=name: SurfaceSnapshotAction omits 'key', but ActionDefinition requires it.
+  // Coverage matching only reads action.name so key=name is always correct here.
   const inScopeActions = inScope.map((a) => ({ key: a.name, ...a }));
+  const outOfScopeActions = outOfScope.map((a) => ({ key: a.name, ...a }));
   const { tasks: generated, coverage: taskCoverage } = await generateCandidateTasksWithCoverage(
     filteredSurface,
     { maxTasks: params.maxTasks, seed: params.seed },
     params.deps,
     inScopeActions,
+    outOfScopeActions,
   );
   console.log(`[optimize] Model proposed ${generated.length} tasks (coverage: ${taskCoverage.coveredActions.length}/${inScopeActions.length} actions).`);
 
