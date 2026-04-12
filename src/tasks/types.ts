@@ -1,4 +1,4 @@
-import type { ExpectedAction } from '../benchmark/types.js';
+import type { CoverageReport, ExpectedAction } from '../benchmark/types.js';
 import type { ResolvedProjectConfig, SurfaceSnapshot } from '../project/types.js';
 
 export interface GeneratedTask {
@@ -40,4 +40,5 @@ export interface GenerateTasksForProjectResult extends GroundedTasksResult {
   surface: DiscoveredTaskSurface;
   generated: GeneratedTask[];
   artifacts: FrozenTaskArtifacts;
+  coverage: CoverageReport;
 }

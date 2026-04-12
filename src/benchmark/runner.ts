@@ -15,6 +15,7 @@ import type {
   TaskSummary,
   ToolExecutor,
   McpToolDefinition,
+  CoverageReport,
 } from './types.js';
 import { getExpectedActionName, getExpectedActions } from './types.js';
 import { loadConfig, loadTasks, loadMcpTools, loadCliCommands, slugify, getModelBySlug, getModelsByTier } from './config.js';
@@ -93,6 +94,7 @@ export interface RunnerOptions {
   noCache?: boolean;
   outputDir?: string;
   verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
+  scopeCoverage?: CoverageReport;
 }
 
 /**
@@ -399,6 +401,11 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     config,
     outputDir,
   );
+
+  // 12b. Attach scope coverage if provided
+  if (options.scopeCoverage) {
+    report.scopeCoverage = options.scopeCoverage;
+  }
 
   // 13. Compute verdict
   if (options.verdictPolicy) {

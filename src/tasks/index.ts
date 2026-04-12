@@ -103,5 +103,6 @@ export async function generateTasksForProject(
     kept: grounded.kept,
     rejected: grounded.rejected,
     artifacts,
+    coverage: taskCoverage,
   };
 }
