@@ -12,11 +12,25 @@ cd skill-optimizer
 npm install
 export OPENROUTER_API_KEY=sk-or-...
 
-# scaffold a config against your repo
+# Create starter files in this directory
 npx tsx src/cli.ts init
+```
 
-# run the end-to-end loop
-npx tsx src/cli.ts optimize --config ./skill-optimizer.json
+`init` writes three files: `skill-optimizer.json` (main config), `tasks.json` (example tasks), and `tools.json` (example MCP tool definitions).
+
+Open `skill-optimizer.json` and make these edits:
+
+| Field | What it does | Set it to |
+|-------|-------------|-----------|
+| `target.surface` | What kind of interface you're benchmarking | `"sdk"` for a library, `"cli"` for a command-line tool, `"mcp"` for an MCP server |
+| `target.repoPath` | Root of the project being benchmarked | Absolute or relative path to your repo |
+| `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["./src/index.ts"]` or `["./src/server.ts"]` |
+| `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
+
+Then run the benchmark:
+
+```bash
+npx tsx src/cli.ts run --config ./skill-optimizer.json
 ```
 
 ## How it works
