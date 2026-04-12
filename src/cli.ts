@@ -97,19 +97,19 @@ Usage:
   skill-optimizer compare [options]             Compare two benchmark reports
 
 Run options:
-  --config <path>                               Config file (default: skill-benchmark.json)
+  --config <path>                               Config file (default: skill-optimizer.json)
   --tier <flagship|mid|low>                     Filter models by tier
   --task <task-id>                              Run a single task
   --model <slug>                                Run a single model
   --no-cache                                    Force fresh skill fetch
 
 Optimize options:
-  --config <path>                               Config file (default: skill-benchmark.json)
+  --config <path>                               Config file (default: skill-optimizer.json)
   --max-iterations <n>                          Override optimization iteration cap
   --skip-generation                             Disable task generation for this run
 
 Generate-tasks options:
-  --config <path>                               Config file (default: skill-benchmark.json)
+  --config <path>                               Config file (default: skill-optimizer.json)
 
 Compare options:
   --baseline <path>                             Path to baseline report.json
@@ -117,15 +117,15 @@ Compare options:
 
 Examples:
   skill-optimizer init
-  skill-optimizer benchmark --config ./skill-benchmark.json
+  skill-optimizer benchmark --config ./skill-optimizer.json
   skill-optimizer run
   skill-optimizer run --config ./my-config.json
   skill-optimizer run --tier flagship
   skill-optimizer run --task send-tokens
   skill-optimizer run --model gpt-4o
   skill-optimizer run --no-cache
-  skill-optimizer generate-tasks --config ./skill-benchmark.json
-  skill-optimizer optimize --config ./skill-benchmark.json
+  skill-optimizer generate-tasks --config ./skill-optimizer.json
+  skill-optimizer optimize --config ./skill-optimizer.json
   skill-optimizer compare --baseline results/old/report.json --current results/report.json
 `);
 }
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
   if (command === 'optimize') {
     const configPath = getFlag(args, '--config');
     try {
-      const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(configPath ?? 'skill-benchmark.json', {
+      const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(configPath ?? 'skill-optimizer.json', {
         maxIterationsRaw: getFlag(args, '--max-iterations'),
         skipGeneration: hasFlag(args, '--skip-generation'),
       });
@@ -208,7 +208,7 @@ async function main(): Promise<void> {
 
   // ── Generate-tasks mode ───────────────────────────────────────────────────
   if (command === 'generate-tasks') {
-    const configPath = getFlag(args, '--config') ?? 'skill-benchmark.json';
+    const configPath = getFlag(args, '--config') ?? 'skill-optimizer.json';
     try {
       const project = loadProjectConfig(configPath);
       if (!project.benchmark.taskGeneration.enabled) {
@@ -266,7 +266,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    const project = loadProjectConfig(options.configPath ?? 'skill-benchmark.json');
+    const project = loadProjectConfig(options.configPath ?? 'skill-optimizer.json');
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
       const { provider, model } = parseModelRef(modelRef);
@@ -276,7 +276,7 @@ async function main(): Promise<void> {
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       const generation = await generateTasksForProject({
-        configPath: options.configPath ?? 'skill-benchmark.json',
+        configPath: options.configPath ?? 'skill-optimizer.json',
         maxTasks: project.benchmark.taskGeneration.maxTasks,
         seed: project.benchmark.taskGeneration.seed,
         outputDir: project.benchmark.taskGeneration.outputDir,

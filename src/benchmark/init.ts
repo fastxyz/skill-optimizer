@@ -5,11 +5,11 @@ import { resolve } from 'node:path';
  * Scaffold benchmark config, tasks, and example tools for a new project.
  */
 export function initBenchmark(targetDir: string = process.cwd()): void {
-  const configPath = resolve(targetDir, 'skill-benchmark.json');
+  const configPath = resolve(targetDir, 'skill-optimizer.json');
   const tasksPath = resolve(targetDir, 'tasks.json');
   const toolsPath = resolve(targetDir, 'tools.json');
 
-  // skill-benchmark.json
+  // skill-optimizer.json
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
   } else {
@@ -132,7 +132,7 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
   }
 
   console.log('\n[init] Done! Next steps:');
-  console.log('  1. Edit skill-benchmark.json with your surface (sdk/cli/mcp) details');
+  console.log('  1. Edit skill-optimizer.json with your surface (sdk/cli/mcp) details');
   console.log('     For SDK benchmarks, set sdk.language to typescript, python, or rust.');
   console.log('  2. Edit tasks.json with your test cases');
   console.log('  3. Run: npx skill-optimizer run');
