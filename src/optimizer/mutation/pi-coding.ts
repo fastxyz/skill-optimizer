@@ -1,6 +1,6 @@
 import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
-import { buildReportContext } from './report-context.js';
+import { buildMutationContext } from '../feedback/mutation-context.js';
 import { createCodingOrchestratorSession } from '../../runtime/pi/index.js';
 
 export class PiCodingMutationExecutor {
@@ -34,10 +34,11 @@ export class PiCodingMutationExecutor {
 
 function buildMutationPrompt(context: MutationContext): string {
   const allowedPaths = context.manifest.targetRepo.allowedPaths.map((path) => `- ${path}`).join('\n');
-  const reportContext = buildReportContext(
-    context.reportPath,
+  const feedbackCtx = buildMutationContext(
+    context.currentReport,
     context.manifest.mutation?.reportContextMaxBytes ?? 16_000,
   );
+  const reportContext = feedbackCtx.serialized || null;
   const fallbackFailureSummary = context.failureBuckets.length === 0
     ? '- No failure buckets were detected; improve benchmark pass rate conservatively.'
     : context.failureBuckets
