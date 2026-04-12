@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-const MOCK_REPO_NAMES = ['sdk-demo', 'cli-demo', 'mcp-demo', 'mcp-tracker-demo'] as const;
+const MOCK_REPO_NAMES = ['sdk-demo', 'cli-demo', 'mcp-demo', 'mcp-tracker-demo', 'sdk-counter-demo'] as const;
 
 export type MockRepoName = (typeof MOCK_REPO_NAMES)[number];
 

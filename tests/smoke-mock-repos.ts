@@ -39,6 +39,7 @@ await test('listMockRepoTemplates: exposes tracked templates that exist in the w
   const templates = listMockRepoTemplates();
   assert(templates.length >= 1, 'should expose at least one template');
   assert(templates.includes('mcp-tracker-demo'), 'should include mcp-tracker-demo');
+  assert(templates.includes('sdk-counter-demo'), 'should include sdk-counter-demo');
 });
 
 for (const name of listMockRepoTemplates()) {
@@ -52,9 +53,9 @@ for (const name of listMockRepoTemplates()) {
       assert(existsSync(projectConfigPath), 'unified project config should exist');
 
       const { config: benchmarkConfig } = loadConfig(projectConfigPath);
-      assertEqual(benchmarkConfig.surface, 'mcp', 'tracker demo should materialize an MCP benchmark');
 
       if (name === 'mcp-tracker-demo') {
+        assertEqual(benchmarkConfig.surface, 'mcp', 'tracker demo should materialize an MCP benchmark');
         const projectConfigRaw = JSON.parse(readFileSync(projectConfigPath, 'utf-8')) as {
           target?: { repoPath?: string };
           benchmark?: { taskGeneration?: { outputDir?: string } };
@@ -75,6 +76,19 @@ for (const name of listMockRepoTemplates()) {
 
         const validation = await createValidationRunner().run(optimizeManifest.targetRepo);
         assert(validation.ok, 'materialized mock repo validation should pass');
+      }
+
+      if (name === 'sdk-counter-demo') {
+        assertEqual(benchmarkConfig.surface, 'sdk', 'sdk-counter-demo should materialize an SDK benchmark');
+        const projectConfigRaw = JSON.parse(readFileSync(projectConfigPath, 'utf-8')) as {
+          target?: { surface?: string; scope?: { include?: string[] } };
+          benchmark?: { verdict?: { perModelFloor?: number } };
+        };
+        assert(projectConfigRaw.target?.surface === 'sdk', 'sdk-counter-demo should have sdk surface');
+        assert(Array.isArray(projectConfigRaw.target?.scope?.include), 'sdk-counter-demo should define scope.include');
+        assert(typeof projectConfigRaw.benchmark?.verdict?.perModelFloor === 'number', 'sdk-counter-demo should define verdict.perModelFloor');
+        assert(existsSync(join(materializedPath, 'SKILL.md')), 'sdk-counter-demo should include SKILL.md');
+        assert(existsSync(join(materializedPath, 'src', 'counter.ts')), 'sdk-counter-demo should include src/counter.ts');
       }
     } finally {
       rmSync(destRoot, { recursive: true, force: true });
