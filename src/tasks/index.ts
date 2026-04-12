@@ -5,6 +5,9 @@ import { groundTasks } from './ground.js';
 import { resolveScope } from './scope.js';
 
 import type { GenerateTasksForProjectResult, TaskGeneratorDeps } from './types.js';
+import { buildSurfaceSnapshot } from '../project/index.js';
+import type { ResolvedProjectConfig } from '../project/types.js';
+import type { SurfaceSnapshotAction } from '../project/types.js';
 
 export * from './default-pi-critic.js';
 export * from './default-pi-generator.js';
@@ -12,7 +15,13 @@ export * from './discover.js';
 export * from './freeze.js';
 export * from './generate.js';
 export * from './ground.js';
+export * from './scope.js';
 export * from './types.js';
+
+export function discoverActionsOnly(project: ResolvedProjectConfig): SurfaceSnapshotAction[] {
+  const snapshot = buildSurfaceSnapshot(project);
+  return snapshot.actions;
+}
 
 export async function generateTasksForProject(
   params: {

@@ -16,7 +16,7 @@ import { printCoverage } from './benchmark/coverage.js';
 import { initBenchmark } from './benchmark/init.js';
 import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
 import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
-import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic } from './tasks/index.js';
+import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic, discoverActionsOnly, resolveScope } from './tasks/index.js';
 import type { Recommendation } from './verdict/recommendations.js';
 import { generateRecommendations } from './verdict/recommendations.js';
 import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js';
@@ -44,6 +44,7 @@ function hasFlag(args: string[], flag: string): boolean {
 const BOOLEAN_FLAGS = new Set([
   '--help',
   '-h',
+  '--dry-run',
   '--no-cache',
   '--skip-generation',
 ]);
@@ -100,6 +101,10 @@ Usage:
   skill-optimizer optimize [options]            Run the optimization loop
   skill-optimizer compare [options]             Compare two benchmark reports
 
+Global options:
+  --dry-run                                     Discover + scope preview only; no LLM calls, no side effects
+  --config <path>                               Config file (overrides per-command default)
+
 Run options:
   --config <path>                               Config file (default: skill-optimizer.json)
   --tier <flagship|mid|low>                     Filter models by tier
@@ -121,6 +126,7 @@ Compare options:
 
 Examples:
   skill-optimizer init
+  skill-optimizer --dry-run --config ./skill-optimizer.json
   skill-optimizer benchmark --config ./skill-optimizer.json
   skill-optimizer run
   skill-optimizer run --config ./my-config.json
@@ -134,6 +140,36 @@ Examples:
 `);
 }
 
+// ── Dry-run ───────────────────────────────────────────────────────────────────
+
+async function runDryRun(configPath: string): Promise<void> {
+  const project = loadProjectConfig(configPath);
+  const discovered = discoverActionsOnly(project);
+  const { inScope, outOfScope } = resolveScope(discovered, project.target.scope);
+
+  console.log('=== skill-optimizer dry run ===');
+  console.log(`Config: ${project.configPath}`);
+  console.log(`Surface: ${project.target.surface}`);
+  console.log(`Discovered: ${discovered.length} action(s)`);
+  console.log(`In scope:     ${inScope.length} — ${inScope.map((a) => a.name).join(', ')}`);
+  console.log(`Out of scope: ${outOfScope.length} — ${outOfScope.map((a) => a.name).join(', ')}`);
+
+  const maxTasks = project.benchmark.taskGeneration.maxTasks;
+  if (inScope.length > 0 && maxTasks < inScope.length) {
+    console.error(`\nERROR: maxTasks (${maxTasks}) < in-scope action count (${inScope.length}).`);
+    console.error(`Raise benchmark.taskGeneration.maxTasks in ${project.configPath}, or tighten target.scope.exclude.`);
+    process.exit(1);
+  }
+
+  if (inScope.length === 0) {
+    console.error('\nERROR: zero in-scope actions. Adjust target.scope.include/exclude in your config.');
+    process.exit(1);
+  }
+
+  console.log('\nNo LLM calls made. Zero side effects.');
+  process.exit(0);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -143,6 +179,12 @@ async function main(): Promise<void> {
   if (hasFlag(args, '--help') || hasFlag(args, '-h')) {
     printUsage();
     process.exit(0);
+  }
+
+  if (hasFlag(args, '--dry-run')) {
+    const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
+    await runDryRun(configPath);
+    return;
   }
 
   const pos = positionals(args);
