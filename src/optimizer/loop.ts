@@ -430,7 +430,7 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
     optimizer: {
       maxIterations: unresolved.optimizer?.maxIterations ?? 5,
       stabilityWindow: unresolved.optimizer?.stabilityWindow ?? 2,
-      minOverallPassDelta: unresolved.optimizer?.minOverallPassDelta ?? 0.01,
+      minOverallPassDelta: unresolved.optimizer?.minOverallPassDelta ?? 0.02,
       taskGeneration: {
         enabled: unresolved.optimizer?.taskGeneration?.enabled ?? false,
         maxGenerated: unresolved.optimizer?.taskGeneration?.maxGenerated ?? 10,

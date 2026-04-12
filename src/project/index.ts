@@ -9,6 +9,7 @@ export type { ActionCatalog } from '../actions/types.js';
 export type {
   ParsedModelRef,
   ProjectBenchmarkConfig,
+  ProjectBenchmarkVerdictConfig,
   ProjectConfig,
   ProjectDiscoveryConfig,
   ProjectOptimizeConfig,
