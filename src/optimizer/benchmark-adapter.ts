@@ -7,6 +7,7 @@ import type { BenchmarkReport } from '../benchmark/types.js';
 export interface BenchmarkAdapterRunOptions {
   outputDir: string;
   label: string;
+  verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
 }
 
 export interface BenchmarkAdapterRunResult {
@@ -22,7 +23,7 @@ export function createBenchmarkAdapter(): {
       const runOutputDir = resolve(opts.outputDir, opts.label);
       mkdirSync(runOutputDir, { recursive: true });
 
-      const report = await runBenchmark({ configPath, outputDir: runOutputDir });
+      const report = await runBenchmark({ configPath, outputDir: runOutputDir, verdictPolicy: opts.verdictPolicy });
       return {
         report,
         reportPath: resolve(runOutputDir, 'report.json'),

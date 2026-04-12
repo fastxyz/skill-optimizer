@@ -141,7 +141,7 @@ export interface OptimizeLoopDependencies {
   benchmark: {
     run(
       configPath: string,
-      opts: { outputDir: string; label: string },
+      opts: { outputDir: string; label: string; verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number } },
     ): Promise<{ report: BenchmarkReport; reportPath: string }>;
   };
   repo: {

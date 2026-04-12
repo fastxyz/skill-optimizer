@@ -3,6 +3,7 @@ import { freezeTaskArtifacts } from './freeze.js';
 import { generateCandidateTasksWithCoverage } from './generate.js';
 import { groundTasks } from './ground.js';
 import { resolveScope } from './scope.js';
+import { computeCoverage } from './coverage.js';
 
 import type { GenerateTasksForProjectResult, TaskGeneratorDeps } from './types.js';
 import { buildSurfaceSnapshot } from '../project/index.js';
@@ -67,14 +68,14 @@ export async function generateTasksForProject(
   // Coverage matching only reads action.name so key=name is always correct here.
   const inScopeActions = inScope.map((a) => ({ key: a.name, ...a }));
   const outOfScopeActions = outOfScope.map((a) => ({ key: a.name, ...a }));
-  const { tasks: generated, coverage: taskCoverage } = await generateCandidateTasksWithCoverage(
+  const { tasks: generated } = await generateCandidateTasksWithCoverage(
     filteredSurface,
     { maxTasks: params.maxTasks, seed: params.seed },
     params.deps,
     inScopeActions,
     outOfScopeActions,
   );
-  console.log(`[optimize] Model proposed ${generated.length} tasks (coverage: ${taskCoverage.coveredActions.length}/${inScopeActions.length} actions).`);
+  console.log(`[optimize] Model proposed ${generated.length} tasks.`);
 
   console.log('[optimize] Grounding generated tasks against the discovered surface snapshot...');
   const grounded = groundTasks(generated, filteredSurface.snapshot);
@@ -82,6 +83,8 @@ export async function generateTasksForProject(
     throw new Error('Task generation produced zero valid tasks after grounding');
   }
 
+  // Recompute coverage from kept tasks only — pre-grounding coverage is stale if tasks were rejected.
+  const taskCoverage = computeCoverage(inScopeActions, grounded.kept, outOfScopeActions);
   console.log(`[optimize] Grounded ${grounded.kept.length} tasks, rejected ${grounded.rejected.length}.`);
   console.log('[optimize] Benchmark tasks:');
   for (const task of grounded.kept) {

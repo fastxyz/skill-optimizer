@@ -50,9 +50,14 @@ export async function runOptimizeLoop(
   let acceptedCheckpoint = await deps.repo.captureCheckpoint(resolvedManifest.targetRepo);
   console.log('[optimize] Captured initial checkpoint.');
   console.log('[optimize] Running baseline benchmark...');
+  const verdictPolicy = {
+    perModelFloor: resolvedManifest.optimizer.perModelFloor,
+    targetWeightedAverage: resolvedManifest.optimizer.targetWeightedAverage,
+  };
   const baselineResult = await deps.benchmark.run(resolvedManifest.benchmarkConfig, {
     outputDir,
     label: 'baseline',
+    verdictPolicy,
   });
   const baselineReport = baselineResult.report;
   let bestReport = baselineResult.report;
@@ -204,6 +209,7 @@ export async function runOptimizeLoop(
       const candidateResult = await deps.benchmark.run(resolvedManifest.benchmarkConfig, {
         outputDir,
         label: `iteration-${index}`,
+        verdictPolicy,
       });
       const candidateReport = candidateResult.report;
       changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
@@ -445,8 +451,8 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
         outputDir: resolve(unresolved.optimizer?.taskGeneration?.outputDir ?? '.skill-optimizer'),
       },
       mode: unresolved.optimizer?.mode ?? 'stable-surface',
-      perModelFloor: unresolved.optimizer?.perModelFloor ?? 0,
-      targetWeightedAverage: unresolved.optimizer?.targetWeightedAverage ?? 0,
+      perModelFloor: unresolved.optimizer?.perModelFloor ?? 0.6,
+      targetWeightedAverage: unresolved.optimizer?.targetWeightedAverage ?? 0.7,
       models: unresolved.optimizer?.models ?? [],
     },
     mutation: unresolved.mutation

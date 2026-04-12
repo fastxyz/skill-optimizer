@@ -23,8 +23,15 @@
     "evaluation"
   ],
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/tasks/index.js",
+      "types": "./dist/tasks/index.d.ts"
+    }
+  },
   "scripts": {
     "benchmark": "tsx src/cli.ts run",
+    "prepack": "npm run build",
     "clean": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
     "dev": "tsx src/cli.ts",
     "optimize": "tsx src/cli.ts optimize",
