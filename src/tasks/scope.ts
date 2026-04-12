@@ -1,5 +1,3 @@
-import type { ActionDefinition } from '../actions/types.js';
-
 export interface ScopeConfig {
   include: string[];
   exclude: string[];
@@ -15,15 +13,15 @@ function matchesAny(name: string, patterns: string[]): boolean {
   return patterns.some((p) => matchesGlob(name, p));
 }
 
-export function resolveScope(
-  actions: ActionDefinition[],
+export function resolveScope<T extends { name: string }>(
+  actions: T[],
   scope: ScopeConfig,
-): { inScope: ActionDefinition[]; outOfScope: ActionDefinition[] } {
+): { inScope: T[]; outOfScope: T[] } {
   const include = scope.include.length === 0 ? ['*'] : scope.include;
   const exclude = scope.exclude;
 
-  const inScope: ActionDefinition[] = [];
-  const outOfScope: ActionDefinition[] = [];
+  const inScope: T[] = [];
+  const outOfScope: T[] = [];
 
   for (const action of actions) {
     const included = matchesAny(action.name, include);

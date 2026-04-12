@@ -42,6 +42,7 @@ export function freezeTaskArtifacts(params: FreezeTaskArtifactsParams): FrozenTa
       sdk: params.project.target.sdk,
       cli: params.project.target.cli,
       mcp: params.project.target.mcp,
+      scope: params.project.target.scope,
     },
     benchmark: {
       format: params.project.benchmark.format,

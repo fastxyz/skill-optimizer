@@ -27,8 +27,7 @@ export async function generateTasksForProject(
   console.log(`[optimize] Loaded ${surface.snapshot.surface} surface with ${surface.snapshot.actions.length} actions.`);
 
   // Apply scope filter
-  const allActions = surface.snapshot.actions.map((a) => ({ key: a.name, ...a }));
-  const { inScope, outOfScope } = resolveScope(allActions, surface.project.target.scope);
+  const { inScope, outOfScope } = resolveScope(surface.snapshot.actions, surface.project.target.scope);
   if (inScope.length === 0) {
     throw new Error(
       `target.scope produced zero in-scope actions. Adjust target.scope.include/exclude in ${params.configPath}.`,
@@ -41,7 +40,7 @@ export async function generateTasksForProject(
     ...surface,
     snapshot: {
       ...surface.snapshot,
-      actions: inScope.map(({ key: _key, ...rest }) => rest),
+      actions: inScope,
     },
   };
 
