@@ -1,6 +1,8 @@
-import type { ExpectedAction } from '../benchmark/types.js';
+import type { ExpectedAction, CoverageReport } from '../benchmark/types.js';
 import { getExpectedActionName } from '../benchmark/types.js';
 
+import type { ActionDefinition } from '../actions/types.js';
+import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
 import type { DiscoveredTaskSurface, GeneratedTask, TaskGeneratorConfig, TaskGeneratorDeps } from './types.js';
 
 const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
@@ -145,4 +147,53 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
   // Touch helper so transitional action alias stays normalized consistently.
   getExpectedActionName(normalized);
   return normalized;
+}
+
+export async function generateCandidateTasksWithCoverage(
+  surface: DiscoveredTaskSurface,
+  config: TaskGeneratorConfig,
+  deps: TaskGeneratorDeps,
+  inScopeActions: ActionDefinition[],
+): Promise<{ tasks: GeneratedTask[]; coverage: CoverageReport }> {
+  // Iteration 1 — existing one-shot prompt
+  const firstPass = await generateCandidateTasks(surface, config, deps);
+
+  let uncovered = computeUncovered(inScopeActions, firstPass);
+  if (uncovered.length === 0) {
+    return { tasks: firstPass, coverage: computeCoverage(inScopeActions, firstPass) };
+  }
+
+  // Iteration 2 — focused retry for uncovered actions
+  const retrySystem = 'You generate benchmark tasks targeting specific missing actions. JSON only.';
+  const retryPrompt = [
+    buildRetryPrompt(uncovered),
+    '',
+    `Respond with {"tasks":[...]} using the same schema as before.`,
+    '',
+    'Surface snapshot:',
+    '---BEGIN SURFACE SNAPSHOT---',
+    JSON.stringify(surface.snapshot, null, 2),
+    '---END SURFACE SNAPSHOT---',
+  ].join('\n');
+
+  const retryRaw = await deps.complete({ system: retrySystem, prompt: retryPrompt });
+  const retryTasks = parseGeneratedTasks(retryRaw);
+
+  // Dedup by id
+  const byId = new Map<string, GeneratedTask>();
+  for (const t of [...firstPass, ...retryTasks]) {
+    if (!byId.has(t.id)) byId.set(t.id, t);
+  }
+  const combined = [...byId.values()];
+
+  uncovered = computeUncovered(inScopeActions, combined);
+  if (uncovered.length > 0) {
+    throw new Error(
+      `Task generation could not cover ${uncovered.length} in-scope action(s) after 2 iterations: ` +
+        `${uncovered.join(', ')}. ` +
+        `Improve SKILL.md guidance for these actions, or add them to target.scope.exclude.`,
+    );
+  }
+
+  return { tasks: combined, coverage: computeCoverage(inScopeActions, combined) };
 }

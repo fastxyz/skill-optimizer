@@ -1,6 +1,6 @@
 import { discoverTaskSurface } from './discover.js';
 import { freezeTaskArtifacts } from './freeze.js';
-import { generateCandidateTasks } from './generate.js';
+import { generateCandidateTasksWithCoverage } from './generate.js';
 import { groundTasks } from './ground.js';
 import { resolveScope } from './scope.js';
 
@@ -53,8 +53,14 @@ export async function generateTasksForProject(
   };
 
   console.log('[optimize] Generating candidate tasks...');
-  const generated = await generateCandidateTasks(filteredSurface, { maxTasks: params.maxTasks, seed: params.seed }, params.deps);
-  console.log(`[optimize] Model proposed ${generated.length} tasks.`);
+  const inScopeActions = inScope.map((a) => ({ key: a.name, ...a }));
+  const { tasks: generated, coverage: taskCoverage } = await generateCandidateTasksWithCoverage(
+    filteredSurface,
+    { maxTasks: params.maxTasks, seed: params.seed },
+    params.deps,
+    inScopeActions,
+  );
+  console.log(`[optimize] Model proposed ${generated.length} tasks (coverage: ${taskCoverage.coveredActions.length}/${inScopeActions.length} actions).`);
 
   console.log('[optimize] Grounding generated tasks against the discovered surface snapshot...');
   const grounded = groundTasks(generated, filteredSurface.snapshot);

@@ -357,6 +357,11 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
               expected_tools: [{ method: 'create_wallet', args: { label: 'beta' } }],
             },
             {
+              id: 'balance-task',
+              prompt: 'Get balance for address 0x1.',
+              expected_tools: [{ method: 'get_balance', args: { address: '0x1' } }],
+            },
+            {
               id: 'rejected-task',
               prompt: 'Use unknown method.',
               expected_tools: [{ method: 'delete_wallet', args: { id: 'x' } }],
@@ -374,8 +379,9 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
       deps,
     });
 
-    assertEqual(result.kept.length, 1, 'one task should remain after grounding');
-    assertEqual(result.kept[0].id, 'kept-task', 'kept task should match');
+    assertEqual(result.kept.length, 2, 'two tasks should remain after grounding');
+    assert(result.kept.some((t) => t.id === 'kept-task'), 'kept-task should be in kept');
+    assert(result.kept.some((t) => t.id === 'balance-task'), 'balance-task should be in kept');
     assert(result.rejected.length >= 1, 'at least one rejected task expected');
     assert(existsSync(result.artifacts.benchmarkPath), 'generated benchmark config should exist');
   } finally {
