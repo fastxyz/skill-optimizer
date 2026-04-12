@@ -13,6 +13,7 @@ export type {
   ProjectConfig,
   ProjectDiscoveryConfig,
   ProjectOptimizeConfig,
+  ProjectScopeConfig,
   ProjectTargetConfig,
   ProjectTaskGenerationConfig,
   ResolvedProjectBenchmarkConfig,

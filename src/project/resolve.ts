@@ -87,6 +87,12 @@ export function resolveProjectConfig(config: ProjectConfig, configPath: string):
       sdk: sdkConfig,
       cli: cliConfig,
       mcp: mcpConfig,
+      scope: {
+        include: config.target.scope?.include && config.target.scope.include.length > 0
+          ? [...config.target.scope.include]
+          : ['*'],
+        exclude: config.target.scope?.exclude ? [...config.target.scope.exclude] : [],
+      },
     },
     benchmark: {
       format: config.benchmark.format ?? DEFAULT_BENCHMARK_FORMAT,

@@ -23,6 +23,19 @@ export function validateProjectConfig(config: ProjectConfig, configPath: string)
     }
   }
 
+  if (target.scope !== undefined) {
+    if (target.scope.include !== undefined) {
+      if (!Array.isArray(target.scope.include) || target.scope.include.some((s) => typeof s !== 'string')) {
+        throw new Error(`Project config ${configPath}: "target.scope.include" must be an array of glob strings`);
+      }
+    }
+    if (target.scope.exclude !== undefined) {
+      if (!Array.isArray(target.scope.exclude) || target.scope.exclude.some((s) => typeof s !== 'string')) {
+        throw new Error(`Project config ${configPath}: "target.scope.exclude" must be an array of glob strings`);
+      }
+    }
+  }
+
   if (benchmark?.taskGeneration?.enabled === true && target.skill === undefined) {
     throw new Error(`Project config ${configPath}: "target.skill" is required when benchmark.taskGeneration.enabled=true`);
   }

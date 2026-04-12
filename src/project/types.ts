@@ -26,6 +26,11 @@ export interface ProjectDiscoveryConfig {
   language?: SdkLanguage;
 }
 
+export interface ProjectScopeConfig {
+  include?: string[];
+  exclude?: string[];
+}
+
 export interface ProjectTargetConfig {
   surface: BenchmarkSurface;
   repoPath?: string;
@@ -36,6 +41,7 @@ export interface ProjectTargetConfig {
   };
   cli?: CliSurfaceConfig;
   mcp?: McpSurfaceConfig;
+  scope?: ProjectScopeConfig;
 }
 
 export interface ProjectBenchmarkVerdictConfig {
@@ -102,6 +108,7 @@ export interface ResolvedProjectTargetConfig {
   };
   cli?: CliSurfaceConfig;
   mcp?: McpSurfaceConfig;
+  scope: { include: string[]; exclude: string[] };
 }
 
 export interface ResolvedProjectBenchmarkConfig {
