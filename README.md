@@ -1,104 +1,84 @@
 # skill-optimizer
 
-Benchmark and optimization framework for measuring whether LLMs choose the right SDK methods, CLI commands, or MCP tools from documentation and task prompts.
+Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can use your tool reliably.
 
-The public model is a single project config: `skill-benchmark.json`.
+skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
-## What It Does
-
-- supports `sdk`, `cli`, and `mcp` targets
-- benchmarks model behavior with static extraction and matching only
-- can generate benchmark tasks from docs plus a declared target surface
-- can run a checkpointed optimization loop over allowed files in a target repo
-- uses Pi-based model/runtime integration for both benchmarking and optimization
-- supports both stable-surface and surface-changing optimization modes
-
-## Current Model
-
-The current surface model is unified around `target.discovery`.
-
-- preferred: code-first discovery from real target sources
-- current reliable fallback: explicit manifests and declared surface metadata
-
-Current code-first discovery support:
-
-- `sdk`: exported classes, constructors, methods, and exported functions from TypeScript/JavaScript source files
-- `cli`: exported literal command arrays from TypeScript/JavaScript source files
-- `mcp`: exported literal MCP tool definitions from TypeScript/JavaScript source files
-
-Transitional explicit manifests still exist in parts of the codebase as internal fallback/compatibility paths, but the intended public direction is code-first discovery for all three surfaces.
-
-## Architecture
-
-```mermaid
-flowchart LR
-    A[skill-benchmark.json] --> B[src/project\nload + validate + resolve]
-    B --> C[src/benchmark\nprompts + extraction + evaluation]
-    B --> D[src/optimizer\nmutation loop + checkpoints]
-    B --> E[src/runtime/pi\nauth + models + sessions]
-    C --> F[report.json + report.md]
-    D --> G[accepted iteration or revert]
-```
-
-Key layers:
-
-- `src/project/`: unified config loading, validation, path resolution
-- `src/runtime/pi/`: shared Pi auth/model/runtime helpers
-- `src/tasks/`: shared discovery-backed task generation, grounding, and freezing
-- `src/benchmark/`: task loading, prompting, extraction, evaluation, reporting
-- `src/optimizer/`: mutation loop, failure analysis, validation, checkpoints
-
-## Static Benchmark Guarantee
-
-Benchmark evaluation is static.
-
-- extracted code, commands, and tool calls are matched structurally
-- generated code is not executed
-- generated shell commands are not executed
-- optimizer mutation happens outside the benchmark phase
-
-## Install
+## Quickstart
 
 ```bash
-npm install skill-optimizer
-```
-
-## Quick Start
-
-Scaffold a new project config:
-
-```bash
-npx skill-optimizer init
-```
-
-This creates:
-
-- `skill-benchmark.json`
-- `tasks.json`
-- `tools.json`
-
-Run a benchmark:
-
-```bash
+git clone https://github.com/bucurdavid/skill-optimizer
+cd skill-optimizer
+npm install
 export OPENROUTER_API_KEY=sk-or-...
-npx skill-optimizer run --config ./skill-benchmark.json
+
+# scaffold a config against your repo
+npx tsx src/cli.ts init
+
+# run the end-to-end loop
+npx tsx src/cli.ts optimize --config ./skill-optimizer.json
 ```
 
-Generate and freeze tasks only:
+## How it works
 
-```bash
-npx skill-optimizer generate-tasks --config ./skill-benchmark.json
-```
+1. **Discover** callable surface (SDK methods / CLI commands / MCP tools) via tree-sitter or a manifest.
+2. **Scope** the surface with `target.scope.include` / `target.scope.exclude` globs.
+3. **Generate tasks** — one prompt per in-scope action, coverage-guaranteed.
+4. **Benchmark** — every configured model attempts every task; static evaluator checks action calls + args.
+5. **Verdict** — PASS/FAIL against two gates (per-model floor, weighted average).
+6. **Optimize** — mutate `SKILL.md` / docs inside `allowedPaths`, re-benchmark, accept only if both gates hold, rollback if not.
+7. **Recommendations** — on FAIL, one critic call summarizes what to improve manually.
 
-Run the optimizer:
+## Configuration reference
 
-```bash
-npx skill-optimizer optimize --config ./skill-benchmark.json
-```
+All configuration lives in a single `skill-optimizer.json` file.
 
-## Unified Config
+### `target` fields
 
-Example `skill-benchmark.json`:
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `surface` | `"sdk" \| "cli" \| "mcp"` | required | Type of callable surface |
+| `repoPath` | `string` | `.` | Path to the target repo |
+| `skill` | `string \| { source: string; cache?: boolean }` | — | Path to SKILL.md |
+| `discovery.mode` | `"auto" \| "manifest"` | `"auto"` | How to discover actions |
+| `discovery.sources` | `string[]` | — | Source files for tree-sitter discovery |
+| `discovery.language` | `"typescript" \| "python" \| "rust"` | — | Language for code-first discovery |
+| `discovery.fallbackManifest` | `string` | — | Path to manifest JSON when code-first discovery is incomplete |
+| `sdk.language` | `"typescript" \| "python" \| "rust"` | — | SDK language |
+| `sdk.entrypoints` | `string[]` | — | SDK entry files |
+| `cli.commands` | `string` | — | Path to CLI commands manifest JSON |
+| `mcp.tools` | `string` | — | Path to MCP tools manifest JSON |
+
+### `benchmark` fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `format` | `"pi"` | `"pi"` | LLM transport format |
+| `apiKeyEnv` | `string` | `OPENROUTER_API_KEY` | Env var name for the API key |
+| `timeout` | `number` | `240000` | Ms per model call |
+| `models` | `Array<{ id: string; name: string; tier: "flagship"\|"mid"\|"low"; weight?: number }>` | required | Models to benchmark |
+| `taskGeneration.enabled` | `boolean` | `false` | Whether to generate tasks automatically |
+| `taskGeneration.maxTasks` | `number` | `10` | Max tasks to generate (must be >= scope size) |
+| `taskGeneration.seed` | `number` | `1` | RNG seed for reproducible generation |
+| `output.dir` | `string` | `benchmark-results/` | Where reports are saved |
+| `verdict.perModelFloor` | `number` | `0.6` | Minimum per-model pass fraction for a PASS verdict |
+| `verdict.targetWeightedAverage` | `number` | `0.7` | Minimum weighted average across all models for a PASS verdict |
+
+### `optimize` fields (all optional)
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Model for mutation (e.g. `openrouter/anthropic/claude-sonnet-4-6`) |
+| `apiKeyEnv` | `string` | — | Env var for the optimizer's API key |
+| `thinkingLevel` | `"off"\|"minimal"\|"low"\|"medium"\|"high"\|"xhigh"` | `"medium"` | Reasoning depth for mutation calls |
+| `allowedPaths` | `string[]` | — | Paths the optimizer may edit (safety boundary) |
+| `validation` | `string[]` | — | Shell commands to run to validate each mutation |
+| `requireCleanGit` | `boolean` | `true` | Require clean git state before starting |
+| `maxIterations` | `number` | `5` | Maximum optimization iterations |
+| `minImprovement` | `number` | `0.02` | Minimum weighted-average gain per accepted iteration |
+| `reportContextMaxBytes` | `number` | `16000` | Byte budget for mutation context |
+
+### Annotated example config
 
 ```json
 {
@@ -108,330 +88,103 @@ Example `skill-benchmark.json`:
     "repoPath": ".",
     "skill": "./SKILL.md",
     "discovery": {
-      "mode": "manifest",
-      "fallbackManifest": "./tools.json"
+      "mode": "auto",
+      "sources": ["./src/server.ts"]
     }
   },
   "benchmark": {
     "format": "pi",
     "apiKeyEnv": "OPENROUTER_API_KEY",
     "models": [
-      { "id": "openrouter/openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship", "weight": 2 },
+      { "id": "openrouter/openai/gpt-4o-mini",          "name": "GPT-4o mini",   "tier": "mid",      "weight": 1 }
     ],
-    "tasks": "./tasks.json",
     "taskGeneration": {
-      "enabled": false,
-      "maxTasks": 10,
-      "seed": 1,
-      "outputDir": "./.skill-optimizer"
+      "enabled": true,
+      "maxTasks": 20,
+      "seed": 1
     },
-    "output": {
-      "dir": "./benchmark-results"
+    "output": { "dir": "./benchmark-results" },
+    "verdict": {
+      "perModelFloor": 0.6,
+      "targetWeightedAverage": 0.7
     }
   },
   "optimize": {
-    "enabled": true,
-    "mode": "stable-surface",
-    "model": "openrouter/openai/gpt-5.4",
+    "model": "openrouter/anthropic/claude-sonnet-4-6",
     "apiKeyEnv": "OPENROUTER_API_KEY",
     "thinkingLevel": "medium",
-    "allowedPaths": ["SKILL.md", "README.md"],
-    "validation": [],
+    "allowedPaths": ["SKILL.md"],
+    "requireCleanGit": true,
     "maxIterations": 5,
-    "stabilityWindow": 2,
-    "minImprovement": 0.01,
+    "minImprovement": 0.02,
     "reportContextMaxBytes": 16000
   }
 }
 ```
 
-## Surface Config
+## Interpreting the verdict
 
-### Unified Discovery Block
+Every benchmark run produces one of two verdicts: **PASS** or **FAIL**.
 
-All surfaces use the same discovery shape:
+Two gates must both be satisfied for a PASS:
 
-```json
-{
-  "target": {
-    "surface": "mcp",
-    "repoPath": ".",
-    "skill": "./SKILL.md",
-    "discovery": {
-      "mode": "auto",
-      "sources": ["./src/server.ts"],
-      "fallbackManifest": "./tools.json"
-    }
-  }
-}
-```
+- **`benchmark.verdict.perModelFloor`** (default `0.6`): every model must pass at least this fraction of tasks. A single model below the floor fails the run, regardless of the average.
+- **`benchmark.verdict.targetWeightedAverage`** (default `0.7`): the weighted average score across all models must reach this threshold.
 
-Fields:
+**`benchmark.models[].weight`** (default `1.0`): heavier-weighted models count more toward the weighted average. Use higher weights for flagship models you care most about.
 
-- `mode`: `auto` or `manifest`
-- `sources`: code or entry files to inspect
-- `fallbackManifest`: explicit surface file when code-first discovery is incomplete
+The **optimizer** only accepts a mutation when:
+1. the weighted average improves by at least `minImprovement`, AND
+2. no model that was above the floor drops below it.
 
-For all three surfaces, `mode: "auto"` with `sources` pointing at real source files is now the preferred path.
+**Exit codes**: `0` = PASS, `1` = FAIL — usable directly in CI pipelines.
 
-### SDK
+## Scope & coverage
 
-```json
-{
-  "target": {
-    "surface": "sdk",
-    "repoPath": ".",
-    "skill": "./SKILL.md",
-    "discovery": {
-      "mode": "auto",
-      "sources": ["./src/index.ts"],
-      "language": "typescript"
-    },
-    "sdk": {
-      "language": "typescript"
-    }
-  }
-}
-```
+Control which actions are benchmarked with `target.scope`:
 
-Supported `target.sdk.language` values:
+- **`target.scope.include`** (default `["*"]`): glob patterns for actions to include.
+- **`target.scope.exclude`** (default `[]`): glob patterns for actions to exclude.
 
-- `typescript`
-- `python`
-- `rust`
-
-### CLI
-
-```json
-{
-  "target": {
-    "surface": "cli",
-    "repoPath": ".",
-    "skill": "./SKILL.md",
-    "discovery": {
-      "mode": "auto",
-      "sources": ["./src/commands.ts"]
-    }
-  }
-}
-```
-
-### MCP
-
-```json
-{
-  "target": {
-    "surface": "mcp",
-    "repoPath": ".",
-    "skill": "./SKILL.md",
-    "discovery": {
-      "mode": "auto",
-      "sources": ["./src/server.ts"]
-    }
-  }
-}
-```
-
-## Task Generation
-
-Task generation currently powers the optimize flow and the shared generation pipeline.
-
-For task generation, the system reads:
-
-- docs/guidance like `SKILL.md`
-- the discovered `SurfaceSnapshot` for the target
-
-and then:
-
-1. generates candidate tasks with Pi
-2. grounds them against the declared MCP tools
-3. freezes them under the configured artifact directory
-
-Within one optimize run, the task set is frozen and reused for every rerun so score changes stay comparable.
-
-## Tasks
-
-Public task terminology is action-based.
-
-```json
-{
-  "tasks": [
-    {
-      "id": "comment-ticket",
-      "prompt": "Add a comment to TK-42 saying the issue is reproduced.",
-      "expected_actions": [
-        {
-          "name": "add_cmnt",
-          "args": {
-            "tkt": "TK-42",
-            "body": "Issue reproduced."
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
-`expected_tools` is still accepted as a transitional input alias, but `expected_actions` is the preferred public schema.
-
-## Optimizer Behavior
-
-The optimizer loop is:
-
-1. baseline benchmark
-2. failure analysis
-3. coding-agent mutation inside `allowedPaths`
-4. validation
-5. rerun benchmark
-6. accept or revert
-7. repeat until stable or max iterations
-
-### Optimization modes
-
-#### `stable-surface`
-
-Use when the callable surface should stay fixed during the run.
-
-Typical edits:
-
-- `SKILL.md`
-- docs
-- examples
-- help text
-
-Benchmark reruns stay on the same frozen surface snapshot and task set.
-
-#### `surface-changing`
-
-Use when the orchestrator is allowed to rename or reshape the callable surface itself.
+The `*` wildcard matches any sequence of characters including dots and slashes — it is not limited to a single path segment.
 
 Examples:
+- `"Wallet.*"` — includes all Wallet methods
+- `"*.internal*"` — excludes anything with "internal" anywhere in the name
+- `"get_*"` — includes only getter actions
 
-- MCP tool renames like `get_tkt -> get_ticket`
-- CLI command renames
-- SDK API renames
+Task generation is **coverage-guaranteed**: every in-scope action gets at least one task. If the first generation pass misses any, a targeted retry runs (max 2 iterations). If coverage still fails, an error names the uncovered actions and suggests either fixing SKILL.md guidance or adding them to `scope.exclude`.
 
-When an accepted mutation changes the callable surface, the optimizer:
+## Cost notes
 
-1. rediscovers the surface
-2. freezes a new `surface.snapshot.json`
-3. regenerates tasks
-4. starts a new benchmark epoch baseline
+Rough LLM spend per run:
 
-Direct score comparison is only meaningful within a single epoch.
+- **Baseline benchmark**: N models × M tasks LLM calls.
+- **Optimizer iteration**: 1 mutation call + N models × M tasks re-benchmark per iteration.
+- **Recommendations**: 1 critic call, only on FAIL verdict.
 
-Safety properties:
+No per-failure LLM calls — feedback is deterministic (structured failure details + patterns + passing/failing diffs).
 
-- target repo must start clean when optimization is enabled
-- only `allowedPaths` may be edited
-- optimizer-owned artifacts under the configured task-generation output directory are ignored as framework output
-- rejected or failed iterations restore the last accepted checkpoint
+## Dependencies
 
-### What the orchestrator actually edits
+The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent` — a small OSS wrapper around OpenRouter that handles agent sessions and tool loops. Models are accessed through [OpenRouter](https://openrouter.ai/) — you need one API key for everything.
 
-The orchestrator edits whatever files are listed in `optimize.allowedPaths`.
+## Troubleshooting
 
-In the current `mcp-tracker-demo`, that is only:
-
-- `SKILL.md`
-
-So the orchestrator currently improves guidance and usage instructions, not the callable MCP surface itself.
-
-### Why surface renames are different
-
-Within a single optimize run, the benchmark surface snapshot and generated tasks are frozen.
-
-That makes score comparisons trustworthy, but it also means surface-changing edits like:
-
-- renaming an MCP tool from `get_tkt` to `get_ticket`
-- renaming a CLI command
-- renaming an SDK method
-
-should not be treated as a normal in-run mutation against the same frozen benchmark definition.
-
-Those changes require:
-
-1. accepting the mutation
-2. rediscovering the surface
-3. re-freezing the surface snapshot
-4. regenerating or revalidating tasks
-
-That is a separate optimization mode from the current stable-surface loop.
-
-To enable real surface renames, set `optimize.mode` to `surface-changing` and include the actual implementation files in `allowedPaths`.
-
-`stabilityWindow` means: stop after `N` consecutive iterations without a meaningful improvement.
-
-## CLI Reference
-
-```text
-skill-optimizer init
-skill-optimizer generate-tasks [options]
-skill-optimizer benchmark [options]
-skill-optimizer run [options]
-skill-optimizer optimize [options]
-skill-optimizer compare [options]
-```
-
-### `run` options
-
-- `--config <path>`
-- `--tier <flagship|mid|low>`
-- `--task <task-id>`
-- `--model <slug>`
-- `--no-cache`
-
-### `optimize` options
-
-- `--config <path>`
-- `--max-iterations <n>`
-- `--skip-generation`
-
-### `generate-tasks` options
-
-- `--config <path>`
-
-### `compare` options
-
-- `--baseline <path>`
-- `--current <path>`
-
-## Mock Repo
-
-This repo includes `mock-repos/mcp-tracker-demo/`, which is the current end-to-end optimizer example.
-
-Materialize it before running so git checkpointing stays isolated:
-
+**Missing `OPENROUTER_API_KEY`**: Set it in your shell before running:
 ```bash
-npx tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
-npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-benchmark.json
+export OPENROUTER_API_KEY=sk-or-...
 ```
 
-That mock repo now discovers its MCP surface from `src/server.ts` and runs in `surface-changing` mode.
+**Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running.
 
-## Local Development
+**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx tsx src/cli.ts --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
 
-```bash
-npm run build
-npm run typecheck
-npm test
-npm pack --dry-run
-```
+**Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
 
-Inspect the CLI locally:
+**Legacy `skill-benchmark.json`**: Rename it to `skill-optimizer.json`. The loader will tell you if it finds the old name.
 
-```bash
-npx tsx src/cli.ts --help
-```
+## Contributing
 
-## Notes
-
-- the current public config is `skill-benchmark.json`
-- Pi examples in this repo typically use `OPENROUTER_API_KEY`
-- benchmark extraction/evaluation is static even when Pi is used for model/runtime integration
-- code-first discovery is the intended default direction, with manifest files currently serving as reliable fallback inputs
-
-## License
-
-MIT
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
