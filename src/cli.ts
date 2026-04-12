@@ -225,6 +225,7 @@ async function main(): Promise<void> {
         }
         console.log(renderVerdictConsole(bestReport, recs));
       }
+      process.exit(bestReport.verdict?.result === 'FAIL' ? 1 : 0);
     } catch (err) {
       console.error(`\nFATAL: Optimize failed: ${err instanceof Error ? err.message : err}`);
       if (err instanceof Error && err.stack) {
@@ -232,7 +233,6 @@ async function main(): Promise<void> {
       }
       process.exit(1);
     }
-    process.exit(0);
   }
 
   // ── Generate-tasks mode ───────────────────────────────────────────────────

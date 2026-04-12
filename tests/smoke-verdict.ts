@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import type { BenchmarkReport } from '../src/benchmark/types.js';
 import { generateRecommendations } from '../src/verdict/recommendations.js';
+import { renderVerdictConsole, renderVerdictMarkdown } from '../src/verdict/render.js';
 
 function syntheticFailReport(): BenchmarkReport {
   return {
@@ -57,10 +58,59 @@ async function testMalformedOutputReturnsEmpty() {
   console.log('PASS: malformed critic output returns empty list, not throw');
 }
 
+function testRenderVerdictConsolePass() {
+  const report = syntheticFailReport();
+  report.verdict!.result = 'PASS';
+  report.verdict!.reasons = [];
+  const out = renderVerdictConsole(report, []);
+  assert.ok(out.includes('=== Verdict ==='), 'console output has header');
+  assert.ok(out.includes('Result: PASS'), 'console output shows PASS');
+  assert.ok(!out.includes('Surface coverage:'), 'no coverage block without scopeCoverage');
+  console.log('PASS: renderVerdictConsole PASS verdict');
+}
+
+function testRenderVerdictConsoleWithCoverage() {
+  const report = syntheticFailReport();
+  report.scopeCoverage = {
+    inScopeActions: ['a', 'b'],
+    outOfScopeActions: ['c'],
+    coveredActions: ['a'],
+    uncoveredActions: ['b'],
+    tasksPerAction: { a: 1, b: 0 },
+    coverageViolation: true,
+  };
+  const out = renderVerdictConsole(report, []);
+  assert.ok(out.includes('Surface coverage:'), 'coverage block present when scopeCoverage set');
+  assert.ok(out.includes('Uncovered:'), 'uncovered list shown');
+  console.log('PASS: renderVerdictConsole shows coverage block');
+}
+
+function testRenderVerdictMarkdown() {
+  const report = syntheticFailReport();
+  const md = renderVerdictMarkdown(report, [{ priority: 'high', area: 'docs', action: 'Add examples', rationale: 'missing' }]);
+  assert.ok(md.includes('## Verdict'), 'markdown has Verdict heading');
+  assert.ok(md.includes('FAIL'), 'markdown shows FAIL');
+  assert.ok(md.includes('60.0%'), 'markdown shows perModelFloor as percentage');
+  assert.ok(md.includes('## Recommendations'), 'markdown has Recommendations section');
+  console.log('PASS: renderVerdictMarkdown contains expected sections');
+}
+
+function testRenderVerdictMarkdownNoVerdict() {
+  const report = syntheticFailReport();
+  delete (report as { verdict?: unknown }).verdict;
+  const md = renderVerdictMarkdown(report, []);
+  assert.strictEqual(md, '', 'empty string when no verdict');
+  console.log('PASS: renderVerdictMarkdown returns empty string when no verdict');
+}
+
 async function main() {
   await testPassSkipsCritic();
   await testFailInvokesCriticOnce();
   await testMalformedOutputReturnsEmpty();
+  testRenderVerdictConsolePass();
+  testRenderVerdictConsoleWithCoverage();
+  testRenderVerdictMarkdown();
+  testRenderVerdictMarkdownNoVerdict();
   console.log('\nALL PASS: smoke-verdict');
 }
 
