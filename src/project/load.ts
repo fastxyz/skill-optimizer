@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import type { ProjectConfig, ResolvedProjectConfig } from './types.js';
 import { resolveProjectConfig } from './resolve.js';
@@ -14,14 +14,14 @@ export function loadProjectConfig(configPath?: string): ResolvedProjectConfig {
     : resolve(process.cwd(), DEFAULT_PROJECT_CONFIG_NAME);
 
   if (!existsSync(resolvedPath)) {
-    const legacyCandidate = configPath
-      ? resolve(dirname(resolvedPath), LEGACY_PROJECT_CONFIG_NAME)
-      : resolve(process.cwd(), LEGACY_PROJECT_CONFIG_NAME);
-    if (!configPath && existsSync(legacyCandidate)) {
-      throw new Error(
-        `Found legacy '${LEGACY_PROJECT_CONFIG_NAME}'. ` +
-          `Rename it to '${DEFAULT_PROJECT_CONFIG_NAME}' — see CHANGELOG.md for migration notes.`,
-      );
+    if (!configPath) {
+      const legacyCandidate = resolve(process.cwd(), LEGACY_PROJECT_CONFIG_NAME);
+      if (existsSync(legacyCandidate)) {
+        throw new Error(
+          `Found legacy '${LEGACY_PROJECT_CONFIG_NAME}'. ` +
+            `Rename it to '${DEFAULT_PROJECT_CONFIG_NAME}' — see CHANGELOG.md for migration notes.`,
+        );
+      }
     }
     throw new Error(
       `Project config not found: ${resolvedPath}\n` +

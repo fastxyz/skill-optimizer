@@ -14,7 +14,7 @@ import { printSummary, generateMarkdown } from './benchmark/reporter.js';
 import { printCoverage } from './benchmark/coverage.js';
 import { initBenchmark } from './benchmark/init.js';
 import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
-import { loadProjectConfig, parseModelRef } from './project/index.js';
+import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
 import { createDefaultPiTaskGenerator, generateTasksForProject } from './tasks/index.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
   if (command === 'optimize') {
     const configPath = getFlag(args, '--config');
     try {
-      const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(configPath ?? 'skill-optimizer.json', {
+      const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(configPath ?? DEFAULT_PROJECT_CONFIG_NAME, {
         maxIterationsRaw: getFlag(args, '--max-iterations'),
         skipGeneration: hasFlag(args, '--skip-generation'),
       });
@@ -208,7 +208,7 @@ async function main(): Promise<void> {
 
   // ── Generate-tasks mode ───────────────────────────────────────────────────
   if (command === 'generate-tasks') {
-    const configPath = getFlag(args, '--config') ?? 'skill-optimizer.json';
+    const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
     try {
       const project = loadProjectConfig(configPath);
       if (!project.benchmark.taskGeneration.enabled) {
@@ -266,7 +266,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    const project = loadProjectConfig(options.configPath ?? 'skill-optimizer.json');
+    const project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
       const { provider, model } = parseModelRef(modelRef);
@@ -276,7 +276,7 @@ async function main(): Promise<void> {
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       const generation = await generateTasksForProject({
-        configPath: options.configPath ?? 'skill-optimizer.json',
+        configPath: options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME,
         maxTasks: project.benchmark.taskGeneration.maxTasks,
         seed: project.benchmark.taskGeneration.seed,
         outputDir: project.benchmark.taskGeneration.outputDir,

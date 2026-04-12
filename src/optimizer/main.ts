@@ -20,12 +20,12 @@ import { createDefaultPiTaskGenerator, generateTasksForProject } from '../tasks/
 function printUsage(): void {
   console.log(`
 Usage:
-  tsx src/optimizer/main.ts <skill-benchmark.json> [--max-iterations <n>] [--skip-generation]
+  tsx src/optimizer/main.ts <skill-optimizer.json> [--max-iterations <n>] [--skip-generation]
 
 Examples:
-  tsx src/optimizer/main.ts ./skill-benchmark.json
-  tsx src/optimizer/main.ts ./skill-benchmark.json --max-iterations 8
-  tsx src/optimizer/main.ts ./skill-benchmark.json --skip-generation
+  tsx src/optimizer/main.ts ./skill-optimizer.json
+  tsx src/optimizer/main.ts ./skill-optimizer.json --max-iterations 8
+  tsx src/optimizer/main.ts ./skill-optimizer.json --skip-generation
 `);
 }
 
