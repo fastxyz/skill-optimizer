@@ -1,10 +1,12 @@
 # Mock Repos
 
-`mock-repos/` contains the tracked end-to-end demo template for manual benchmark and optimizer testing:
+`mock-repos/` contains tracked end-to-end demo templates for manual benchmark and optimizer testing:
 
-- `mcp-tracker-demo`
+- `mcp-tracker-demo` — MCP surface, `surface-changing` optimize mode
+- `sdk-counter-demo` — SDK surface, intentionally lossy SKILL.md
+- `cli-taskfile-demo` — CLI surface, intentionally lossy SKILL.md
 
-Use the tracked template directly for read-only benchmark runs.
+Use a tracked template directly for read-only benchmark runs.
 
 Materialize a standalone copy before running the optimizer so git checkpointing stays isolated:
 
@@ -13,6 +15,4 @@ tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
 npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-optimizer.json
 ```
 
-`mcp-tracker-demo` is the current OSS example for the unified `skill-optimizer.json` flow.
-It discovers MCP tools from `src/server.ts`, generates benchmark tasks under `./.skill-optimizer`,
-and runs the optimizer in `surface-changing` mode.
+Each demo repo's `skill-optimizer.json` is the unified config entry point for both benchmarking and optimization.
