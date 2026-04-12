@@ -40,6 +40,7 @@ await test('listMockRepoTemplates: exposes tracked templates that exist in the w
   assert(templates.length >= 1, 'should expose at least one template');
   assert(templates.includes('mcp-tracker-demo'), 'should include mcp-tracker-demo');
   assert(templates.includes('sdk-counter-demo'), 'should include sdk-counter-demo');
+  assert(templates.includes('cli-taskfile-demo'), 'should include cli-taskfile-demo');
 });
 
 for (const name of listMockRepoTemplates()) {
@@ -89,6 +90,19 @@ for (const name of listMockRepoTemplates()) {
         assert(typeof projectConfigRaw.benchmark?.verdict?.perModelFloor === 'number', 'sdk-counter-demo should define verdict.perModelFloor');
         assert(existsSync(join(materializedPath, 'SKILL.md')), 'sdk-counter-demo should include SKILL.md');
         assert(existsSync(join(materializedPath, 'src', 'counter.ts')), 'sdk-counter-demo should include src/counter.ts');
+      }
+
+      if (name === 'cli-taskfile-demo') {
+        assertEqual(benchmarkConfig.surface, 'cli', 'cli-taskfile-demo should materialize a CLI benchmark');
+        const projectConfigRaw = JSON.parse(readFileSync(projectConfigPath, 'utf-8')) as {
+          target?: { surface?: string; scope?: { include?: string[] } };
+          benchmark?: { verdict?: { perModelFloor?: number } };
+        };
+        assert(projectConfigRaw.target?.surface === 'cli', 'cli-taskfile-demo should have cli surface');
+        assert(Array.isArray(projectConfigRaw.target?.scope?.include), 'cli-taskfile-demo should define scope.include');
+        assert(typeof projectConfigRaw.benchmark?.verdict?.perModelFloor === 'number', 'cli-taskfile-demo should define verdict.perModelFloor');
+        assert(existsSync(join(materializedPath, 'SKILL.md')), 'cli-taskfile-demo should include SKILL.md');
+        assert(existsSync(join(materializedPath, 'src', 'commands.ts')), 'cli-taskfile-demo should include src/commands.ts');
       }
     } finally {
       rmSync(destRoot, { recursive: true, force: true });

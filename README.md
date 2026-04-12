@@ -30,7 +30,7 @@ Open `skill-optimizer.json` and make these edits:
 Then run the benchmark:
 
 ```bash
-npx tsx src/cli.ts run --config ./skill-optimizer.json
+npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json
 ```
 
 ## How it works

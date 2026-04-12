@@ -53,6 +53,7 @@ await test('repo includes a root LICENSE file', () => {
 await test('mock-repos README matches the tracked templates', () => {
   const readme = readFileSync(join(process.cwd(), 'mock-repos', 'README.md'), 'utf-8');
   assert(readme.includes('mcp-tracker-demo'), 'mock-repos README should mention mcp-tracker-demo');
+  assert(readme.includes('cli-taskfile-demo'), 'mock-repos README should mention cli-taskfile-demo');
   assert(!readme.includes('sdk-demo'), 'mock-repos README should not mention removed sdk-demo template');
   assert(!readme.includes('cli-demo'), 'mock-repos README should not mention removed cli-demo template');
   assert(!readme.includes('mcp-demo'), 'mock-repos README should not mention removed mcp-demo template');

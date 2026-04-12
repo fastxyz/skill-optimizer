@@ -1,15 +1,21 @@
-import { writeFileSync, existsSync } from 'node:fs';
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
  * Scaffold benchmark config, tasks, and example tools for a new project.
+ * All files are written into a `skill-optimizer/` subdirectory so they
+ * don't clutter the project root.
  */
 export function initBenchmark(targetDir: string = process.cwd()): void {
-  const configPath = resolve(targetDir, 'skill-optimizer.json');
-  const tasksPath = resolve(targetDir, 'tasks.json');
-  const toolsPath = resolve(targetDir, 'tools.json');
+  const configDir = resolve(targetDir, 'skill-optimizer');
+  mkdirSync(configDir, { recursive: true });
+
+  const configPath = resolve(configDir, 'skill-optimizer.json');
+  const tasksPath = resolve(configDir, 'tasks.json');
+  const toolsPath = resolve(configDir, 'tools.json');
 
   // skill-optimizer.json
+  // Paths use "../" because this config lives one level below the project root.
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
   } else {
@@ -17,11 +23,11 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
       name: "my-sdk",
       target: {
         surface: "sdk",
-        repoPath: ".",
-        skill: "./SKILL.md",
+        repoPath: "..",
+        skill: "../SKILL.md",
         discovery: {
           mode: "auto",
-          sources: ["./src/index.ts"]
+          sources: ["../src/index.ts"]
         },
         sdk: {
           language: "typescript",
@@ -42,14 +48,14 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
           { id: "openrouter/anthropic/claude-sonnet-4.6", name: "Claude Sonnet 4.6", tier: "mid" }
         ],
         output: {
-          dir: "./benchmark-results"
+          dir: "../benchmark-results"
         }
       },
       optimize: {
         enabled: false,
         model: "openrouter/openai/gpt-5.4",
         apiKeyEnv: "OPENROUTER_API_KEY",
-        allowedPaths: ["SKILL.md"],
+        allowedPaths: ["../SKILL.md"],
         validation: []
       }
     };
@@ -132,8 +138,8 @@ export function initBenchmark(targetDir: string = process.cwd()): void {
   }
 
   console.log('\n[init] Done! Next steps:');
-  console.log('  1. Edit skill-optimizer.json with your surface (sdk/cli/mcp) details');
+  console.log('  1. Edit skill-optimizer/skill-optimizer.json with your surface (sdk/cli/mcp) details');
   console.log('     For SDK benchmarks, set sdk.language to typescript, python, or rust.');
-  console.log('  2. Edit tasks.json with your test cases');
-  console.log('  3. Run: npx skill-optimizer run');
+  console.log('  2. Edit skill-optimizer/tasks.json with your test cases');
+  console.log('  3. Run: npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json');
 }
