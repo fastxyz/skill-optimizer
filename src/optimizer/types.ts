@@ -1,4 +1,4 @@
-import type { BenchmarkReport, BenchmarkSurface } from '../benchmark/types.js';
+import type { BenchmarkReport, BenchmarkSurface, ModelConfig } from '../benchmark/types.js';
 
 export type FailureBucketKind = 'missing-tool' | 'bad-args' | 'hallucination' | 'error';
 export type StopReason = 'max-iterations' | 'stable';
@@ -65,6 +65,9 @@ export interface ResolvedOptimizeManifest {
       seed: number;
       outputDir: string;
     };
+    perModelFloor: number;
+    targetWeightedAverage: number;
+    models: ModelConfig[];
   };
   mutation?: OptimizeMutationConfig & {
     reportContextMaxBytes: number;

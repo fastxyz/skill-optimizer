@@ -64,6 +64,9 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
         seed: project.benchmark.taskGeneration.seed,
         outputDir: project.benchmark.taskGeneration.outputDir,
       },
+      perModelFloor: project.benchmark.verdict.perModelFloor,
+      targetWeightedAverage: project.benchmark.verdict.targetWeightedAverage,
+      models: project.benchmark.models,
     },
     mutation: {
       provider: mutationModel.provider,

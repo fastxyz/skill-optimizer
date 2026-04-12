@@ -121,6 +121,7 @@ function makeReport(overallPassRate: number, kinds: Array<'missing' | 'args' | '
       avgArgAccuracy: overallPassRate,
       avgHallucinationRate: 0,
       methodCoveragePercent: 1,
+      weightedAverage: overallPassRate,
       perModel: {},
       perTask: {},
       perTier: {

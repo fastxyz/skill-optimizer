@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
 import { analyzeFailures } from './failure-analysis.js';
+import { accept } from '../benchmark/scoring.js';
 import type { BenchmarkReport } from '../benchmark/types.js';
 import { getExpectedActionName } from '../benchmark/types.js';
 import type {
@@ -217,20 +218,25 @@ export async function runOptimizeLoop(
         continue;
       }
 
-      const delta = candidateReport.summary.overallPassRate - bestReport.summary.overallPassRate;
-      iteration.scoreAfter = candidateReport.summary.overallPassRate;
-      iteration.delta = delta;
+      const beforeReport = bestReport;
+      const afterReport = candidateReport;
+      iteration.scoreAfter = afterReport.summary.overallPassRate;
+      iteration.delta = afterReport.summary.overallPassRate - beforeReport.summary.overallPassRate;
 
-      if (delta >= resolvedManifest.optimizer.minOverallPassDelta) {
+      const accepted = accept(beforeReport, afterReport, resolvedManifest.optimizer.models, {
+        perModelFloor: resolvedManifest.optimizer.perModelFloor,
+        targetWeightedAverage: resolvedManifest.optimizer.targetWeightedAverage,
+        minImprovement: resolvedManifest.optimizer.minOverallPassDelta,
+      });
+
+      if (accepted) {
         iteration.accepted = true;
-        bestReport = candidateReport;
+        bestReport = afterReport;
         lastReportPath = candidateResult.reportPath;
-        const beforePercent = iteration.scoreBefore * 100;
-        const afterPercent = candidateReport.summary.overallPassRate * 100;
-        const deltaPoints = delta * 100;
+        const beforeAvg = (beforeReport.summary.weightedAverage ?? 0) * 100;
+        const afterAvg = (afterReport.summary.weightedAverage ?? 0) * 100;
         console.log(
-          `[optimize] Accepted iteration ${index}: overall pass rate improved by ${deltaPoints.toFixed(1)} points ` +
-            `(${beforePercent.toFixed(1)}% -> ${afterPercent.toFixed(1)}%).`,
+          `[optimize] Accepted iteration ${index}: weighted average ${beforeAvg.toFixed(1)}% -> ${afterAvg.toFixed(1)}%.`,
         );
         acceptedCheckpoint = await deps.repo.updateAcceptedCheckpoint(
           resolvedManifest.targetRepo,
@@ -240,12 +246,13 @@ export async function runOptimizeLoop(
         );
         consecutiveStableIterations = 0;
       } else {
-        const beforePercent = iteration.scoreBefore * 100;
-        const afterPercent = candidateReport.summary.overallPassRate * 100;
-        const minDeltaPoints = resolvedManifest.optimizer.minOverallPassDelta * 100;
+        const beforeAvg = (beforeReport.summary.weightedAverage ?? 0) * 100;
+        const afterAvg = (afterReport.summary.weightedAverage ?? 0) * 100;
         console.log(
-          `[optimize] Rejected iteration ${index}: no meaningful improvement ` +
-            `(${beforePercent.toFixed(1)}% -> ${afterPercent.toFixed(1)}%; threshold ${minDeltaPoints.toFixed(1)} points).`,
+          `[optimize] Rejected iteration ${index}: gates not satisfied ` +
+            `(weighted ${beforeAvg.toFixed(1)}% -> ${afterAvg.toFixed(1)}%; ` +
+            `min improvement ${(resolvedManifest.optimizer.minOverallPassDelta * 100).toFixed(1)} pts; ` +
+            `per-model floor ${(resolvedManifest.optimizer.perModelFloor * 100).toFixed(1)}%).`,
         );
         console.log('[optimize] Restoring checkpoint.');
         await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
@@ -438,6 +445,9 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
         outputDir: resolve(unresolved.optimizer?.taskGeneration?.outputDir ?? '.skill-optimizer'),
       },
       mode: unresolved.optimizer?.mode ?? 'stable-surface',
+      perModelFloor: (manifest as ResolvedOptimizeManifest).optimizer?.perModelFloor ?? 0,
+      targetWeightedAverage: (manifest as ResolvedOptimizeManifest).optimizer?.targetWeightedAverage ?? 0,
+      models: (manifest as ResolvedOptimizeManifest).optimizer?.models ?? [],
     },
     mutation: unresolved.mutation
       ? {
