@@ -26,6 +26,9 @@ export interface OptimizePolicy {
   stabilityWindow?: number;
   minOverallPassDelta?: number;
   taskGeneration?: OptimizeTaskGenerationConfig;
+  perModelFloor?: number;
+  targetWeightedAverage?: number;
+  models?: ModelConfig[];
 }
 
 export interface OptimizeMutationConfig {

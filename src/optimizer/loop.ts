@@ -445,9 +445,9 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
         outputDir: resolve(unresolved.optimizer?.taskGeneration?.outputDir ?? '.skill-optimizer'),
       },
       mode: unresolved.optimizer?.mode ?? 'stable-surface',
-      perModelFloor: (manifest as ResolvedOptimizeManifest).optimizer?.perModelFloor ?? 0,
-      targetWeightedAverage: (manifest as ResolvedOptimizeManifest).optimizer?.targetWeightedAverage ?? 0,
-      models: (manifest as ResolvedOptimizeManifest).optimizer?.models ?? [],
+      perModelFloor: unresolved.optimizer?.perModelFloor ?? 0,
+      targetWeightedAverage: unresolved.optimizer?.targetWeightedAverage ?? 0,
+      models: unresolved.optimizer?.models ?? [],
     },
     mutation: unresolved.mutation
       ? {
