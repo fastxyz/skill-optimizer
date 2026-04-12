@@ -46,7 +46,7 @@ for (const name of listMockRepoTemplates()) {
     const destRoot = mkdtempSync(join(tmpdir(), 'skill-optimizer-mock-'));
     try {
       const materializedPath = await materializeMockRepo(name, destRoot);
-      const projectConfigPath = join(materializedPath, 'skill-benchmark.json');
+      const projectConfigPath = join(materializedPath, 'skill-optimizer.json');
 
       assert(existsSync(join(materializedPath, '.git')), 'materialized mock repo should be git-initialized');
       assert(existsSync(projectConfigPath), 'unified project config should exist');
@@ -118,7 +118,7 @@ await test('mock repo templates keep benchmark and target files together', () =>
   for (const name of listMockRepoTemplates()) {
     const readmePath = join(process.cwd(), 'mock-repos', name, 'README.md');
     const readme = readFileSync(readmePath, 'utf-8');
-    assert(readme.includes('skill-benchmark.json'), `${name} README should mention skill-benchmark.json`);
+    assert(readme.includes('skill-optimizer.json'), `${name} README should mention skill-optimizer.json`);
   }
 });
 

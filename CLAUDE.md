@@ -6,7 +6,7 @@
 
 The repo now has four important layers:
 
-- `src/project/`: unified `skill-benchmark.json` config loading, validation, and path resolution
+- `src/project/`: unified `skill-optimizer.json` config loading, validation, and path resolution
 - `src/runtime/pi/`: shared Pi auth/model/runtime helpers
 - `src/tasks/`: shared task generation, grounding, and artifact freezing from discovered surfaces
 - `src/benchmark/`: loads tasks and surface definitions, builds prompts, calls models, extracts actions, evaluates them, and writes reports
@@ -29,32 +29,32 @@ Typical benchmark run:
 
 ```bash
 export OPENROUTER_API_KEY=...
-npx skill-optimizer run --config ./skill-benchmark.json
+npx skill-optimizer run --config ./skill-optimizer.json
 ```
 
 Generate tasks only:
 
 ```bash
-npx skill-optimizer generate-tasks --config ./skill-benchmark.json
+npx skill-optimizer generate-tasks --config ./skill-optimizer.json
 ```
 
 Typical optimizer run:
 
 ```bash
 tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
-npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-benchmark.json
+npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-optimizer.json
 ```
 
 ## Important Files
 
 - `src/cli.ts`: public CLI entrypoint (`init`, `run`, `optimize`, `compare`)
 - `src/project/types.ts`: unified public project config types
-- `src/project/load.ts`: unified `skill-benchmark.json` loader
+- `src/project/load.ts`: unified `skill-optimizer.json` loader
 - `src/runtime/pi/models.ts`: shared Pi model/auth resolution
 - `src/tasks/index.ts`: shared task generation entrypoint over discovered surfaces
 - `src/benchmark/runner.ts`: orchestration for benchmark execution
 - `src/benchmark/types.ts`: benchmark report, metric, and extraction types
-- `src/benchmark/init.ts`: scaffolded starter `skill-benchmark.json`
+- `src/benchmark/init.ts`: scaffolded starter `skill-optimizer.json`
 - `src/optimizer/loop.ts`: accept/reject iteration loop
 - `src/optimizer/manifest.ts`: adapter from unified project config into the current optimizer loop
 - `src/optimizer/mock-repos.ts`: tracked template materialization and isolated git init

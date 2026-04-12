@@ -10,9 +10,9 @@ Materialize a standalone copy before running the optimizer so git checkpointing 
 
 ```bash
 tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
-npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-benchmark.json
+npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-optimizer.json
 ```
 
-`mcp-tracker-demo` is the current OSS example for the unified `skill-benchmark.json` flow.
+`mcp-tracker-demo` is the current OSS example for the unified `skill-optimizer.json` flow.
 It discovers MCP tools from `src/server.ts`, generates benchmark tasks under `./.skill-optimizer`,
 and runs the optimizer in `surface-changing` mode.

@@ -12,7 +12,7 @@ The tool names and argument shapes are intentionally awkward, so benchmark quali
 `src/server.ts` is the primary discovery source for this template.
 
 Use these files together:
-- `skill-benchmark.json` for the unified benchmark + optimizer flow
+- `skill-optimizer.json` for the unified benchmark + optimizer flow
 - `src/server.ts` for the primary MCP surface definition used by discovery
 - `benchmark.config.json` and `optimize.config.json` are legacy transitional files
 
