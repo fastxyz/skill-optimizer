@@ -346,6 +346,12 @@ async function main(): Promise<void> {
           `Edit "target.repoPath" in ${project.configPath}.`,
       );
     }
+    if (project.benchmark.format !== 'anthropic' && !process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY']) {
+      throw new Error(
+        `Missing ${project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'} environment variable. ` +
+          `Set it in your shell or in a .env file alongside ${project.configPath}.`,
+      );
+    }
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
       const { provider, model } = parseModelRef(modelRef);
@@ -372,15 +378,6 @@ async function main(): Promise<void> {
     if (err instanceof Error && err.stack) {
       console.error(err.stack);
     }
-    process.exit(1);
-  }
-
-  // Guard: check API key is set for non-anthropic formats
-  if (project && project.benchmark.format !== 'anthropic' && !process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY']) {
-    console.error(
-      `\nFATAL: Missing ${project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'} environment variable. ` +
-        `Set it in your shell or in a .env file alongside ${project.configPath}.`
-    );
     process.exit(1);
   }
 
