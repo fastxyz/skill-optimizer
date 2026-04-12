@@ -23,6 +23,9 @@
     "evaluation"
   ],
   "type": "module",
+  "bin": {
+    "skill-optimizer": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",

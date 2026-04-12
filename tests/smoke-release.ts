@@ -30,6 +30,7 @@ await test('package.json includes OSS metadata and publish guardrails', () => {
     homepage?: string;
     keywords?: string[];
     exports?: Record<string, unknown>;
+    bin?: Record<string, string>;
     scripts?: Record<string, string>;
   };
 
@@ -39,6 +40,8 @@ await test('package.json includes OSS metadata and publish guardrails', () => {
   assert(typeof packageJson.homepage === 'string' && packageJson.homepage.length > 0, 'package.json should declare homepage metadata');
   assert(Array.isArray(packageJson.keywords) && packageJson.keywords.length >= 4, 'package.json should declare discoverable keywords');
   assert(typeof packageJson.exports?.['.'] === 'object', 'package.json should constrain the public root export');
+  assert(typeof packageJson.bin?.['skill-optimizer'] === 'string', 'package.json should declare skill-optimizer bin entry');
+  assert(packageJson.bin?.['skill-optimizer'] === './dist/cli.js', 'skill-optimizer bin should point at ./dist/cli.js');
   assert(typeof packageJson.scripts?.clean === 'string', 'package.json should include a clean script');
   assert(typeof packageJson.scripts?.prepack === 'string', 'package.json should include a prepack script');
 });
