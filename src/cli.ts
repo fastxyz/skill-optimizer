@@ -8,6 +8,7 @@ import { config as loadDotenv } from 'dotenv';
 loadDotenv({ override: true });
 
 import type { Tier } from './benchmark/types.js';
+import type { ResolvedProjectConfig } from './project/types.js';
 import { runBenchmark } from './benchmark/runner.js';
 import { loadReport, compareReports, printComparison } from './benchmark/compare.js';
 import { printSummary, generateMarkdown } from './benchmark/reporter.js';
@@ -265,8 +266,9 @@ async function main(): Promise<void> {
     noCache: hasFlag(args, '--no-cache'),
   };
 
+  let project: ResolvedProjectConfig | undefined;
   try {
-    const project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
+    project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
       const { provider, model } = parseModelRef(modelRef);
@@ -297,7 +299,10 @@ async function main(): Promise<void> {
 
   let report;
   try {
-    report = await runBenchmark(options);
+    report = await runBenchmark({
+      ...options,
+      verdictPolicy: project?.benchmark.verdict,
+    });
   } catch (err) {
     console.error(`\nFATAL: Benchmark failed: ${err instanceof Error ? err.message : err}`);
     if (err instanceof Error && err.stack) {

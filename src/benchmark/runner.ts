@@ -23,6 +23,7 @@ import { extract } from './extractors/index.js';
 import { fetchSkill } from './skill-fetcher.js';
 import { evaluateTask } from './evaluator.js';
 import { computeCoverage } from './coverage.js';
+import { computeVerdict } from './scoring.js';
 import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
 
 function buildWebFetchTool(): McpToolDefinition {
@@ -91,6 +92,7 @@ export interface RunnerOptions {
   modelSlug?: string;
   noCache?: boolean;
   outputDir?: string;
+  verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
 }
 
 /**
@@ -398,7 +400,12 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     outputDir,
   );
 
-  // 13. Save report
+  // 13. Compute verdict
+  if (options.verdictPolicy) {
+    report.verdict = computeVerdict(report, config.llm.models, options.verdictPolicy);
+  }
+
+  // 14. Save report
   const jsonPath = resolve(outputDir, 'report.json');
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
   console.log(`\n[output] Report saved to ${jsonPath}`);
