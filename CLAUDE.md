@@ -29,20 +29,20 @@ Typical benchmark run:
 
 ```bash
 export OPENROUTER_API_KEY=...
-npx skill-optimizer run --config ./skill-optimizer.json
+npx tsx src/cli.ts run --config ./skill-optimizer.json
 ```
 
 Generate tasks only:
 
 ```bash
-npx skill-optimizer generate-tasks --config ./skill-optimizer.json
+npx tsx src/cli.ts generate-tasks --config ./skill-optimizer.json
 ```
 
 Typical optimizer run:
 
 ```bash
 tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
-npx skill-optimizer optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-optimizer.json
+npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-optimizer.json
 ```
 
 ## Important Files
