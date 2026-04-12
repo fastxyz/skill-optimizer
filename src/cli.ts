@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { writeFileSync } from 'node:fs';
+import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
@@ -337,8 +337,15 @@ async function main(): Promise<void> {
   };
 
   let project: ResolvedProjectConfig | undefined;
+  let generatedCoverage: import('./benchmark/types.js').CoverageReport | undefined;
   try {
     project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
+    if (!existsSync(project.target.repoPath) || !statSync(project.target.repoPath).isDirectory()) {
+      throw new Error(
+        `target.repoPath does not exist or is not a directory: ${project.target.repoPath}. ` +
+          `Edit "target.repoPath" in ${project.configPath}.`,
+      );
+    }
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
       const { provider, model } = parseModelRef(modelRef);
@@ -358,6 +365,7 @@ async function main(): Promise<void> {
         ...options,
         configPath: generation.artifacts.benchmarkPath,
       };
+      generatedCoverage = generation.coverage;
     }
   } catch (err) {
     console.error(`\nFATAL: Benchmark setup failed: ${err instanceof Error ? err.message : err}`);
@@ -367,11 +375,21 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Guard: check API key is set for non-anthropic formats
+  if (project && project.benchmark.format !== 'anthropic' && !process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY']) {
+    console.error(
+      `\nFATAL: Missing ${project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'} environment variable. ` +
+        `Set it in your shell or in a .env file alongside ${project.configPath}.`
+    );
+    process.exit(1);
+  }
+
   let report;
   try {
     report = await runBenchmark({
       ...options,
       verdictPolicy: project?.benchmark.verdict,
+      scopeCoverage: generatedCoverage,
     });
   } catch (err) {
     console.error(`\nFATAL: Benchmark failed: ${err instanceof Error ? err.message : err}`);
