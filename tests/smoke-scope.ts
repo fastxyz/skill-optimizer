@@ -44,12 +44,21 @@ function testEmptyScopeIsAnError() {
   console.log('PASS: scope can resolve to empty (caller decides if that is an error)');
 }
 
+function testEmptyIncludeDefaultsToStar() {
+  const actions = [mk('Wallet.send'), mk('Token.mint')];
+  const { inScope, outOfScope } = resolveScope(actions, { include: [], exclude: [] });
+  assert.strictEqual(inScope.length, 2);
+  assert.strictEqual(outOfScope.length, 0);
+  console.log('PASS: empty include defaults to ["*"]');
+}
+
 async function main() {
   testDefaultIncludeEverything();
   testIncludeNarrowsToPrefix();
   testExcludeSubtracts();
   testStarMatchesSeparators();
   testEmptyScopeIsAnError();
+  testEmptyIncludeDefaultsToStar();
   console.log('\nALL PASS: smoke-scope');
 }
 

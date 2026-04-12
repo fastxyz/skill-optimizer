@@ -20,7 +20,7 @@ export function resolveScope(
   scope: ScopeConfig,
 ): { inScope: ActionDefinition[]; outOfScope: ActionDefinition[] } {
   const include = scope.include.length === 0 ? ['*'] : scope.include;
-  const exclude = scope.exclude ?? [];
+  const exclude = scope.exclude;
 
   const inScope: ActionDefinition[] = [];
   const outOfScope: ActionDefinition[] = [];
