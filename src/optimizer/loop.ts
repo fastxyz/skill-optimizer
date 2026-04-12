@@ -183,6 +183,7 @@ export async function runOptimizeLoop(
         const epochBaseline = await deps.benchmark.run(resolvedManifest.benchmarkConfig, {
           outputDir,
           label: `epoch-${index + 1}-baseline`,
+          verdictPolicy,
         });
         iteration.accepted = true;
         iteration.scoreAfter = epochBaseline.report.summary.overallPassRate;
