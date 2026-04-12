@@ -53,6 +53,7 @@ export function freezeTaskArtifacts(params: FreezeTaskArtifactsParams): FrozenTa
       models: params.project.benchmark.models,
       tasks: tasksPath,
       surfaceSnapshot: snapshotPath,
+      verdict: params.project.benchmark.verdict,
       taskGeneration: {
         enabled: false,
         maxTasks: params.project.benchmark.taskGeneration.maxTasks,

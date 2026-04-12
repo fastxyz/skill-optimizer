@@ -138,5 +138,11 @@ function getProjectSurfacePaths(project: ResolvedProjectConfig): string[] {
     paths.add(project.target.mcp.tools);
   }
 
+  // Pinned surface snapshots are part of the surface definition — edits to
+  // them must be tracked so stable-surface mode can detect drift.
+  if (project.benchmark.surfaceSnapshot) {
+    paths.add(project.benchmark.surfaceSnapshot);
+  }
+
   return [...paths];
 }

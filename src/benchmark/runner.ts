@@ -109,6 +109,13 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   console.log('================================================================\n');
 
   // 2. Load tasks first (needed for known action derivation)
+  if (config.tasks === '__generated__') {
+    throw new Error(
+      'This benchmark config uses task generation (benchmark.taskGeneration.enabled=true). ' +
+      'Run `npx tsx src/cli.ts generate-tasks --config <path>` first, or use the CLI `run` command ' +
+      'which generates tasks automatically before benchmarking.',
+    );
+  }
   let tasks = loadTasks(config.tasks, configDir);
 
   // 3. Determine known actions (for precision/hallucination tracking)
