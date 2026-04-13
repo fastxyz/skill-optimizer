@@ -67,7 +67,7 @@ export const ERRORS = {
     code: 'E_INVALID_FORMAT',
     message: 'Invalid benchmark.format value',
     fix: [
-      'Only "pi" is supported for benchmark.format in the current version',
+      'Set benchmark.format to one of: pi, openai, anthropic',
     ],
   },
   // ── Path resolution ────────────────────────────────────────────────────────
