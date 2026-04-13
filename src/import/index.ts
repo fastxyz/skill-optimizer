@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type { ImportOptions } from './types.js';
-import type { CliCommandDefinition } from './types.js';
+import type { ImportOptions, CliCommandDefinition } from './types.js';
 import { detectFramework } from './detect.js';
 import { extractCommander } from './extractors/ts-commander.js';
 import { extractYargs } from './extractors/ts-yargs.js';

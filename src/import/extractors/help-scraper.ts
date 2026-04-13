@@ -70,7 +70,7 @@ export function parseHelpOutput(text: string, prefix: string[]): CliCommandDefin
         optionsBuf.push({
           name: flagStr,
           description: desc || undefined,
-          ...(takesValue ? { takesValue: true } : {}),
+          takesValue,
         });
       }
     }

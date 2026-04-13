@@ -52,7 +52,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
 // === ts-commander extractor ===
 {
-  const fixturePath = join('tests/fixtures/import-commands/commander-sample.ts');
+  const fixturePath = 'tests/fixtures/import-commands/commander-sample.ts';
   const commands = extractCommander(fixturePath);
   assert.strictEqual(commands.length, 3, `Expected 3 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
 
@@ -74,7 +74,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
 // === ts-yargs extractor ===
 {
-  const fixturePath = join('tests/fixtures/import-commands/yargs-sample.ts');
+  const fixturePath = 'tests/fixtures/import-commands/yargs-sample.ts';
   const commands = extractYargs(fixturePath);
   assert.strictEqual(commands.length, 2, `Expected 2 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
 
@@ -96,7 +96,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
 // === py-click extractor ===
 {
-  const fixturePath = join('tests/fixtures/import-commands/click-sample.py');
+  const fixturePath = 'tests/fixtures/import-commands/click-sample.py';
   const commands = await extractClick(fixturePath);
   assert.strictEqual(commands.length, 2, `Expected 2 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
 
@@ -118,7 +118,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
 // === py-argparse extractor ===
 {
-  const fixturePath = join('tests/fixtures/import-commands/argparse-sample.py');
+  const fixturePath = 'tests/fixtures/import-commands/argparse-sample.py';
   const commands = await extractArgparse(fixturePath);
   assert.strictEqual(commands.length, 2, `Expected 2 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
 
@@ -137,7 +137,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
 // === rs-clap extractor ===
 {
-  const fixturePath = join('tests/fixtures/import-commands/clap-sample.rs');
+  const fixturePath = 'tests/fixtures/import-commands/clap-sample.rs';
   const commands = await extractClap(fixturePath);
   assert.ok(commands.length >= 2, `Expected >=2 commands, got ${commands.length}`);
 
@@ -159,20 +159,17 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
 // === detectFramework ===
 {
-  const clickFixture = join('tests/fixtures/import-commands/click-sample.py');
-  const result = detectFramework(clickFixture, process.cwd());
+  const result = detectFramework('tests/fixtures/import-commands/click-sample.py', process.cwd());
   assert.strictEqual(result.kind, 'click');
 }
 
 {
-  const argparseFixture = join('tests/fixtures/import-commands/argparse-sample.py');
-  const result = detectFramework(argparseFixture, process.cwd());
+  const result = detectFramework('tests/fixtures/import-commands/argparse-sample.py', process.cwd());
   assert.strictEqual(result.kind, 'argparse');
 }
 
 {
-  const commanderFixture = join('tests/fixtures/import-commands/commander-sample.ts');
-  const result = detectFramework(commanderFixture, process.cwd());
+  const result = detectFramework('tests/fixtures/import-commands/commander-sample.ts', process.cwd());
   assert.strictEqual(result.kind, 'commander');
 }
 
