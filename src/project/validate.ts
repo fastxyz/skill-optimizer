@@ -338,7 +338,8 @@ export async function checkConfig(
     if (existsSync(absRepo)) {
       try {
         const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: absRepo });
-        if (stdout.trim().length > 0) {
+        const dirtyTracked = stdout.split('\n').filter(l => l.trim() && !l.startsWith('??'));
+        if (dirtyTracked.length > 0) {
           issues.push({
             code: 'dirty-git', severity: 'error', field: 'target.repoPath',
             message: `target repo has uncommitted changes (optimize.requireCleanGit is enabled)`,

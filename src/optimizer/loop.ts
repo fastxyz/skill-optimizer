@@ -399,10 +399,9 @@ function toRelativeTargetPath(path: string, manifest: ResolvedOptimizeManifest):
 }
 
 function isAllowedPath(file: string, allowedPaths: string[], repoRoot?: string): boolean {
-  // Resolve relative changed file against the repo root so it can be compared
-  // with absolute allowedPaths entries (and vice versa).
-  const absoluteFile = repoRoot && !file.startsWith('/') ? `${repoRoot}/${file}` : file;
-  const normalizedFile = normalizeRelativePath(absoluteFile);
+  const normalizedFile = normalizeRelativePath(
+    repoRoot && file.startsWith('/') ? relative(repoRoot, file) : file,
+  );
   return allowedPaths.some((allowedPath) => {
     const normalizedAllowed = normalizeRelativePath(allowedPath);
     return normalizedFile === normalizedAllowed || normalizedFile.startsWith(`${normalizedAllowed}/`);
