@@ -845,6 +845,78 @@ await test('applyFixes: does not mutate input', async () => {
   assertEqual((rawJson.benchmark.models[0] as any).id, 'z-ai/glm-5.1', 'input should not be mutated');
 });
 
+console.log('\n=== Doctor command smoke tests ===\n');
+
+await test('doctor --static: exits 1 for config with model-id error', async () => {
+  const { runDoctor } = await import('../src/doctor/index.js');
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-doctor-'));
+  try {
+    const configPath = join(dir, 'skill-optimizer.json');
+    writeFileSync(configPath, JSON.stringify({
+      name: 'test-bad',
+      target: { surface: 'cli', discovery: { sources: ['./src/cli.ts'] } },
+      benchmark: {
+        format: 'pi',
+        models: [{ id: 'z-ai/glm-5.1', name: 'GLM', tier: 'mid' }],
+        taskGeneration: { enabled: true, maxTasks: 5 },
+      },
+    }, null, 2), 'utf-8');
+
+    const exitCode = await runDoctor(configPath, { staticOnly: true });
+    assertEqual(exitCode, 1, 'should exit 1 for model-id-missing-prefix error');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('doctor --static: exits 0 or 1 (not 2) for readable config', async () => {
+  const { runDoctor } = await import('../src/doctor/index.js');
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-doctor-'));
+  try {
+    const configPath = join(dir, 'skill-optimizer.json');
+    writeFileSync(configPath, JSON.stringify({
+      name: 'test-ok',
+      target: { surface: 'mcp', discovery: { sources: ['./src/server.ts'] } },
+      benchmark: {
+        format: 'pi',
+        models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' }],
+        taskGeneration: { enabled: true, maxTasks: 10 },
+      },
+    }, null, 2), 'utf-8');
+
+    const exitCode = await runDoctor(configPath, { staticOnly: true });
+    // discovery-source-missing fires (./src/server.ts doesn't exist in tmpdir)
+    // but config is readable JSON so it must not be exit code 2
+    assert(exitCode === 0 || exitCode === 1, `should exit 0 or 1 (config is readable JSON), got ${exitCode}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('doctor --fix: corrects model ID in-place', async () => {
+  const { runDoctor } = await import('../src/doctor/index.js');
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-doctor-'));
+  try {
+    const configPath = join(dir, 'skill-optimizer.json');
+    writeFileSync(configPath, JSON.stringify({
+      name: 'test-fix',
+      target: { surface: 'cli', discovery: { sources: ['./src/cli.ts'] } },
+      benchmark: {
+        format: 'pi',
+        models: [{ id: 'z-ai/glm-5.1', name: 'GLM', tier: 'mid' }],
+        taskGeneration: { enabled: true, maxTasks: 5 },
+      },
+    }, null, 2), 'utf-8');
+
+    await runDoctor(configPath, { staticOnly: true, fix: true });
+
+    const fixed = JSON.parse(readFileSync(configPath, 'utf-8')) as { benchmark: { models: Array<{ id: string }> } };
+    assertEqual(fixed.benchmark.models[0]!.id, 'openrouter/z-ai/glm-5.1', '--fix should write corrected model ID');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ── Summary ────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
