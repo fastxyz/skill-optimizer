@@ -31,13 +31,15 @@ export async function runDoctor(configPath: string, opts: DoctorOptions = {}): P
 
   if (opts.fix) {
     const configDir = dirname(resolvedPath);
-    const fixableCount = issues.filter((i) => i.fixable).length;
-    if (fixableCount > 0) {
-      const fixed = applyFixes(rawJson, issues, configDir);
-      writeFileSync(resolvedPath, JSON.stringify(fixed, null, 2) + '\n', 'utf-8');
-      rawJson = fixed;
-      issues = await checkConfig(rawJson, resolvedPath);
-      console.log(formatFixResult(fixableCount, issues, resolvedPath));
+    const initialFixableCount = issues.filter((i) => i.fixable).length;
+    if (initialFixableCount > 0) {
+      let safety = 3;
+      while (issues.some((i) => i.fixable) && safety-- > 0) {
+        rawJson = applyFixes(rawJson, issues, configDir);
+        issues = await checkConfig(rawJson, resolvedPath);
+      }
+      writeFileSync(resolvedPath, JSON.stringify(rawJson, null, 2) + '\n', 'utf-8');
+      console.log(formatFixResult(initialFixableCount, issues, resolvedPath));
     } else {
       console.log('\n  No auto-fixable issues found.');
     }
@@ -49,8 +51,9 @@ export async function runDoctor(configPath: string, opts: DoctorOptions = {}): P
     try {
       const project = await loadProjectConfig(resolvedPath);
       issues = [...issues, ...checkDiscovery(project)];
-    } catch {
+    } catch (e) {
       // loadProjectConfig threw; static errors already cover this
+      if (process.env['DEBUG']) console.error('[debug] Tier-2 skipped:', e);
     }
   }
 
@@ -59,8 +62,8 @@ export async function runDoctor(configPath: string, opts: DoctorOptions = {}): P
     try {
       const project = await loadProjectConfig(resolvedPath);
       issues = [...issues, ...(await checkModelReachability(project))];
-    } catch {
-      // skip
+    } catch (e) {
+      if (process.env['DEBUG']) console.error('[debug] Tier-3 skipped:', e);
     }
   }
 

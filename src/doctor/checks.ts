@@ -66,6 +66,16 @@ export async function checkModelReachability(project: ResolvedProjectConfig): Pr
   const apiKey = process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'];
   if (!apiKey) return issues; // already reported by checkConfig
 
+  // Only PI format uses OpenRouter; skip reachability for other formats
+  if (project.benchmark.format && project.benchmark.format !== 'pi') {
+    issues.push({
+      code: 'reachability-skipped', severity: 'info', field: 'benchmark.format',
+      message: `Skipping reachability check (--check-models only supports format "pi" for now)`,
+      fixable: false,
+    });
+    return issues;
+  }
+
   for (let i = 0; i < project.benchmark.models.length; i++) {
     const model = project.benchmark.models[i]!;
     try {
