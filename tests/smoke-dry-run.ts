@@ -36,11 +36,13 @@ function testDryRunMaxTasksTooSmall() {
     const baseTarget = base.target as Record<string, unknown>;
     const baseDiscovery = (baseTarget.discovery ?? {}) as Record<string, unknown>;
     const baseSources = (baseDiscovery.sources ?? []) as string[];
-    // Resolve discovery sources to absolute paths so they work from the temp dir
+    // Resolve paths to absolute so they work from the temp dir
     const absoluteSources = baseSources.map((s) => resolve(mockDir, s));
+    const absoluteSkill = baseTarget.skill ? resolve(mockDir, String(baseTarget.skill)) : undefined;
     (base as Record<string, unknown>).target = {
       ...baseTarget,
       repoPath: mockDir,
+      ...(absoluteSkill !== undefined && { skill: absoluteSkill }),
       discovery: {
         ...baseDiscovery,
         sources: absoluteSources,
