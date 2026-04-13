@@ -117,14 +117,15 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     throw new Error(`Task ${taskId} must match ${SAFE_TASK_ID.toString()} and cannot be . or ..`);
   }
 
-  const rawExpectedActions = Array.isArray(candidate.expected_actions)
-    ? candidate.expected_actions
-    : Array.isArray(candidate.expected_tools)
-      ? candidate.expected_tools
-      : null;
+  const rawExpectedActions = (
+    ['expected_actions', 'expected_tools', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls'] as const
+  )
+    .map((key) => candidate[key])
+    .find((v) => Array.isArray(v)) as unknown[] | undefined;
 
   if (!rawExpectedActions) {
-    throw new Error(`Task ${taskId} must include an expected_actions array`);
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include an expected_actions array (received keys: ${received})`);
   }
 
   const expected_actions = rawExpectedActions.map((action, actionIndex) => validateExpectedAction(taskId, action, actionIndex));
