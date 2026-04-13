@@ -1,3 +1,4 @@
+import { dirname, basename } from 'node:path';
 import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
 import { buildMutationContext } from '../feedback/mutation-context.js';
@@ -10,6 +11,9 @@ export class PiCodingMutationExecutor {
       throw new Error('Optimize manifest must define a "mutation" section for pi-coding execution');
     }
 
+    // When localSkillPath is provided, the skill file is a local versioned copy
+    // outside the target repo — the agent edits it directly by absolute path.
+    // We keep cwd = targetRepo.path so the coding agent operates in a git repo.
     const { session } = await createCodingOrchestratorSession({
       cwd: context.manifest.targetRepo.path,
       modelRef: `${mutation.provider}/${mutation.model}`,
@@ -18,7 +22,12 @@ export class PiCodingMutationExecutor {
     });
 
     await session.prompt(buildMutationPrompt(context));
-    const changedFiles = await collectGitChangedFiles(context.manifest.targetRepo.path);
+
+    // If we wrote to a local skill file, return it directly — no git detection needed.
+    // Otherwise fall back to git status for target-repo mutations.
+    const changedFiles = context.localSkillPath
+      ? [context.localSkillPath]
+      : await collectGitChangedFiles(context.manifest.targetRepo.path);
     const toolActivity = extractToolActivity(session.state.messages);
     const summary = extractLatestAssistantText(session.state.messages)
       ?? context.failureBuckets[0]?.kind
@@ -33,7 +42,11 @@ export class PiCodingMutationExecutor {
 }
 
 function buildMutationPrompt(context: MutationContext): string {
-  const allowedPaths = context.manifest.targetRepo.allowedPaths.map((path) => `- ${path}`).join('\n');
+  // If we have a local skill path, that's the only file the agent should edit.
+  // The path is absolute so the agent can find it regardless of cwd.
+  const allowedPaths = context.localSkillPath
+    ? `- ${context.localSkillPath}`
+    : context.manifest.targetRepo.allowedPaths.map((p) => `- ${p}`).join('\n');
   const feedbackCtx = buildMutationContext(
     context.currentReport,
     context.manifest.mutation?.reportContextMaxBytes ?? 16_000,

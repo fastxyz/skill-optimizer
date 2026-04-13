@@ -48,6 +48,8 @@ export interface OptimizeManifest {
 
 export interface ResolvedOptimizeManifest {
   benchmarkConfig: string;
+  /** Absolute path to the source SKILL.md in the target repo, if it is a local file. */
+  skillPath?: string;
   targetRepo: {
     path: string;
     surface: BenchmarkSurface;
@@ -137,13 +139,19 @@ export interface MutationContext {
   currentReport: BenchmarkReport;
   failureBuckets: FailureBucket[];
   reportPath: string | null;
+  /**
+   * Absolute path to the local skill file for this iteration
+   * (e.g. `.skill-optimizer/skill-v1.md`). When present, the mutation
+   * executor must write its changes to this path instead of the target repo.
+   */
+  localSkillPath?: string;
 }
 
 export interface OptimizeLoopDependencies {
   benchmark: {
     run(
       configPath: string,
-      opts: { outputDir: string; label: string; verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number } },
+      opts: { outputDir: string; label: string; verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number }; skillOverride?: string },
     ): Promise<{ report: BenchmarkReport; reportPath: string }>;
   };
   repo: {

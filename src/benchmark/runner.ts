@@ -95,6 +95,12 @@ export interface RunnerOptions {
   outputDir?: string;
   verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
   scopeCoverage?: CoverageReport;
+  /**
+   * Override the skill source path for this run. Used by the optimizer to
+   * make the benchmark read a locally-versioned skill copy instead of the
+   * one committed in the target repo.
+   */
+  skillOverride?: string;
 }
 
 /**
@@ -159,9 +165,12 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
 
   // 5. Fetch skill doc (optional — may be null)
+  const skillConfig = options.skillOverride
+    ? { ...(config.skill ?? {}), source: options.skillOverride, cache: false } as typeof config.skill
+    : config.skill;
   const skill = await fetchSkill(options.noCache
-    ? { ...config.skill, cache: false } as typeof config.skill
-    : config.skill
+    ? { ...skillConfig, cache: false } as typeof skillConfig
+    : skillConfig
   );
   if (skill) {
     console.log(`[skill] Version: ${skill.version.source}@${skill.version.commitSha.slice(0, 8)}\n`);
