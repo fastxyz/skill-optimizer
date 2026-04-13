@@ -648,6 +648,61 @@ await test('computeCoverage: identifies covered and uncovered methods', () => {
   assertEqual(sendCov!.covered, false, 'FastWallet.send should NOT be covered');
 });
 
+console.log('\n=== Doctor / checkConfig Tests ===\n');
+
+await test('checkConfig: valid sdk config returns no errors', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'my-sdk',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' as const }],
+      tasks: './tasks.json',
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/path/skill-optimizer.json');
+  const errors = issues.filter(i => i.severity === 'error');
+  assert(errors.length === 0, `expected 0 errors, got: ${errors.map(i => i.message).join(', ')}`);
+});
+
+await test('checkConfig: missing name returns error', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    target: { surface: 'sdk' as const },
+    benchmark: { models: [] },
+  };
+  const issues = await checkConfig(config as any, '/fake/path/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'missing-name');
+  assert(err !== undefined, 'expected missing-name error');
+  assert(err!.severity === 'error', 'should be error severity');
+});
+
+await test('checkConfig: invalid surface returns error', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'grpc' },
+    benchmark: { models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' }] },
+  };
+  const issues = await checkConfig(config as any, '/fake/path/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'invalid-surface');
+  assert(err !== undefined, 'expected invalid-surface issue');
+  assert(err!.severity === 'error', 'should be error severity');
+});
+
+await test('checkConfig: empty models array returns error', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const },
+    benchmark: { models: [] },
+  };
+  const issues = await checkConfig(config as any, '/fake/path/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'missing-models');
+  assert(err !== undefined, 'expected missing-models error for benchmark.models');
+});
+
 // ── Summary ────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
