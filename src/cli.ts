@@ -5,7 +5,7 @@ import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 
-loadDotenv({ override: true });
+loadDotenv({ override: true, quiet: true });
 
 import type { Tier } from './benchmark/types.js';
 import type { ResolvedProjectConfig } from './project/types.js';
@@ -126,10 +126,9 @@ Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
   skill-optimizer init [sdk|cli|mcp]            Interactive wizard — scaffold config for the given surface
-  skill-optimizer init --auto                   Auto-detect project type and pre-fill wizard
-  skill-optimizer init --auto --yes             Auto-detect and scaffold non-interactively (high confidence only)
   skill-optimizer init [surface] --yes          Accept all defaults non-interactively
   skill-optimizer init --answers <file.json>    Load wizard answers from a JSON file (CI mode)
+  skill-optimizer init --auto                   Auto-detect surface from CWD and pre-fill wizard
   skill-optimizer import-commands [options]     Extract CLI commands from source or binary
   skill-optimizer doctor [options]              Validate config pre-flight
   skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface

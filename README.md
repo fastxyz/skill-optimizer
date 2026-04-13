@@ -9,10 +9,7 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
 
-# Auto-detect project type and pre-fill wizard
-npx skill-optimizer init --auto
-
-# Or specify the surface directly
+# Run the wizard from your project root
 npx skill-optimizer init cli       # or: init sdk, init mcp
 
 # Non-interactive: accept all defaults

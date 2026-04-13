@@ -2,10 +2,6 @@
 
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { config as loadDotenv } from 'dotenv';
-
-loadDotenv({ override: true });
-
 import {
   createBenchmarkAdapter,
   createJsonLedger,
