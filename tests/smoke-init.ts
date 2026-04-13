@@ -260,4 +260,39 @@ assert.strictEqual(typeof _a.surface, 'string');
   }
 }
 
+// SkillOptimizerError — structured error with fix hints
+{
+  const { ERRORS, SkillOptimizerError, printError } = await import('../src/errors.js');
+
+  // Basic throw/catch
+  let caught: InstanceType<typeof SkillOptimizerError> | undefined;
+  try {
+    throw new SkillOptimizerError(ERRORS.E_MISSING_API_KEY);
+  } catch (err) {
+    if (err instanceof SkillOptimizerError) caught = err;
+  }
+  assert.ok(caught, 'should have caught SkillOptimizerError');
+  assert.strictEqual(caught.name, 'E_MISSING_API_KEY');
+  assert.ok(caught.message.includes('API key'), `message should mention API key, got: ${caught.message}`);
+
+  // Detail appended
+  const withDetail = new SkillOptimizerError(ERRORS.E_MAXTASKS_TOO_LOW, 'scope has 5 actions, maxTasks is 3');
+  assert.ok(withDetail.message.includes('scope has 5'), `detail should be appended, got: ${withDetail.message}`);
+
+  // ERRORS registry: all entries have code, message, fix array
+  for (const [key, def] of Object.entries(ERRORS)) {
+    assert.strictEqual(def.code, key, `code mismatch for ${key}`);
+    assert.ok(typeof def.message === 'string' && def.message.length > 0, `${key} needs a message`);
+    assert.ok(Array.isArray(def.fix) && def.fix.length > 0, `${key} needs at least one fix step`);
+  }
+
+  // printError is callable (won't throw)
+  const orig = console.error;
+  let printed = '';
+  console.error = (...args: unknown[]) => { printed += args.join(' '); };
+  printError(new SkillOptimizerError(ERRORS.E_DIRTY_GIT));
+  console.error = orig;
+  assert.ok(printed.includes('E_DIRTY_GIT'), `printError should include code, got: ${printed}`);
+}
+
 console.log('smoke-init: all tests passed');
