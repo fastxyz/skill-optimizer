@@ -20,7 +20,7 @@ export interface Issue {
 }
 
 export async function checkConfig(
-  config: ProjectConfig,
+  config: unknown,
   _configPath: string,
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
@@ -29,17 +29,19 @@ export async function checkConfig(
     issues.push({ code, severity: 'error', field, message, hint, fixable: false });
   }
 
-  if (!config.name || typeof config.name !== 'string') {
+  const cfg = config as ProjectConfig;
+
+  if (!cfg.name || typeof cfg.name !== 'string') {
     err('missing-name', 'name', '"name" is required');
     return issues;
   }
 
-  if (!config.target || typeof config.target !== 'object') {
+  if (!cfg.target || typeof cfg.target !== 'object') {
     err('missing-target', 'target', '"target" is required');
     return issues;
   }
 
-  const { target, benchmark, optimize } = config;
+  const { target, benchmark, optimize } = cfg;
 
   if (target.surface !== 'sdk' && target.surface !== 'cli' && target.surface !== 'mcp') {
     err('invalid-surface', 'target.surface', '"target.surface" must be sdk, cli, or mcp');
@@ -95,7 +97,7 @@ export async function checkConfig(
 
   if (target.surface === 'mcp') {
     const discoveryMode = target.discovery?.mode ?? 'auto';
-    const hasCodeSources = Array.isArray(target.discovery?.sources) && target.discovery!.sources.length > 0;
+    const hasCodeSources = Array.isArray(target.discovery?.sources) && target.discovery?.sources.length > 0;
     const hasManifest = Boolean(target.mcp?.tools || target.discovery?.fallbackManifest);
     if (discoveryMode === 'manifest' && !hasManifest) {
       err('missing-mcp-manifest', 'target', 'MCP manifest mode requires target.mcp.tools or target.discovery.fallbackManifest');
@@ -220,7 +222,7 @@ export async function checkConfig(
 
   // Check: target.skill file exists
   if (target.skill !== undefined) {
-    const skillSource = typeof target.skill === 'string' ? target.skill : (target.skill as any).source;
+    const skillSource = typeof target.skill === 'string' ? target.skill : target.skill.source;
     if (skillSource) {
       const absSkill = isAbsolute(skillSource) ? skillSource : resolve(configDir, skillSource);
       if (!existsSync(absSkill)) {
@@ -250,13 +252,18 @@ export async function checkConfig(
   }
 
   // Check: CLI/MCP manifest file exists if configured
-  const manifestPath = (target as any).cli?.commands ?? (target as any).mcp?.tools ?? target.discovery?.fallbackManifest;
+  const manifestPath = target.cli?.commands ?? target.mcp?.tools ?? target.discovery?.fallbackManifest;
   if (manifestPath) {
     const absManifest = isAbsolute(manifestPath) ? manifestPath : resolve(configDir, manifestPath);
     if (!existsSync(absManifest)) {
-      const field = (target as any).cli?.commands ? 'target.cli.commands'
-        : (target as any).mcp?.tools ? 'target.mcp.tools'
-        : 'target.discovery.fallbackManifest';
+      let field: string;
+      if (target.cli?.commands) {
+        field = 'target.cli.commands';
+      } else if (target.mcp?.tools) {
+        field = 'target.mcp.tools';
+      } else {
+        field = 'target.discovery.fallbackManifest';
+      }
       issues.push({
         code: 'manifest-file-missing', severity: 'error', field,
         message: `manifest file does not exist: ${absManifest}`,
@@ -346,7 +353,7 @@ export async function checkConfig(
   }
 
   // Check: deprecated benchmark.tasks field
-  if ((benchmark as any).tasks !== undefined && benchmark.taskGeneration?.enabled === true) {
+  if (benchmark.tasks !== undefined && benchmark.taskGeneration?.enabled === true) {
     issues.push({
       code: 'deprecated-tasks-field', severity: 'warning', field: 'benchmark.tasks',
       message: '"benchmark.tasks" is set but task generation is enabled — the tasks field is deprecated',

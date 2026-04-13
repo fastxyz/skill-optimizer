@@ -24,12 +24,14 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
   const { inScope } = resolveScope(discovered, project.target.scope);
 
   if (inScope.length === 0) {
-    const surfaceHint =
-      project.target.surface === 'cli'
-        ? `Add target.cli.commands pointing at a cli-commands.json manifest, or fix target.discovery.sources`
-        : project.target.surface === 'mcp'
-        ? `Add target.mcp.tools pointing at a tools.json manifest, or fix target.discovery.sources`
-        : `Fix target.discovery.sources to point at your SDK entry file`;
+    let surfaceHint: string;
+    if (project.target.surface === 'cli') {
+      surfaceHint = `Add target.cli.commands pointing at a cli-commands.json manifest, or fix target.discovery.sources`;
+    } else if (project.target.surface === 'mcp') {
+      surfaceHint = `Add target.mcp.tools pointing at a tools.json manifest, or fix target.discovery.sources`;
+    } else {
+      surfaceHint = `Fix target.discovery.sources to point at your SDK entry file`;
+    }
     issues.push({
       code: 'zero-actions-discovered', severity: 'error', field: 'target.discovery',
       message: `Discovery found 0 in-scope actions`,

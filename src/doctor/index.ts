@@ -27,7 +27,7 @@ export async function runDoctor(configPath: string, opts: DoctorOptions = {}): P
   }
 
   // Tier 1: structural + path + format checks
-  let issues: Issue[] = await checkConfig(rawJson as any, resolvedPath);
+  let issues: Issue[] = await checkConfig(rawJson, resolvedPath);
 
   if (opts.fix) {
     const configDir = dirname(resolvedPath);
@@ -36,7 +36,7 @@ export async function runDoctor(configPath: string, opts: DoctorOptions = {}): P
       const fixed = applyFixes(rawJson, issues, configDir);
       writeFileSync(resolvedPath, JSON.stringify(fixed, null, 2) + '\n', 'utf-8');
       rawJson = fixed;
-      issues = await checkConfig(rawJson as any, resolvedPath);
+      issues = await checkConfig(rawJson, resolvedPath);
       console.log(formatFixResult(fixableCount, issues, resolvedPath));
     } else {
       console.log('\n  No auto-fixable issues found.');
