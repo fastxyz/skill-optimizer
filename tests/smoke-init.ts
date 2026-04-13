@@ -295,4 +295,78 @@ assert.strictEqual(typeof _a.surface, 'string');
   assert.ok(printed.includes('E_DIRTY_GIT'), `printError should include code, got: ${printed}`);
 }
 
+// detectedToPreseed maps DetectedProject to Partial<WizardAnswers>
+{
+  const { detectedToPreseed, detectProject } = await import('../src/init/detect-project.js');
+  const dir = mkdtempSync(join(tmpdir(), 'preseed-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'preseed-cli',
+      bin: { 'preseed-cli': './dist/cli.js' },
+    }), 'utf-8');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'cli.ts'), '');
+    const detected = detectProject(dir);
+    const preseed = detectedToPreseed(detected);
+    assert.strictEqual(preseed.surface, 'cli');
+    assert.strictEqual(preseed.repoPath, dir);
+    assert.ok(typeof preseed.name === 'string' && preseed.name.length > 0, 'preseed.name should be set');
+    assert.ok(preseed.entryFile !== undefined, 'preseed.entryFile should be set for cli');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// --auto --yes high confidence path: scaffoldInit called without wizard
+{
+  const { detectProject, detectedToPreseed } = await import('../src/init/detect-project.js');
+  const { buildDefaultAnswers } = await import('../src/init/answers.js');
+  const dir = mkdtempSync(join(tmpdir(), 'auto-yes-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'auto-test',
+      dependencies: { '@modelcontextprotocol/sdk': '^1.0.0' },
+    }), 'utf-8');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'server.ts'), '');
+    const detected = detectProject(dir);
+    assert.strictEqual(detected.confidence, 'high', 'mcp with dep should be high confidence');
+    assert.strictEqual(detected.surface, 'mcp');
+    const answers = {
+      ...buildDefaultAnswers(detected.surface, detected.repoPath),
+      ...detectedToPreseed(detected),
+    };
+    await scaffoldInit(answers, dir);
+    const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
+    assert.ok(existsSync(configPath), '--auto --yes should scaffold config');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as { target: { surface: string } };
+    assert.strictEqual(config.target.surface, 'mcp');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// --auto --yes low confidence should reject (E_INIT_AUTO_LOW_CONFIDENCE)
+{
+  const { detectProject } = await import('../src/init/detect-project.js');
+  const { ERRORS, SkillOptimizerError } = await import('../src/errors.js');
+  const dir = mkdtempSync(join(tmpdir(), 'auto-low-'));
+  try {
+    const detected = detectProject(dir);
+    assert.strictEqual(detected.confidence, 'low');
+    let threw = false;
+    try {
+      if (detected.confidence !== 'high') {
+        throw new SkillOptimizerError(ERRORS.E_INIT_AUTO_LOW_CONFIDENCE, `confidence is ${detected.confidence}`);
+      }
+    } catch (err) {
+      if (err instanceof SkillOptimizerError && err.def.code === 'E_INIT_AUTO_LOW_CONFIDENCE') threw = true;
+      else throw err;
+    }
+    assert.ok(threw, 'low confidence with --yes should throw E_INIT_AUTO_LOW_CONFIDENCE');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 console.log('smoke-init: all tests passed');
