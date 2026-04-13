@@ -2,6 +2,21 @@ import { readFileSync } from 'node:fs';
 import { getSdkParser } from '../../benchmark/extractors/sdk/parser.js';
 import type { CliCommandDefinition, CliCommandOptionDefinition } from '../types.js';
 
+/** Extract the content of a paren-balanced block starting at `start` (the opening paren). */
+function extractParenBlock(source: string, start: number): string {
+  let depth = 0;
+  let i = start;
+  while (i < source.length) {
+    if (source[i] === '(') depth++;
+    else if (source[i] === ')') {
+      depth--;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+    i++;
+  }
+  return source.slice(start);
+}
+
 export async function extractArgparse(filePath: string): Promise<CliCommandDefinition[]> {
   const source = readFileSync(filePath, 'utf-8');
   // Use tree-sitter just to validate it parses (will throw on syntax error)
@@ -21,42 +36,47 @@ export async function extractArgparse(filePath: string): Promise<CliCommandDefin
   // Find parser variables and commands
   const commands: CliCommandDefinition[] = [];
   const parserVarToCmd = new Map<string, CliCommandDefinition>();
-  // Escape the subparsers variable name for use in regex
   const escapedSub = subparsersVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  for (const line of lines) {
-    const m = line.match(
-      new RegExp(`(\\w+)\\s*=\\s*${escapedSub}\\.add_parser\\s*\\(\\s*['"]([^'"]+)['"](?:\\s*,\\s*help\\s*=\\s*['"]([^'"]+)['"])?`)
-    );
-    if (!m) continue;
+  // Scan full source for add_parser calls (handles multi-line calls)
+  const addParserRe = new RegExp(`(\\w+)\\s*=\\s*${escapedSub}\\.add_parser\\s*\\(`, 'g');
+  let m: RegExpExecArray | null;
+  while ((m = addParserRe.exec(source)) !== null) {
     const parserVar = m[1]!;
-    const commandName = m[2]!;
-    const helpText = m[3];
-    const def: CliCommandDefinition = { command: commandName, description: helpText };
+    const blockStart = m.index + m[0].length - 1; // position of '('
+    const block = extractParenBlock(source, blockStart);
+    const nameMatch = block.match(/^\(\s*['"]([^'"]+)['"]/);
+    if (!nameMatch) continue;
+    const commandName = nameMatch[1]!;
+    const helpMatch = block.match(/help\s*=\s*['"]([^'"]+)['"]/);
+    const def: CliCommandDefinition = { command: commandName, description: helpMatch?.[1] };
     commands.push(def);
     parserVarToCmd.set(parserVar, def);
   }
 
-  // Find add_argument calls for each parser variable
+  // Find add_argument calls for each parser variable — use paren-block extraction
+  // so multi-line calls and arbitrary kwarg ordering are handled correctly.
   for (const [parserVar, def] of parserVarToCmd) {
     const escapedVar = parserVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const argRegex = new RegExp(
-      `${escapedVar}\\.add_argument\\s*\\(\\s*['"](-[^'"]+)['"](?:\\s*,\\s*help\\s*=\\s*['"]([^'"]+)['"])?`,
-      'g'
-    );
+    const addArgRe = new RegExp(`${escapedVar}\\.add_argument\\s*\\(`, 'g');
     let argMatch: RegExpExecArray | null;
-    while ((argMatch = argRegex.exec(source)) !== null) {
-      const flagName = argMatch[1]!;
-      if (!flagName.startsWith('-')) continue; // skip positionals
-      const helpText2 = argMatch[2];
-      // Find the full line to check for store_true
-      const lineStart = source.lastIndexOf('\n', argMatch.index) + 1;
-      const lineEnd = source.indexOf('\n', argMatch.index);
-      const fullLine = source.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
-      const isStoreTrue = /action\s*=\s*['"]store_true['"]/.test(fullLine);
+    while ((argMatch = addArgRe.exec(source)) !== null) {
+      const blockStart = argMatch.index + argMatch[0].length - 1;
+      const block = extractParenBlock(source, blockStart);
+
+      // First string arg — must start with '-' to be a flag (not a positional)
+      const flagMatch = block.match(/^\(\s*['"](-[^'"]+)['"]/);
+      if (!flagMatch) continue;
+      const flagName = flagMatch[1]!;
+
+      // help= anywhere in the block
+      const helpMatch = block.match(/help\s*=\s*['"]([^'"]+)['"]/);
+      // action='store_true' anywhere in the block (handles multi-line)
+      const isStoreTrue = /action\s*=\s*['"]store_true['"]/.test(block);
+
       const opt: CliCommandOptionDefinition = {
         name: flagName,
-        description: helpText2,
+        description: helpMatch?.[1],
         takesValue: !isStoreTrue,
       };
       if (!def.options) def.options = [];
