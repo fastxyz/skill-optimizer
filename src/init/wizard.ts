@@ -6,10 +6,12 @@ import { scaffoldInit } from './scaffold.js';
 // All values use OpenRouter model IDs (openrouter/provider/model).
 // pi-ai resolves these through OpenRouter's OpenAI-compatible API using OPENROUTER_API_KEY.
 export const MODEL_PRESETS = [
-  { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o             · OpenAI', hint: 'recommended' },
+  { value: 'openrouter/openai/gpt-5.4', label: 'GPT-5.4            · OpenAI', hint: 'recommended' },
+  { value: 'openrouter/openai/gpt-5.3-codex', label: 'GPT-5.3 Codex      · OpenAI', hint: 'coding' },
+  { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o             · OpenAI', hint: 'stable' },
   { value: 'openrouter/openai/gpt-4o-mini', label: 'GPT-4o Mini        · OpenAI', hint: 'fast' },
-  { value: 'openrouter/anthropic/claude-sonnet-4-5', label: 'Claude Sonnet 4.5  · Anthropic' },
-  { value: 'openrouter/anthropic/claude-haiku-4-5', label: 'Claude Haiku 4.5   · Anthropic', hint: 'fast' },
+  { value: 'openrouter/anthropic/claude-opus-4.6', label: 'Claude Opus 4.6    · Anthropic', hint: 'flagship' },
+  { value: 'openrouter/anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6  · Anthropic' },
   { value: 'openrouter/google/gemini-2.5-pro-preview', label: 'Gemini 2.5 Pro     · Google' },
   { value: 'openrouter/google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash   · Google', hint: 'fast' },
   { value: 'openrouter/meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B      · Meta', hint: 'open' },
@@ -54,12 +56,20 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   }) as string);
   const repoPath = resolve(repoPathRaw.trim() || preseed?.repoPath || cwd);
 
-  // 3. Models (multi-select)
+  // 3. SKILL.md path
+  const skillPathRaw = cancelGuard(await p.text({
+    message: 'Path to SKILL.md (relative to repo root, leave blank for SKILL.md):',
+    placeholder: 'SKILL.md',
+    defaultValue: preseed?.skillPath,
+  }) as string);
+  const skillPath = skillPathRaw.trim() || preseed?.skillPath || undefined;
+
+  // 4. Models (multi-select)
   const selectedPresets = cancelGuard(await p.multiselect({
     message: 'Which models to benchmark? (space to toggle, enter to confirm)',
     options: MODEL_PRESETS,
     required: true,
-    initialValues: ['openrouter/openai/gpt-4o', 'openrouter/google/gemini-2.0-flash-001'],
+    initialValues: ['openrouter/openai/gpt-5.4', 'openrouter/google/gemini-2.0-flash-001'],
   }) as string[]);
   const models: string[] = selectedPresets;
 
@@ -75,7 +85,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   }) as string);
   if (customModel.trim()) models.push(customModel.trim());
 
-  // 4. Max tasks
+  // 5. Max tasks
   const maxTasksRaw = cancelGuard(await p.text({
     message: 'Max tasks to generate per benchmark run:',
     defaultValue: '20',
@@ -88,7 +98,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   }) as string);
   const maxTasks = parseInt(maxTasksRaw || '20', 10);
 
-  // 5. Max iterations
+  // 6. Max iterations
   const maxIterationsRaw = cancelGuard(await p.text({
     message: 'Max optimize iterations:',
     defaultValue: '5',
@@ -101,7 +111,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   }) as string);
   const maxIterations = parseInt(maxIterationsRaw || '5', 10);
 
-  // 6. Entry file (cli / mcp only)
+  // 7. Entry file (cli / mcp only)
   let entryFile: string | undefined;
   if (surface === 'cli' || surface === 'mcp') {
     const message = surface === 'cli'
@@ -112,7 +122,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     entryFile = raw.trim() || preseed?.entryFile || undefined;
   }
 
-  const answers: WizardAnswers = { surface, repoPath, models, maxTasks, maxIterations, entryFile, name: preseed?.name };
+  const answers: WizardAnswers = { surface, repoPath, models, maxTasks, maxIterations, skillPath, entryFile, name: preseed?.name };
 
   const spinner = p.spinner();
   spinner.start('Scaffolding...');

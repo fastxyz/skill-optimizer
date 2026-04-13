@@ -4,10 +4,12 @@ import type { WizardAnswers } from './answers.js';
 import { importCommands } from '../import/index.js';
 
 const KNOWN_MODELS: Record<string, { name: string; tier: 'flagship' | 'mid' | 'low' }> = {
+  'openrouter/openai/gpt-5.4': { name: 'GPT-5.4', tier: 'flagship' },
+  'openrouter/openai/gpt-5.3-codex': { name: 'GPT-5.3 Codex', tier: 'flagship' },
   'openrouter/openai/gpt-4o': { name: 'GPT-4o', tier: 'flagship' },
   'openrouter/openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid' },
-  'openrouter/anthropic/claude-sonnet-4-5': { name: 'Claude Sonnet 4.5', tier: 'flagship' },
-  'openrouter/anthropic/claude-haiku-4-5': { name: 'Claude Haiku 4.5', tier: 'mid' },
+  'openrouter/anthropic/claude-opus-4.6': { name: 'Claude Opus 4.6', tier: 'flagship' },
+  'openrouter/anthropic/claude-sonnet-4.6': { name: 'Claude Sonnet 4.6', tier: 'flagship' },
   'openrouter/google/gemini-2.5-pro-preview': { name: 'Gemini 2.5 Pro', tier: 'flagship' },
   'openrouter/google/gemini-2.0-flash-001': { name: 'Gemini 2.0 Flash', tier: 'mid' },
   'openrouter/meta-llama/llama-3.3-70b-instruct': { name: 'Llama 3.3 70B', tier: 'mid' },
@@ -24,12 +26,30 @@ function resolveModel(id: string): { id: string; name: string; tier: 'flagship' 
   return { id, name, tier: 'mid' };
 }
 
+// Preferred optimize models in priority order — prefer stronger reasoning models
+const OPTIMIZE_MODEL_PREFERENCE = [
+  'openrouter/anthropic/claude-opus-4.6',
+  'openrouter/openai/gpt-5.4',
+  'openrouter/anthropic/claude-sonnet-4.6',
+  'openrouter/openai/gpt-5.3-codex',
+  'openrouter/openai/gpt-4o',
+];
+
+function pickOptimizeModel(models: string[]): string {
+  for (const preferred of OPTIMIZE_MODEL_PREFERENCE) {
+    if (models.includes(preferred)) return preferred;
+  }
+  return models[0]!;
+}
+
 export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
   const projectName = name ?? basename(repoPath);
 
   // Paths stored in the JSON are relative to configDir so the config is portable
   const relRepo = relative(configDir, repoPath) || '.';
+  const skillRelPath = answers.skillPath || 'SKILL.md';
+  const skillConfigPath = join(relRepo, skillRelPath);
 
   const commonBenchmark = {
     apiKeyEnv: 'OPENROUTER_API_KEY',
@@ -42,11 +62,9 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   };
 
   const commonOptimize = {
-    model: models.includes('openrouter/openai/gpt-4o')
-      ? 'openrouter/openai/gpt-4o'
-      : models[0]!,
+    model: pickOptimizeModel(models),
     apiKeyEnv: 'OPENROUTER_API_KEY',
-    allowedPaths: [join(relRepo, 'SKILL.md')],
+    allowedPaths: [skillConfigPath],
     validation: [],
     maxIterations,
   };
@@ -57,7 +75,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
       target: {
         surface: 'sdk',
         repoPath: relRepo,
-        skill: join(relRepo, 'SKILL.md'),
+        skill: skillConfigPath,
         discovery: { mode: 'auto', sources: [join(relRepo, 'src/index.ts')] },
       },
       benchmark: commonBenchmark,
@@ -74,7 +92,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
       target: {
         surface: 'cli',
         repoPath: relRepo,
-        skill: join(relRepo, 'SKILL.md'),
+        skill: skillConfigPath,
         discovery: { mode: 'auto', sources: [join(relRepo, entryRelative)] },
         cli: { commands: './.skill-optimizer/cli-commands.json' },
       },
@@ -89,7 +107,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
     target: {
       surface: 'mcp',
       repoPath: relRepo,
-      skill: join(relRepo, 'SKILL.md'),
+      skill: skillConfigPath,
       discovery: { mode: 'auto', sources: [join(relRepo, entryRelative)] },
       mcp: { tools: './.skill-optimizer/tools.json' },
     },
@@ -200,20 +218,28 @@ function writeMcpTemplate(toolsPath: string): void {
 }
 
 function printNextSteps(answers: WizardAnswers, configPath: string): void {
+  const skillRelPath = answers.skillPath || 'SKILL.md';
+  const skillAbsPath = resolve(answers.repoPath, skillRelPath);
+  const skillMissing = !existsSync(skillAbsPath);
+
   console.log('\n[init] Done! Next steps:');
   console.log(`  Config: ${configPath}`);
+
+  let step = 1;
   if (answers.surface === 'sdk') {
-    console.log('  1. Review target.discovery.sources in the config — points to your SDK entry file');
+    console.log(`  ${step++}. Review target.discovery.sources in the config — points to your SDK entry file`);
   } else if (answers.surface === 'cli') {
     if (answers.entryFile) {
-      console.log('  1. Review skill-optimizer/.skill-optimizer/cli-commands.json — auto-extracted from your CLI');
+      console.log(`  ${step++}. Review skill-optimizer/.skill-optimizer/cli-commands.json — auto-extracted from your CLI`);
     } else {
-      console.log('  1. Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace template with real commands');
+      console.log(`  ${step++}. Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace template with real commands`);
       console.log('     Or run: npx skill-optimizer import-commands --from <entry-file>');
     }
   } else {
-    console.log('  1. Edit skill-optimizer/.skill-optimizer/tools.json — replace template with your real MCP tools');
+    console.log(`  ${step++}. Edit skill-optimizer/.skill-optimizer/tools.json — replace template with your real MCP tools`);
   }
-  console.log('  2. Add a SKILL.md to your repo root explaining the surface to the model');
-  console.log('  3. Run: npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json');
+  if (skillMissing) {
+    console.log(`  ${step++}. Create ${skillAbsPath} — explain your surface to the model (what it does, key concepts, usage examples)`);
+  }
+  console.log(`  ${step}. Run: npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json`);
 }

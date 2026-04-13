@@ -165,7 +165,7 @@ Generate-tasks options:
 
 Import-commands options:
   --from <path>                                 Entry file or binary name (required)
-  --out <path>                                  Output path (default: skill-optimizer/cli-commands.json)
+  --out <path>                                  Output path (default: skill-optimizer/.skill-optimizer/cli-commands.json)
   --scrape                                      Force --help scraping regardless of file type
   --depth <n>                                   Max subcommand depth for --help scraping (default: 2)
 
@@ -306,7 +306,7 @@ async function main(): Promise<void> {
       console.error('  Example: skill-optimizer import-commands --from ./src/cli.ts');
       process.exit(1);
     }
-    const outFlag = getFlag(args, '--out') ?? 'skill-optimizer/cli-commands.json';
+    const outFlag = getFlag(args, '--out') ?? 'skill-optimizer/.skill-optimizer/cli-commands.json';
     const depthRaw = getFlag(args, '--depth');
     try {
       await importCommands({

@@ -6,6 +6,8 @@ export interface WizardAnswers {
   models: string[];
   maxTasks: number;
   maxIterations: number;
+  /** Path to SKILL.md, relative to repoPath (default: SKILL.md) */
+  skillPath?: string;
   /** For cli/mcp: path to entry file or binary (relative to repoPath or absolute) */
   entryFile?: string;
   name?: string;
@@ -43,6 +45,7 @@ export function readAnswersFile(filePath: string): WizardAnswers {
     models: raw.models,
     maxTasks: raw.maxTasks ?? 20,
     maxIterations: raw.maxIterations ?? 5,
+    skillPath: raw.skillPath,
     entryFile: raw.entryFile,
     name: raw.name,
   };
