@@ -14,7 +14,7 @@ export interface Issue {
 
 export async function checkConfig(
   config: ProjectConfig,
-  configPath: string,
+  _configPath: string,
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
 
