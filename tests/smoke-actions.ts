@@ -330,7 +330,7 @@ await test('loadActionSnapshotFile includes path on invalid JSON', () => {
   }
 });
 
-await test('buildSurfaceSnapshot returns expected legacy snapshot fields from discovery fixture', () => {
+await test('buildSurfaceSnapshot returns expected legacy snapshot fields from discovery fixture', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-bridge-'));
   try {
     const sourcePath = join(root, 'server.ts');
@@ -375,7 +375,7 @@ await test('buildSurfaceSnapshot returns expected legacy snapshot fields from di
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const actual = buildSurfaceSnapshot(project);
 
     assertEqual(actual.surface, 'mcp', 'snapshot surface should be mcp');

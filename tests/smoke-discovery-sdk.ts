@@ -193,7 +193,7 @@ await test('discovers alias names for re-exported SDK actions', () => {
   }
 });
 
-await test('project snapshot falls back to sdk.apiSurface when discovery returns zero actions', () => {
+await test('project snapshot falls back to sdk.apiSurface when discovery returns zero actions', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sdk-discovery-'));
   const sourcePath = join(dir, 'index.ts');
   const configPath = join(dir, 'skill-optimizer.json');
@@ -222,7 +222,7 @@ await test('project snapshot falls back to sdk.apiSurface when discovery returns
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const snapshot = buildSurfaceSnapshot(project);
     assertEqual(snapshot.actions.length, 1, 'sdk apiSurface should be used as fallback');
     assertEqual(snapshot.actions[0]?.name, 'sendTokens', 'fallback action should come from sdk.apiSurface');
@@ -255,7 +255,7 @@ await test('parses files statically and never executes source code', () => {
   }
 });
 
-await test('discovers sdk actions via public action discovery entrypoint', () => {
+await test('discovers sdk actions via public action discovery entrypoint', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sdk-discovery-actions-'));
   const sourcePath = join(dir, 'client.ts');
   const configPath = join(dir, 'skill-optimizer.json');
@@ -290,7 +290,7 @@ await test('discovers sdk actions via public action discovery entrypoint', () =>
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const catalog = discoverActions(project);
     assertEqual(catalog.surface, 'sdk', 'surface should be sdk');
 
@@ -301,7 +301,7 @@ await test('discovers sdk actions via public action discovery entrypoint', () =>
   }
 });
 
-await test('discoverActions falls back to sdk.apiSurface when discovery returns zero actions', () => {
+await test('discoverActions falls back to sdk.apiSurface when discovery returns zero actions', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sdk-discovery-actions-fallback-'));
   const sourcePath = join(dir, 'index.ts');
   const configPath = join(dir, 'skill-optimizer.json');
@@ -330,7 +330,7 @@ await test('discoverActions falls back to sdk.apiSurface when discovery returns 
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const catalog = discoverActions(project);
     assertEqual(catalog.surface, 'sdk', 'surface should be sdk');
     assertEqual(catalog.actions.length, 1, 'sdk apiSurface should be used as fallback');

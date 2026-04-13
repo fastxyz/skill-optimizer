@@ -107,10 +107,10 @@ function makeFixture(): {
 
 console.log('\n=== Task Generation Smoke Tests ===\n');
 
-await test('discoverTaskSurface: resolves and loads skill/snapshot', () => {
+await test('discoverTaskSurface: resolves and loads skill/snapshot', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     assertEqual(surface.skillPath, resolve(fixture.skillPath), 'skill path should resolve absolute');
     assert(surface.skillMarkdown.includes('Wallet skill'), 'skill markdown should be loaded');
     assertEqual(surface.snapshot.surface, 'mcp', 'surface should be mcp');
@@ -123,7 +123,7 @@ await test('discoverTaskSurface: resolves and loads skill/snapshot', () => {
 await test('generateCandidateTasks: parses strict JSON response', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const deps: TaskGeneratorDeps = {
       async complete() {
         return JSON.stringify({
@@ -151,7 +151,7 @@ await test('generateCandidateTasks: parses strict JSON response', async () => {
 await test('generateCandidateTasks: enforces maxTasks cap after parsing', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const deps: TaskGeneratorDeps = {
       async complete() {
         return JSON.stringify({
@@ -174,7 +174,7 @@ await test('generateCandidateTasks: enforces maxTasks cap after parsing', async 
 await test('generateCandidateTasks: rejects unsafe task ids', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const deps: TaskGeneratorDeps = {
       async complete() {
         return JSON.stringify({
@@ -201,7 +201,7 @@ await test('generateCandidateTasks: rejects unsafe task ids', async () => {
 await test('generateCandidateTasks: rejects dot-segment task ids', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const deps: TaskGeneratorDeps = {
       async complete() {
         return JSON.stringify({
@@ -228,7 +228,7 @@ await test('generateCandidateTasks: rejects dot-segment task ids', async () => {
 await test('generateCandidateTasks: rejects malformed top-level shape', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const deps: TaskGeneratorDeps = {
       async complete() {
         return JSON.stringify({ not_tasks: [] });
@@ -249,10 +249,10 @@ await test('generateCandidateTasks: rejects malformed top-level shape', async ()
   }
 });
 
-await test('groundTasks: rejects unknown methods and invalid args', () => {
+await test('groundTasks: rejects unknown methods and invalid args', async () => {
   const fixture = makeFixture();
   try {
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const tasks: GeneratedTask[] = [
       {
         id: 'ok-task',
@@ -281,7 +281,7 @@ await test('groundTasks: rejects unknown methods and invalid args', () => {
   }
 });
 
-await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', () => {
+await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', async () => {
   const fixture = makeFixture();
   try {
     writeFileSync(fixture.benchmarkConfigPath, JSON.stringify({
@@ -315,7 +315,7 @@ await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', () =
     ];
     const rejected = [{ task: kept[0], reason: 'example reason' }];
 
-    const surface = discoverTaskSurface(fixture.benchmarkConfigPath);
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const frozen = freezeTaskArtifacts({
       project: surface.project,
       snapshot: surface.snapshot,
@@ -389,7 +389,7 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
   }
 });
 
-await test('discoverTaskSurface: supports sdk code-first projects', () => {
+await test('discoverTaskSurface: supports sdk code-first projects', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-sdk-generation-'));
   try {
     writeFileSync(join(root, 'SKILL.md'), '# SDK skill\nUse SDK methods.\n', 'utf-8');
@@ -410,7 +410,7 @@ await test('discoverTaskSurface: supports sdk code-first projects', () => {
       },
     }, null, 2), 'utf-8');
 
-    const surface = discoverTaskSurface(join(root, 'skill-optimizer.json'));
+    const surface = await discoverTaskSurface(join(root, 'skill-optimizer.json'));
     assertEqual(surface.snapshot.surface, 'sdk', 'surface should be sdk');
     assert(surface.snapshot.actions.some((action) => action.name === 'Client.getBalance'), 'sdk action should be discovered');
   } finally {
@@ -418,7 +418,7 @@ await test('discoverTaskSurface: supports sdk code-first projects', () => {
   }
 });
 
-await test('discoverTaskSurface: supports cli code-first projects', () => {
+await test('discoverTaskSurface: supports cli code-first projects', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-cli-generation-'));
   try {
     writeFileSync(join(root, 'SKILL.md'), '# CLI skill\nUse commands.\n', 'utf-8');
@@ -447,7 +447,7 @@ await test('discoverTaskSurface: supports cli code-first projects', () => {
       },
     }, null, 2), 'utf-8');
 
-    const surface = discoverTaskSurface(join(root, 'skill-optimizer.json'));
+    const surface = await discoverTaskSurface(join(root, 'skill-optimizer.json'));
     assertEqual(surface.snapshot.surface, 'cli', 'surface should be cli');
     assert(surface.snapshot.actions.some((action) => action.name === 'wallet:create'), 'cli action should be discovered');
   } finally {
@@ -484,7 +484,7 @@ await test('cli discovery/task generation canonicalizes option keys for extracti
       },
     }, null, 2), 'utf-8');
 
-    const surface = discoverTaskSurface(join(root, 'skill-optimizer.json'));
+    const surface = await discoverTaskSurface(join(root, 'skill-optimizer.json'));
     assertEqual(surface.snapshot.actions[0]?.args[0]?.name, 'label', 'CLI arg names should be canonicalized without dashes');
 
     const grounded = groundTasks([

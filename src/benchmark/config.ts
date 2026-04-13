@@ -21,8 +21,8 @@ function isSafeTaskId(taskId: string): boolean {
  * Load benchmark config from the given path or search for benchmark.config.json
  * in the current working directory.
  */
-export function loadConfig(configPath?: string): { config: BenchmarkConfig; configDir: string } {
-  const project = loadProjectConfig(configPath ?? DEFAULT_CONFIG_NAME);
+export async function loadConfig(configPath?: string): Promise<{ config: BenchmarkConfig; configDir: string }> {
+  const project = await loadProjectConfig(configPath ?? DEFAULT_CONFIG_NAME);
   return {
     config: toBenchmarkConfig(project),
     configDir: project.configDir,

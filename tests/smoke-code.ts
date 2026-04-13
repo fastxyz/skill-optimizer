@@ -105,7 +105,7 @@ await test('extractSdkCodeBlock: finds rust block', () => {
   assertEqual(result, 'let client = FastClient::new();', 'should extract rust block content');
 });
 
-await test('loadConfig: rejects unsupported sdk language', () => {
+await test('loadConfig: rejects unsupported sdk language', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-lang-'));
   try {
     const configPath = join(dir, 'skill-optimizer.json');
@@ -127,7 +127,7 @@ await test('loadConfig: rejects unsupported sdk language', () => {
 
     let threw = false;
     try {
-      loadConfig(configPath);
+      await loadConfig(configPath);
     } catch (error: any) {
       threw = true;
       assert(

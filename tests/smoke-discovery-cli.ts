@@ -174,7 +174,7 @@ await test('discovery remains static and does not execute source file', () => {
   }
 });
 
-await test('discovers cli actions via public action discovery entrypoint', () => {
+await test('discovers cli actions via public action discovery entrypoint', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'cli-discovery-actions-'));
   const sourcePath = join(dir, 'commands.ts');
   const configPath = join(dir, 'skill-optimizer.json');
@@ -212,7 +212,7 @@ await test('discovers cli actions via public action discovery entrypoint', () =>
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const catalog = discoverActions(project);
     assertEqual(catalog.surface, 'cli', 'surface should be cli');
     assertEqual(catalog.actions.length, 1, 'should discover one cli action');
@@ -252,7 +252,7 @@ await test('reads cli actions via actions-layer reader export', () => {
   }
 });
 
-await test('discoverActions uses manifest commands when CLI discovery mode is manifest', () => {
+await test('discoverActions uses manifest commands when CLI discovery mode is manifest', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'cli-discovery-manifest-'));
   const commandsPath = join(dir, 'commands.json');
   const configPath = join(dir, 'skill-optimizer.json');
@@ -285,7 +285,7 @@ await test('discoverActions uses manifest commands when CLI discovery mode is ma
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const catalog = discoverActions(project);
     assertEqual(catalog.surface, 'cli', 'surface should be cli');
     assertEqual(catalog.actions.length, 1, 'manifest-backed discovery should return one action');

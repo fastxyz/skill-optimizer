@@ -145,7 +145,7 @@ Examples:
 // ── Dry-run ───────────────────────────────────────────────────────────────────
 
 async function runDryRun(configPath: string): Promise<void> {
-  const project = loadProjectConfig(configPath);
+  const project = await loadProjectConfig(configPath);
   const discovered = discoverActionsOnly(project);
   const { inScope, outOfScope } = resolveScope(discovered, project.target.scope);
 
@@ -292,7 +292,7 @@ async function main(): Promise<void> {
   if (command === 'generate-tasks') {
     const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
     try {
-      const project = loadProjectConfig(configPath);
+      const project = await loadProjectConfig(configPath);
       if (!project.benchmark.taskGeneration.enabled) {
         throw new Error('benchmark.taskGeneration.enabled must be true to use generate-tasks');
       }
@@ -350,7 +350,7 @@ async function main(): Promise<void> {
   let project: ResolvedProjectConfig | undefined;
   let generatedCoverage: import('./benchmark/types.js').CoverageReport | undefined;
   try {
-    project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
+    project = await loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
     if (!existsSync(project.target.repoPath) || !statSync(project.target.repoPath).isDirectory()) {
       throw new Error(
         `target.repoPath does not exist or is not a directory: ${project.target.repoPath}. ` +

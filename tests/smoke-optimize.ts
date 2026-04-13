@@ -174,7 +174,7 @@ function makeManifest(): OptimizeManifest {
 
 console.log('\n=== Optimizer Smoke Tests ===\n');
 
-await test('loadOptimizeManifest: applies defaults', () => {
+await test('loadOptimizeManifest: applies defaults', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'skill-optimizer.json');
@@ -197,7 +197,7 @@ await test('loadOptimizeManifest: applies defaults', () => {
       },
     }), 'utf-8');
 
-    const manifest = loadOptimizeManifest(file);
+    const manifest = await loadOptimizeManifest(file);
     assertEqual(manifest.optimizer.maxIterations, 5, 'maxIterations default');
     assertEqual(manifest.optimizer.stabilityWindow, 2, 'stabilityWindow default');
     assertEqual(manifest.optimizer.taskGeneration.enabled, false, 'taskGeneration.enabled default');
@@ -208,7 +208,7 @@ await test('loadOptimizeManifest: applies defaults', () => {
   }
 });
 
-await test('loadOptimizeManifest: defaults optimize.model to the first benchmark model', () => {
+await test('loadOptimizeManifest: defaults optimize.model to the first benchmark model', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'skill-optimizer.json');
@@ -230,7 +230,7 @@ await test('loadOptimizeManifest: defaults optimize.model to the first benchmark
       },
     }), 'utf-8');
 
-    const manifest = loadOptimizeManifest(file);
+    const manifest = await loadOptimizeManifest(file);
     assertEqual(manifest.mutation?.provider, 'openrouter', 'mutation provider should default from the first benchmark model');
     assertEqual(manifest.mutation?.model, 'openai/gpt-5.4', 'mutation model should default from the first benchmark model');
   } finally {
@@ -238,7 +238,7 @@ await test('loadOptimizeManifest: defaults optimize.model to the first benchmark
   }
 });
 
-await test('loadOptimizeManifest: allows empty target validation commands', () => {
+await test('loadOptimizeManifest: allows empty target validation commands', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'skill-optimizer.json');
@@ -261,14 +261,14 @@ await test('loadOptimizeManifest: allows empty target validation commands', () =
       },
     }), 'utf-8');
 
-    const manifest = loadOptimizeManifest(file);
+    const manifest = await loadOptimizeManifest(file);
     assertEqual(manifest.targetRepo.validation.length, 0, 'empty validation array should be preserved');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
+await test('loadOptimizeManifest: rejects requireCleanGit=false', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'skill-optimizer.json');
@@ -294,7 +294,7 @@ await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
 
     let threw = false;
     try {
-      loadOptimizeManifest(file);
+      await loadOptimizeManifest(file);
     } catch (error: any) {
       threw = true;
       assert(error.message.includes('requireCleanGit'), 'error should mention requireCleanGit');
@@ -306,7 +306,7 @@ await test('loadOptimizeManifest: rejects requireCleanGit=false', () => {
   }
 });
 
-await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () => {
+await test('loadOptimizeManifest: rejects invalid optimizer numeric values', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
     const file = join(dir, 'skill-optimizer.json');
@@ -341,7 +341,7 @@ await test('loadOptimizeManifest: rejects invalid optimizer numeric values', () 
 
     let threw = false;
     try {
-      loadOptimizeManifest(file);
+      await loadOptimizeManifest(file);
     } catch (error: any) {
         threw = true;
         assert(

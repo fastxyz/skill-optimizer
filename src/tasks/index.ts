@@ -34,7 +34,7 @@ export async function generateTasksForProject(
   },
 ): Promise<GenerateTasksForProjectResult> {
   console.log('[optimize] Discovering surface for task generation...');
-  const surface = discoverTaskSurface(params.configPath);
+  const surface = await discoverTaskSurface(params.configPath);
   console.log(`[optimize] Loaded ${surface.snapshot.surface} surface with ${surface.snapshot.actions.length} actions.`);
 
   // Apply scope filter
