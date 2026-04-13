@@ -12,10 +12,10 @@ cd skill-optimizer
 npm install
 export OPENROUTER_API_KEY=sk-or-...
 
-# Interactive wizard — asks surface, repo path, models, task limits, entry file
-npx tsx src/cli.ts init
+# Auto-detect project type and pre-fill wizard
+npx tsx src/cli.ts init --auto
 
-# Or pre-fill the surface to skip the first question
+# Or specify the surface directly
 npx tsx src/cli.ts init cli       # or: init sdk, init mcp
 
 # Non-interactive: accept all defaults
@@ -74,97 +74,9 @@ npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json
 
 ## Configuration reference
 
-All configuration lives in a single `skill-optimizer.json` file.
+See [docs/reference/config-schema.md](docs/reference/config-schema.md) for the full generated config reference — auto-updated at every build.
 
-### `target` fields
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `surface` | `"sdk" \| "cli" \| "mcp"` | required | Type of callable surface |
-| `repoPath` | `string` | `.` | Path to the target repo |
-| `skill` | `string \| { source: string; cache?: boolean }` | — | Path to SKILL.md |
-| `discovery.mode` | `"auto" \| "manifest"` | `"auto"` | How to discover actions |
-| `discovery.sources` | `string[]` | — | Source files for tree-sitter discovery |
-| `discovery.language` | `"typescript" \| "python" \| "rust"` | — | Language for code-first discovery |
-| `discovery.fallbackManifest` | `string` | — | Path to manifest JSON when code-first discovery is incomplete |
-| `sdk.language` | `"typescript" \| "python" \| "rust"` | — | SDK language |
-| `sdk.entrypoints` | `string[]` | — | SDK entry files |
-| `cli.commands` | `string` | — | Path to CLI commands manifest JSON |
-| `mcp.tools` | `string` | — | Path to MCP tools manifest JSON |
-
-### `benchmark` fields
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `format` | `"pi"` | `"pi"` | LLM transport format |
-| `apiKeyEnv` | `string` | `OPENROUTER_API_KEY` | Env var name for the API key |
-| `timeout` | `number` | `240000` | Ms per model call |
-| `models` | `Array<{ id: string; name: string; tier: "flagship"\|"mid"\|"low"; weight?: number }>` | required | Models to benchmark |
-| `taskGeneration.enabled` | `boolean` | `false` | Whether to generate tasks automatically |
-| `taskGeneration.maxTasks` | `number` | `10` | Max tasks to generate (must be >= scope size) |
-| `taskGeneration.seed` | `number` | `1` | RNG seed for reproducible generation |
-| `output.dir` | `string` | `benchmark-results/` | Where reports are saved |
-| `verdict.perModelFloor` | `number` | `0.6` | Minimum per-model pass fraction for a PASS verdict |
-| `verdict.targetWeightedAverage` | `number` | `0.7` | Minimum weighted average across all models for a PASS verdict |
-
-### `optimize` fields (all optional)
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `model` | `string` | — | Model for mutation (e.g. `openrouter/anthropic/claude-sonnet-4-6`) |
-| `apiKeyEnv` | `string` | — | Env var for the optimizer's API key |
-| `thinkingLevel` | `"off"\|"minimal"\|"low"\|"medium"\|"high"\|"xhigh"` | `"medium"` | Reasoning depth for mutation calls |
-| `allowedPaths` | `string[]` | — | Paths the optimizer may edit (safety boundary) |
-| `validation` | `string[]` | — | Shell commands to run to validate each mutation |
-| `requireCleanGit` | `boolean` | `true` | Require clean git state before starting |
-| `maxIterations` | `number` | `5` | Maximum optimization iterations |
-| `minImprovement` | `number` | `0.02` | Minimum weighted-average gain per accepted iteration |
-| `reportContextMaxBytes` | `number` | `16000` | Byte budget for mutation context |
-
-### Annotated example config
-
-```json
-{
-  "name": "my-mcp-project",
-  "target": {
-    "surface": "mcp",
-    "repoPath": ".",
-    "skill": "./SKILL.md",
-    "discovery": {
-      "mode": "auto",
-      "sources": ["./src/server.ts"]
-    }
-  },
-  "benchmark": {
-    "format": "pi",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship", "weight": 2 },
-      { "id": "openrouter/openai/gpt-4o-mini",          "name": "GPT-4o mini",   "tier": "mid",      "weight": 1 }
-    ],
-    "taskGeneration": {
-      "enabled": true,
-      "maxTasks": 20,
-      "seed": 1
-    },
-    "output": { "dir": "./benchmark-results" },
-    "verdict": {
-      "perModelFloor": 0.6,
-      "targetWeightedAverage": 0.7
-    }
-  },
-  "optimize": {
-    "model": "openrouter/anthropic/claude-sonnet-4-6",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "thinkingLevel": "medium",
-    "allowedPaths": ["SKILL.md"],
-    "requireCleanGit": true,
-    "maxIterations": 5,
-    "minImprovement": 0.02,
-    "reportContextMaxBytes": 16000
-  }
-}
-```
+See [docs/reference/errors.md](docs/reference/errors.md) for all error codes, descriptions, and fix instructions.
 
 ## Interpreting the verdict
 
