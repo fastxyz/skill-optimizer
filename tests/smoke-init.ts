@@ -1,7 +1,8 @@
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { detectProject } from '../src/init/detect-project.js';
 import type { WizardAnswers } from '../src/init/answers.js';
 import { buildDefaultAnswers, readAnswersFile } from '../src/init/answers.js';
 import { scaffoldInit } from '../src/init/scaffold.js';
@@ -176,6 +177,87 @@ assert.strictEqual(typeof _a.surface, 'string');
   const { MODEL_PRESETS } = await import('../src/init/wizard.js');
   assert.strictEqual(MODEL_PRESETS.length, 10, `Expected 10 presets, got ${MODEL_PRESETS.length}`);
   assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets should be openrouter/ IDs');
+}
+
+// detectProject: TypeScript SDK (package.json with main, no bin)
+{
+  const dir = mkdtempSync(join(tmpdir(), 'detect-ts-sdk-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'my-sdk',
+      main: './dist/index.js',
+    }), 'utf-8');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'index.ts'), '');
+    const result = detectProject(dir);
+    assert.strictEqual(result.surface, 'sdk');
+    assert.strictEqual(result.name, 'my-sdk');
+    assert.ok(result.entryFile.includes('index'), `entryFile should reference index, got: ${result.entryFile}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// detectProject: TypeScript CLI (package.json with bin)
+{
+  const dir = mkdtempSync(join(tmpdir(), 'detect-ts-cli-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'my-cli',
+      bin: { 'my-cli': './dist/cli.js' },
+    }), 'utf-8');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'cli.ts'), '');
+    const result = detectProject(dir);
+    assert.strictEqual(result.surface, 'cli');
+    assert.strictEqual(result.name, 'my-cli');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// detectProject: MCP server (package.json with @modelcontextprotocol/sdk dep)
+{
+  const dir = mkdtempSync(join(tmpdir(), 'detect-mcp-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name: 'my-mcp',
+      dependencies: { '@modelcontextprotocol/sdk': '^1.0.0' },
+    }), 'utf-8');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'server.ts'), '');
+    const result = detectProject(dir);
+    assert.strictEqual(result.surface, 'mcp');
+    assert.strictEqual(result.name, 'my-mcp');
+    assert.ok(result.entryFile.includes('server'), `entryFile should reference server.ts, got: ${result.entryFile}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// detectProject: unknown dir (no manifest) → defaults to sdk with low confidence
+{
+  const dir = mkdtempSync(join(tmpdir(), 'detect-empty-'));
+  try {
+    const result = detectProject(dir);
+    assert.strictEqual(result.surface, 'sdk');
+    assert.strictEqual(result.confidence, 'low');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// detectProject: SKILL.md found → skillFile set
+{
+  const dir = mkdtempSync(join(tmpdir(), 'detect-skill-'));
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'x' }), 'utf-8');
+    writeFileSync(join(dir, 'SKILL.md'), '# skill');
+    const result = detectProject(dir);
+    assert.strictEqual(result.skillFile, 'SKILL.md');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 console.log('smoke-init: all tests passed');
