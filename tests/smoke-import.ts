@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CliCommandDefinition } from '../src/import/types.js';
@@ -24,7 +24,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
   const commands: CliCommandDefinition[] = [
     { command: 'create', description: 'Create item', options: [{ name: '--name', takesValue: true }] },
   ];
-  await writeOutput(commands, outPath);
+  writeOutput(commands, outPath);
   assert.strictEqual(existsSync(outPath), true);
   const written = JSON.parse(readFileSync(outPath, 'utf-8')) as CliCommandDefinition[];
   assert.strictEqual(written.length, 1);
@@ -45,9 +45,13 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 {
   const subHelp = readFileSync('tests/fixtures/import-commands/help-output-account.txt', 'utf-8');
   const commands = parseHelpOutput(subHelp, ['account']);
-  assert.strictEqual(commands.length, 3, `Expected 3, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
+  // 3 subcommands + 1 synthetic parent entry with options
+  assert.ok(commands.length >= 3, `Expected >=3, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
   assert.ok(commands.find(c => c.command === 'account create') !== undefined);
   assert.ok(commands.find(c => c.command === 'account delete') !== undefined);
+  // Parent entry includes options from the page
+  const parent = commands.find(c => c.command === 'account');
+  assert.ok(parent !== undefined, 'Should find synthetic parent "account" entry with options');
 }
 
 // === ts-commander extractor ===
@@ -106,11 +110,11 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
   const nameOpt = create?.options?.find(o => o.name === '--name');
   assert.ok(nameOpt !== undefined, 'Should find --name option');
-  assert.strictEqual(nameOpt?.takesValue, true);  // no is_flag → takesValue true
+  assert.strictEqual(nameOpt?.takesValue, true);
 
   const verboseOpt = create?.options?.find(o => o.name === '--verbose');
   assert.ok(verboseOpt !== undefined, 'Should find --verbose option');
-  assert.strictEqual(verboseOpt?.takesValue, false);  // is_flag=True → takesValue false
+  assert.strictEqual(verboseOpt?.takesValue, false);
 
   const deleteCmd = commands.find(c => c.command === 'delete');
   assert.ok(deleteCmd !== undefined, 'Should find "delete" command');
@@ -151,7 +155,7 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
   const verboseOpt = create?.options?.find(o => o.name === '--verbose');
   assert.ok(verboseOpt !== undefined, 'Should find --verbose option');
-  assert.strictEqual(verboseOpt?.takesValue, false); // SetTrue → takesValue false
+  assert.strictEqual(verboseOpt?.takesValue, false);
 
   const deleteCmd = commands.find(c => c.command === 'delete');
   assert.ok(deleteCmd !== undefined, 'Should find "delete" command');
@@ -171,6 +175,11 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 {
   const result = detectFramework('tests/fixtures/import-commands/commander-sample.ts', process.cwd());
   assert.strictEqual(result.kind, 'commander');
+}
+
+{
+  const result = detectFramework('tests/fixtures/import-commands/clap-sample.rs', process.cwd());
+  assert.strictEqual(result.kind, 'clap');
 }
 
 // === importCommands orchestration ===

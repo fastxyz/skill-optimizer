@@ -21,8 +21,8 @@ export function parseHelpOutput(text: string, prefix: string[]): CliCommandDefin
   const OPTIONS_HEADER = /^(Options|Flags|Global Options):\s*$/i;
   // Match a subcommand line: leading whitespace, non-dash first char, name token, optional description
   const CMD_LINE = /^\s+(\S+)\s*(.*)/;
-  // Match an option line: leading whitespace, dash-starting flag
-  const OPT_LINE = /^\s+(-\S+(?:,\s*--\S+)?)\s+(.*)/;
+  // Match an option line: "-x[, --long-form]" or "--long-form"
+  const OPT_LINE = /^\s+(-[a-zA-Z](?:,\s*--\S+)?|--\S+)\s*(.*)/;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -76,14 +76,11 @@ export function parseHelpOutput(text: string, prefix: string[]): CliCommandDefin
     }
   }
 
-  // If we have options and prefix is non-empty, attach them to the command
-  // whose name matches prefix.join(' ')
+  // Options on a subcommand page belong to the parent command (prefix.join(' ')).
+  // Return a synthetic parent entry so scrapeHelp can merge options onto it.
   if (prefix.length > 0 && optionsBuf.length > 0) {
     const parentName = prefix.join(' ');
-    const parentCmd = commands.find((c) => c.command === parentName);
-    if (parentCmd) {
-      parentCmd.options = optionsBuf;
-    }
+    commands.push({ command: parentName, options: optionsBuf });
   }
 
   return commands;
@@ -125,13 +122,16 @@ export async function scrapeHelp(
     const discovered = parseHelpOutput(stdout, prefix);
 
     for (const cmd of discovered) {
-      if (!seen.has(cmd.command)) {
+      const existing = all.find((c) => c.command === cmd.command);
+      if (existing) {
+        // Merge options onto an already-discovered parent command
+        if (cmd.options && cmd.options.length > 0) {
+          existing.options = cmd.options;
+        }
+      } else {
         seen.add(cmd.command);
         all.push(cmd);
-
-        // Only recurse if we haven't reached max depth
         if (prefix.length < depth) {
-          // The next prefix is the parts of this command name
           queue.push(cmd.command.split(' '));
         }
       }

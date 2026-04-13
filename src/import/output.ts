@@ -16,6 +16,6 @@ export async function promptOverwrite(outPath: string): Promise<boolean> {
   });
 }
 
-export async function writeOutput(commands: CliCommandDefinition[], outPath: string): Promise<void> {
+export function writeOutput(commands: CliCommandDefinition[], outPath: string): void {
   writeFileSync(outPath, JSON.stringify(commands, null, 2) + '\n', 'utf-8');
 }

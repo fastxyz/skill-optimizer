@@ -80,7 +80,7 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
   }
 
   mkdirSync(dirname(absOut), { recursive: true });
-  await writeOutput(commands, absOut);
+  writeOutput(commands, absOut);
   console.log(`\n  Wrote ${commands.length} commands to ${out}`);
   console.log(`  Done. Review the file and run 'skill-optimizer doctor' to validate.\n`);
 }
