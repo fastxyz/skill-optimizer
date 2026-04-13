@@ -28,6 +28,17 @@ export async function resolvePiModel(
   modelName: string,
   options?: { apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
+  // Anthropic models route through the Anthropic API directly (not OpenRouter).
+  // If the configured apiKeyEnv is OPENROUTER_API_KEY, catch this early to avoid
+  // a confusing 401 from api.anthropic.com.
+  if (provider === 'anthropic' && options?.apiKeyEnv === 'OPENROUTER_API_KEY') {
+    throw new Error(
+      `Model "${provider}/${modelName}" requires a direct Anthropic API key, but apiKeyEnv is set to OPENROUTER_API_KEY. ` +
+      `Either set apiKeyEnv to ANTHROPIC_API_KEY, or choose an OpenRouter-accessible model ` +
+      `(e.g. openrouter/openai/gpt-4o, openrouter/google/gemini-2.0-flash-001).`,
+    );
+  }
+
   const authStorage = createPiAuthStorage({
     provider,
     apiKeyEnv: options?.apiKeyEnv,

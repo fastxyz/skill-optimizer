@@ -4,8 +4,6 @@ import type { WizardAnswers } from './answers.js';
 import { importCommands } from '../import/index.js';
 
 const KNOWN_MODELS: Record<string, { name: string; tier: 'flagship' | 'mid' | 'low' }> = {
-  'anthropic/claude-sonnet-4-6': { name: 'Claude Sonnet 4.6', tier: 'flagship' },
-  'anthropic/claude-haiku-4-5-20251001': { name: 'Claude Haiku 4.5', tier: 'mid' },
   'openrouter/openai/gpt-4o': { name: 'GPT-4o', tier: 'flagship' },
   'openrouter/openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid' },
   'openrouter/google/gemini-2.5-pro-preview': { name: 'Gemini 2.5 Pro', tier: 'flagship' },
@@ -42,8 +40,8 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   };
 
   const commonOptimize = {
-    model: models.includes('anthropic/claude-sonnet-4-6')
-      ? 'anthropic/claude-sonnet-4-6'
+    model: models.includes('openrouter/openai/gpt-4o')
+      ? 'openrouter/openai/gpt-4o'
       : models[0]!,
     apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: [join(relRepo, 'SKILL.md')],

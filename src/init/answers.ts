@@ -12,7 +12,7 @@ export interface WizardAnswers {
 }
 
 const DEFAULT_MODELS = [
-  'anthropic/claude-sonnet-4-6',
+  'openrouter/openai/gpt-4o',
   'openrouter/google/gemini-2.0-flash-001',
 ];
 

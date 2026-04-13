@@ -3,10 +3,12 @@ import { resolve } from 'node:path';
 import type { WizardAnswers } from './answers.js';
 import { scaffoldInit } from './scaffold.js';
 
+// All values use OpenRouter model IDs (provider/org/model).
+// Anthropic models are intentionally excluded: pi-ai routes them through the
+// Anthropic API directly, which requires ANTHROPIC_API_KEY — not OPENROUTER_API_KEY.
+// Users who have a direct Anthropic key can add anthropic/claude-* manually.
 export const MODEL_PRESETS = [
-  { value: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6  · Anthropic', hint: 'recommended' },
-  { value: 'anthropic/claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5   · Anthropic', hint: 'fast' },
-  { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o             · OpenAI' },
+  { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o             · OpenAI', hint: 'recommended' },
   { value: 'openrouter/openai/gpt-4o-mini', label: 'GPT-4o Mini        · OpenAI', hint: 'fast' },
   { value: 'openrouter/google/gemini-2.5-pro-preview', label: 'Gemini 2.5 Pro     · Google' },
   { value: 'openrouter/google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash   · Google', hint: 'fast' },
@@ -57,7 +59,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     message: 'Which models to benchmark? (space to toggle, enter to confirm)',
     options: MODEL_PRESETS,
     required: true,
-    initialValues: ['anthropic/claude-sonnet-4-6', 'openrouter/google/gemini-2.0-flash-001'],
+    initialValues: ['openrouter/openai/gpt-4o', 'openrouter/google/gemini-2.0-flash-001'],
   }) as string[]);
   const models: string[] = selectedPresets;
 
