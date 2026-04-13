@@ -69,8 +69,9 @@ npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json
 3. **Generate tasks** — one prompt per in-scope action, coverage-guaranteed.
 4. **Benchmark** — every configured model attempts every task; static evaluator checks action calls + args.
 5. **Verdict** — PASS/FAIL against two gates (per-model floor, weighted average).
-6. **Optimize** — mutate `SKILL.md` / docs inside `allowedPaths`, re-benchmark, accept only if both gates hold, rollback if not.
+6. **Optimize** — create a local versioned copy of your `SKILL.md` (`skill-v{N}.md` in `.skill-optimizer/`), mutate it, re-benchmark, accept only if both gates hold, rollback if not. The target repo's original skill file is never modified.
 7. **Recommendations** — on FAIL, one critic call summarizes what to improve manually.
+8. **Progress table** — after the optimizer finishes, a per-model table shows Baseline → each iteration → Final → Δ so you can see exactly where each model improved.
 
 ## Configuration reference
 
@@ -132,7 +133,7 @@ The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent` — a
 export OPENROUTER_API_KEY=sk-or-...
 ```
 
-**Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running.
+**Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 
 **`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx tsx src/cli.ts --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
 

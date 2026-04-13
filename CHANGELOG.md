@@ -25,6 +25,11 @@ First OSS-ready release.
 - `skill-optimizer --dry-run` — discovery + scope preview with zero LLM calls.
 - CI workflow (Node 20.x + 22.x matrix, typecheck + test + build).
 - New smoke tests: `smoke-scoring`, `smoke-scope`, `smoke-coverage`, `smoke-feedback`, `smoke-verdict`, `smoke-dry-run`, `smoke-errors`.
+- **Local skill versioning**: the optimizer never modifies the target repo's skill file directly. On start it copies the source SKILL.md to `.skill-optimizer/skill-v0.md`; each accepted iteration produces `skill-v{N}.md`. Both the benchmark reads and the mutation agent write to these local copies.
+- **Optimization progress table**: at the end of every optimizer run a per-model table is printed showing Baseline, each iteration score, Final, and Δ.
+- **SKILL.md path wizard step**: `init` now asks for the path to your skill guidance file and wires it into `target.skill.source` automatically.
+- **OpenRouter synthesis**: any `openrouter/` model ID not pre-registered in the pi-ai registry is synthesized at runtime — no manual model registration needed.
+- Model presets updated to 2026 standards: Claude Opus 4.6, Claude Sonnet 4.6, GPT-5.4, GPT-5.3-Codex, Gemini 2.0 Flash, and others — all with correct OpenRouter slugs (dots in version numbers).
 
 ### Changed
 
