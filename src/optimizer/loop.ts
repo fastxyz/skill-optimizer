@@ -355,8 +355,9 @@ function summarizeTopFailures(report: BenchmarkReport, limit = 3): string[] {
 }
 
 function validateChangedFiles(changedFiles: string[], manifest: ResolvedOptimizeManifest) {
+  const repoRoot = manifest.targetRepo.path;
   const disallowedFiles = changedFiles.filter(
-    (file) => !isFrameworkArtifactPath(file, manifest) && !isAllowedPath(file, manifest.targetRepo.allowedPaths),
+    (file) => !isFrameworkArtifactPath(file, manifest) && !isAllowedPath(file, manifest.targetRepo.allowedPaths, repoRoot),
   );
   if (disallowedFiles.length === 0) {
     return null;
@@ -397,8 +398,11 @@ function toRelativeTargetPath(path: string, manifest: ResolvedOptimizeManifest):
   return path;
 }
 
-function isAllowedPath(file: string, allowedPaths: string[]): boolean {
-  const normalizedFile = normalizeRelativePath(file);
+function isAllowedPath(file: string, allowedPaths: string[], repoRoot?: string): boolean {
+  // Resolve relative changed file against the repo root so it can be compared
+  // with absolute allowedPaths entries (and vice versa).
+  const absoluteFile = repoRoot && !file.startsWith('/') ? `${repoRoot}/${file}` : file;
+  const normalizedFile = normalizeRelativePath(absoluteFile);
   return allowedPaths.some((allowedPath) => {
     const normalizedAllowed = normalizeRelativePath(allowedPath);
     return normalizedFile === normalizedAllowed || normalizedFile.startsWith(`${normalizedAllowed}/`);
