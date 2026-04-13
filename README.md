@@ -12,20 +12,28 @@ cd skill-optimizer
 npm install
 export OPENROUTER_API_KEY=sk-or-...
 
-# Create starter files in this directory
-npx tsx src/cli.ts init
+# Scaffold config for your surface type (sdk | cli | mcp)
+npx tsx src/cli.ts init cli
 ```
 
-`init` writes three files: `skill-optimizer.json` (main config), `tasks.json` (example tasks), and `tools.json` (example MCP tool definitions).
+`init cli` creates a `skill-optimizer/` directory with:
+- `skill-optimizer.json` — the main config (task generation enabled by default)
+- `cli-commands.json` — command manifest template (used as fallback if code-first discovery finds nothing)
 
-Open `skill-optimizer.json` and make these edits:
+`init sdk` creates `skill-optimizer.json` only. `init mcp` creates `skill-optimizer.json` + `tools.json`.
+
+Open `skill-optimizer/skill-optimizer.json` and fill in these fields:
 
 | Field | What it does | Set it to |
 |-------|-------------|-----------|
-| `target.surface` | What kind of interface you're benchmarking | `"sdk"` for a library, `"cli"` for a command-line tool, `"mcp"` for an MCP server |
 | `target.repoPath` | Root of the project being benchmarked | Absolute or relative path to your repo |
-| `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["./src/index.ts"]` or `["./src/server.ts"]` |
+| `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["../src/index.ts"]` or `["../src/server.ts"]` |
 | `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
+| `benchmark.models` | Models to benchmark | Valid [OpenRouter](https://openrouter.ai/models) model IDs |
+
+For CLI and MCP surfaces: if code-first discovery yields nothing, edit the companion manifest (`cli-commands.json` or `tools.json`) with your real commands/tools — the config already points to it as a fallback.
+
+Tasks are generated automatically from your discovered surface — you don't need to write them manually.
 
 Then run the benchmark:
 

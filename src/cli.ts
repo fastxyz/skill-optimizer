@@ -94,7 +94,7 @@ function printUsage(): void {
 Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
-  skill-optimizer init                          Scaffold config and example tasks
+  skill-optimizer init <sdk|cli|mcp>            Scaffold config for the given surface type
   skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
   skill-optimizer benchmark [options]           Run the benchmark
   skill-optimizer run [options]                 Run the benchmark
@@ -125,7 +125,9 @@ Compare options:
   --current <path>                              Path to current report.json
 
 Examples:
-  skill-optimizer init
+  skill-optimizer init cli
+  skill-optimizer init sdk
+  skill-optimizer init mcp
   skill-optimizer --dry-run --config ./skill-optimizer.json
   skill-optimizer benchmark --config ./skill-optimizer.json
   skill-optimizer run
@@ -192,7 +194,16 @@ async function main(): Promise<void> {
 
   // ── Init mode ────────────────────────────────────────────────────────────────
   if (command === 'init') {
-    initBenchmark();
+    const surface = pos[1];
+    if (!surface || !['sdk', 'cli', 'mcp'].includes(surface)) {
+      console.error('Usage: skill-optimizer init <surface>');
+      console.error('');
+      console.error('  sdk  — TypeScript / Python / Rust library');
+      console.error('  cli  — command-line tool with subcommands');
+      console.error('  mcp  — MCP server with tools');
+      process.exit(1);
+    }
+    initBenchmark(process.cwd(), surface as 'sdk' | 'cli' | 'mcp');
     process.exit(0);
   }
 
