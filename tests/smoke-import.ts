@@ -9,6 +9,7 @@ import { extractCommander } from '../src/import/extractors/ts-commander.js';
 import { extractYargs } from '../src/import/extractors/ts-yargs.js';
 import { extractClick } from '../src/import/extractors/py-click.js';
 import { extractArgparse } from '../src/import/extractors/py-argparse.js';
+import { extractClap } from '../src/import/extractors/rs-clap.js';
 
 // === Types check ===
 const _typeCheck: CliCommandDefinition = { command: 'create', description: 'Create item' };
@@ -130,6 +131,28 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
   const listCmd = commands.find(c => c.command === 'list');
   assert.ok(listCmd !== undefined, 'Should find "list" command');
   assert.strictEqual(listCmd?.description, 'List all items');
+}
+
+// === rs-clap extractor ===
+{
+  const fixturePath = join('tests/fixtures/import-commands/clap-sample.rs');
+  const commands = await extractClap(fixturePath);
+  assert.ok(commands.length >= 2, `Expected >=2 commands, got ${commands.length}`);
+
+  const create = commands.find(c => c.command === 'create');
+  assert.ok(create !== undefined, 'Should find "create" command');
+  assert.strictEqual(create?.description, 'Create a new item');
+
+  const nameOpt = create?.options?.find(o => o.name === '--name');
+  assert.ok(nameOpt !== undefined, 'Should find --name option');
+  assert.strictEqual(nameOpt?.takesValue, true);
+
+  const verboseOpt = create?.options?.find(o => o.name === '--verbose');
+  assert.ok(verboseOpt !== undefined, 'Should find --verbose option');
+  assert.strictEqual(verboseOpt?.takesValue, false); // SetTrue → takesValue false
+
+  const deleteCmd = commands.find(c => c.command === 'delete');
+  assert.ok(deleteCmd !== undefined, 'Should find "delete" command');
 }
 
 console.log('smoke-import: all tests passed');
