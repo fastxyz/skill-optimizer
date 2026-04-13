@@ -911,7 +911,8 @@ await test('doctor --fix: corrects model ID in-place', async () => {
     await runDoctor(configPath, { staticOnly: true, fix: true });
 
     const fixed = JSON.parse(readFileSync(configPath, 'utf-8')) as { benchmark: { models: Array<{ id: string }> } };
-    assertEqual(fixed.benchmark.models[0]!.id, 'openrouter/z-ai/glm-5.1', '--fix should write corrected model ID');
+    // Fixed-point loop applies both prefix and dot-normalisation fixes in sequence
+    assertEqual(fixed.benchmark.models[0]!.id, 'openrouter/z-ai/glm-5-1', '--fix should write corrected model ID');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
