@@ -154,4 +154,28 @@ assert.strictEqual(typeof _a.surface, 'string');
   }
 }
 
+// --yes equivalent test (buildDefaultAnswers + scaffoldInit)
+{
+  const dir = mkdtempSync(join(tmpdir(), 'scaffold-yes-'));
+  try {
+    const answers = buildDefaultAnswers('sdk', dir);
+    await scaffoldInit(answers, dir);
+    const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
+    assert.ok(existsSync(configPath), '--yes sdk should create skill-optimizer.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as { target: { surface: string }; optimize: { maxIterations: number }; benchmark: { taskGeneration: { maxTasks: number } } };
+    assert.strictEqual(config.target.surface, 'sdk');
+    assert.strictEqual(config.optimize.maxIterations, 5);
+    assert.strictEqual(config.benchmark.taskGeneration.maxTasks, 20);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// MODEL_PRESETS should have 10 entries
+{
+  const { MODEL_PRESETS } = await import('../src/init/wizard.js');
+  assert.strictEqual(MODEL_PRESETS.length, 10, `Expected 10 presets, got ${MODEL_PRESETS.length}`);
+  assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets should be openrouter/ IDs');
+}
+
 console.log('smoke-init: all tests passed');

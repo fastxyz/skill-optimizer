@@ -13,7 +13,6 @@ import { runBenchmark } from './benchmark/runner.js';
 import { loadReport, compareReports, printComparison } from './benchmark/compare.js';
 import { printSummary, generateMarkdown } from './benchmark/reporter.js';
 import { printCoverage } from './benchmark/coverage.js';
-import { initBenchmark } from './benchmark/init.js';
 import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
 import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
 import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic, discoverActionsOnly, resolveScope } from './tasks/index.js';
@@ -21,6 +20,9 @@ import type { Recommendation } from './verdict/recommendations.js';
 import { generateRecommendations } from './verdict/recommendations.js';
 import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js';
 import { importCommands } from './import/index.js';
+import { scaffoldInit } from './init/scaffold.js';
+import { buildDefaultAnswers, readAnswersFile } from './init/answers.js';
+import { runWizard } from './init/wizard.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -49,9 +51,11 @@ const BOOLEAN_FLAGS = new Set([
   '--no-cache',
   '--skip-generation',
   '--scrape',
+  '--yes',
 ]);
 
 const VALUE_FLAGS = new Set([
+  '--answers',
   '--baseline',
   '--config',
   '--current',
@@ -99,7 +103,9 @@ function printUsage(): void {
 Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
-  skill-optimizer init <sdk|cli|mcp>            Scaffold config for the given surface type
+  skill-optimizer init [sdk|cli|mcp]            Interactive wizard — scaffold config for the given surface
+  skill-optimizer init [surface] --yes          Accept all defaults non-interactively
+  skill-optimizer init --answers <file.json>    Load wizard answers from a JSON file (CI mode)
   skill-optimizer import-commands [options]     Extract CLI commands from source or binary
   skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
   skill-optimizer benchmark [options]           Run the benchmark
@@ -208,16 +214,23 @@ async function main(): Promise<void> {
 
   // ── Init mode ────────────────────────────────────────────────────────────────
   if (command === 'init') {
-    const surface = pos[1];
-    if (!surface || !['sdk', 'cli', 'mcp'].includes(surface)) {
-      console.error('Usage: skill-optimizer init <surface>');
-      console.error('');
-      console.error('  sdk  — TypeScript / Python / Rust library');
-      console.error('  cli  — command-line tool with subcommands');
-      console.error('  mcp  — MCP server with tools');
+    const surfaceArg = pos[1] as 'sdk' | 'cli' | 'mcp' | undefined;
+    if (surfaceArg && !['sdk', 'cli', 'mcp'].includes(surfaceArg)) {
+      console.error(`ERROR: Unknown surface '${surfaceArg}'. Must be: sdk | cli | mcp`);
       process.exit(1);
     }
-    initBenchmark(process.cwd(), surface as 'sdk' | 'cli' | 'mcp');
+    const answersFlag = getFlag(args, '--answers');
+    const useDefaults = hasFlag(args, '--yes');
+
+    if (answersFlag) {
+      const answers = readAnswersFile(resolve(process.cwd(), answersFlag));
+      await scaffoldInit(answers, process.cwd());
+    } else if (useDefaults) {
+      const answers = buildDefaultAnswers(surfaceArg ?? 'sdk', process.cwd());
+      await scaffoldInit(answers, process.cwd());
+    } else {
+      await runWizard(process.cwd(), surfaceArg);
+    }
     process.exit(0);
   }
 

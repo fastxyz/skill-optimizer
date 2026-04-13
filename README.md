@@ -12,17 +12,38 @@ cd skill-optimizer
 npm install
 export OPENROUTER_API_KEY=sk-or-...
 
-# Scaffold config for your surface type (sdk | cli | mcp)
-npx tsx src/cli.ts init cli
+# Interactive wizard — asks surface, repo path, models, task limits, entry file
+npx tsx src/cli.ts init
+
+# Or pre-fill the surface to skip the first question
+npx tsx src/cli.ts init cli       # or: init sdk, init mcp
+
+# Non-interactive: accept all defaults
+npx tsx src/cli.ts init cli --yes
+
+# CI mode: load answers from a JSON file
+npx tsx src/cli.ts init --answers answers.json
 ```
 
-`init cli` creates a `skill-optimizer/` directory with:
-- `skill-optimizer.json` — the main config (task generation enabled by default)
-- `cli-commands.json` — command manifest template (used as fallback if code-first discovery finds nothing)
+`init` creates a `skill-optimizer/` directory with:
+- `skill-optimizer.json` — the main config (commit this)
+- `skill-optimizer/.skill-optimizer/` — generated artifacts (gitignored)
+  - `cli-commands.json` — CLI surface: auto-extracted via `import-commands`, or template
+  - `tools.json` — MCP surface: template to edit with your real tools
 
-`init sdk` creates `skill-optimizer.json` only. `init mcp` creates `skill-optimizer.json` + `tools.json`.
+**`answers.json` format for CI/`--answers` mode:**
+```json
+{
+  "surface": "cli",
+  "repoPath": "/absolute/path/to/your-repo",
+  "models": ["openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4o"],
+  "maxTasks": 20,
+  "maxIterations": 5,
+  "entryFile": "src/cli.ts"
+}
+```
 
-Open `skill-optimizer/skill-optimizer.json` and fill in these fields:
+Open `skill-optimizer/skill-optimizer.json` and review these fields:
 
 | Field | What it does | Set it to |
 |-------|-------------|-----------|
