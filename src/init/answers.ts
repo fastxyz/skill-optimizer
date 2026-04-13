@@ -1,19 +1,13 @@
 import { readFileSync } from 'node:fs';
 
 export interface WizardAnswers {
-  /** What kind of surface is being benchmarked */
   surface: 'sdk' | 'cli' | 'mcp';
-  /** Absolute path to the target repo */
   repoPath: string;
-  /** OpenRouter model IDs selected for benchmarking */
   models: string[];
-  /** Max tasks to generate */
   maxTasks: number;
-  /** Max optimize iterations */
   maxIterations: number;
   /** For cli/mcp: path to entry file or binary (relative to repoPath or absolute) */
   entryFile?: string;
-  /** Optional project name (defaults to basename of repoPath) */
   name?: string;
 }
 

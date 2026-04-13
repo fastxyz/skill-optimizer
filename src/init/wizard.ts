@@ -59,7 +59,7 @@ export async function runWizard(cwd: string, preseedSurface?: 'sdk' | 'cli' | 'm
     required: true,
     initialValues: ['openrouter/anthropic/claude-sonnet-4-6', 'openrouter/google/gemini-2.0-flash-001'],
   }) as string[]);
-  const models: string[] = [...selectedPresets];
+  const models: string[] = selectedPresets;
 
   // Optional custom model
   const customModel = cancelGuard(await p.text({
@@ -99,21 +99,14 @@ export async function runWizard(cwd: string, preseedSurface?: 'sdk' | 'cli' | 'm
   }) as string);
   const maxIterations = parseInt(maxIterationsRaw || '5', 10);
 
-  // 6. Entry file (cli / mcp)
+  // 6. Entry file (cli / mcp only)
   let entryFile: string | undefined;
-  if (surface === 'cli') {
-    const raw = cancelGuard(await p.text({
-      message: 'Path to CLI entry file or binary (relative to repo, leave blank to skip):',
-      placeholder: 'src/cli.ts',
-      validate: () => undefined,
-    }) as string);
-    entryFile = raw.trim() || undefined;
-  } else if (surface === 'mcp') {
-    const raw = cancelGuard(await p.text({
-      message: 'Path to MCP server entry file (relative to repo, leave blank to skip):',
-      placeholder: 'src/server.ts',
-      validate: () => undefined,
-    }) as string);
+  if (surface === 'cli' || surface === 'mcp') {
+    const message = surface === 'cli'
+      ? 'Path to CLI entry file or binary (relative to repo, leave blank to skip):'
+      : 'Path to MCP server entry file (relative to repo, leave blank to skip):';
+    const placeholder = surface === 'cli' ? 'src/cli.ts' : 'src/server.ts';
+    const raw = cancelGuard(await p.text({ message, placeholder }) as string);
     entryFile = raw.trim() || undefined;
   }
 

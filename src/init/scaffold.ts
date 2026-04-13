@@ -6,24 +6,21 @@ import { importCommands } from '../import/index.js';
 export function buildConfigFromAnswers(answers: WizardAnswers): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
   const projectName = name ?? basename(repoPath);
-  const benchmarkModels = models.map(id => ({ id }));
 
   const commonBenchmark = {
     apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
     taskGeneration: { enabled: true, maxTasks, outputDir: './.skill-optimizer' },
-    models: benchmarkModels,
+    models: models.map(id => ({ id })),
     output: { dir: '../benchmark-results' },
     verdict: { perModelFloor: 0.6, targetWeightedAverage: 0.7 },
   };
 
-  const optimizeModel = models.includes('openrouter/anthropic/claude-sonnet-4-6')
-    ? 'openrouter/anthropic/claude-sonnet-4-6'
-    : models[0]!;
-
   const commonOptimize = {
-    model: optimizeModel,
+    model: models.includes('openrouter/anthropic/claude-sonnet-4-6')
+      ? 'openrouter/anthropic/claude-sonnet-4-6'
+      : models[0]!,
     apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: ['../SKILL.md'],
     validation: [],
@@ -45,16 +42,16 @@ export function buildConfigFromAnswers(answers: WizardAnswers): object {
   }
 
   if (surface === 'cli') {
-    const entrySource = answers.entryFile
-      ? resolve(repoPath, answers.entryFile)
-      : resolve(repoPath, 'src/cli.ts');
     return {
       name: projectName,
       target: {
         surface: 'cli',
         repoPath,
         skill: resolve(repoPath, 'SKILL.md'),
-        discovery: { mode: 'auto', sources: [entrySource] },
+        discovery: {
+          mode: 'auto',
+          sources: [answers.entryFile ? resolve(repoPath, answers.entryFile) : resolve(repoPath, 'src/cli.ts')],
+        },
         cli: { commands: './.skill-optimizer/cli-commands.json' },
       },
       benchmark: commonBenchmark,
@@ -63,16 +60,16 @@ export function buildConfigFromAnswers(answers: WizardAnswers): object {
   }
 
   // mcp
-  const entrySource = answers.entryFile
-    ? resolve(repoPath, answers.entryFile)
-    : resolve(repoPath, 'src/server.ts');
   return {
     name: projectName,
     target: {
       surface: 'mcp',
       repoPath,
       skill: resolve(repoPath, 'SKILL.md'),
-      discovery: { mode: 'auto', sources: [entrySource] },
+      discovery: {
+        mode: 'auto',
+        sources: [answers.entryFile ? resolve(repoPath, answers.entryFile) : resolve(repoPath, 'src/server.ts')],
+      },
       mcp: { tools: './.skill-optimizer/tools.json' },
     },
     benchmark: commonBenchmark,
@@ -90,8 +87,7 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
   } else {
-    const config = buildConfigFromAnswers(answers);
-    writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers), null, 2) + '\n', 'utf-8');
     console.log(`[init] Created ${configPath}`);
   }
 
@@ -121,7 +117,9 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
 
   if (answers.surface === 'mcp') {
     const toolsPath = resolve(generatedDir, 'tools.json');
-    if (!existsSync(toolsPath)) {
+    if (existsSync(toolsPath)) {
+      console.log(`[init] Skipping ${toolsPath} (already exists)`);
+    } else {
       writeMcpTemplate(toolsPath);
     }
   }
