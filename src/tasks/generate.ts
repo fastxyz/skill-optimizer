@@ -86,26 +86,33 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
   return tasks.map((task, index) => validateTask(task, index));
 }
 
+function resolveStringField(obj: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    if (typeof obj[key] === 'string' && (obj[key] as string).trim() !== '') {
+      return (obj[key] as string).trim();
+    }
+  }
+  return null;
+}
+
 function validateTask(task: unknown, index: number): GeneratedTask {
   if (!task || typeof task !== 'object') {
     throw new Error(`Task at index ${index} must be an object`);
   }
 
-  const candidate = task as {
-    id?: unknown;
-    prompt?: unknown;
-    expected_actions?: unknown;
-    expected_tools?: unknown;
-  };
+  const candidate = task as Record<string, unknown>;
 
-  if (typeof candidate.id !== 'string' || candidate.id.trim() === '') {
-    throw new Error(`Task at index ${index} must include a non-empty string id`);
+  const taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
+  if (!taskId) {
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task at index ${index} must include a non-empty string id (received keys: ${received})`);
   }
-  if (typeof candidate.prompt !== 'string' || candidate.prompt.trim() === '') {
-    throw new Error(`Task ${candidate.id} must include a non-empty string prompt`);
+
+  const taskPrompt = resolveStringField(candidate, 'prompt', 'description', 'instruction', 'task');
+  if (!taskPrompt) {
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
-  const taskId = candidate.id;
-  const taskPrompt = candidate.prompt;
   if (!isSafeTaskId(taskId)) {
     throw new Error(`Task ${taskId} must match ${SAFE_TASK_ID.toString()} and cannot be . or ..`);
   }
