@@ -1,16 +1,15 @@
-import { extractFromToolCalls } from '../src/extractors/mcp-extractor.js';
-import { extract } from '../src/extractors/index.js';
-import { evaluateTask, matchTools } from '../src/evaluator.js';
+import { extractFromToolCalls } from '../src/benchmark/extractors/mcp-extractor.js';
+import { extract } from '../src/benchmark/extractors/index.js';
+import { evaluateTask, matchTools } from '../src/benchmark/evaluator.js';
 import type {
   ExtractedCall,
   LLMResponse,
   BenchmarkConfig,
-  McpModeConfig,
   TaskDefinition,
   ExpectedTool,
   ModelConfig,
   ToolMatch,
-} from '../src/types.js';
+} from '../src/benchmark/types.js';
 
 // ── Test harness ──────────────────────────────────────────────────────────
 
@@ -43,7 +42,7 @@ function assertEqual<T>(actual: T, expected: T, message: string) {
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
-console.log('\n=== MCP Mode Smoke Tests ===\n');
+console.log('\n=== MCP Surface Smoke Tests ===\n');
 
 // ── Group 1: extractFromToolCalls ─────────────────────────────────────────
 
@@ -140,7 +139,7 @@ await test('matchTools: dynamic sentinel passes', () => {
   );
 });
 
-// ── Group 3: evaluateTask (MCP mode) ─────────────────────────────────────
+// ── Group 3: evaluateTask (MCP surface) ──────────────────────────────────
 
 const mockModel: ModelConfig = {
   id: 'test/model',
@@ -168,6 +167,7 @@ await test('evaluateTask: MCP perfect match', () => {
   const result = evaluateTask({
     task,
     model: mockModel,
+    surface: 'mcp',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -198,6 +198,7 @@ await test('evaluateTask: MCP hallucinated tool', () => {
   const result = evaluateTask({
     task,
     model: mockModel,
+    surface: 'mcp',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -213,12 +214,12 @@ await test('evaluateTask: MCP hallucinated tool', () => {
   assert(result.metrics.hallucinationRate > 0, 'hallucinationRate should be > 0');
 });
 
-// ── Group 4: extract factory (MCP mode) ───────────────────────────────────
+// ── Group 4: extract factory (MCP surface) ────────────────────────────────
 
-await test('extract factory: MCP mode returns null generatedCode', async () => {
+await test('extract factory: MCP surface returns null generatedCode', async () => {
   const config: BenchmarkConfig = {
     name: 'test-mcp-benchmark',
-    mode: 'mcp',
+    surface: 'mcp',
     mcp: { tools: 'tools.json' },
     tasks: 'tasks.json',
     llm: {
@@ -239,7 +240,7 @@ await test('extract factory: MCP mode returns null generatedCode', async () => {
 
   const { calls, generatedCode } = await extract(response, config);
 
-  assertEqual(generatedCode, null, 'generatedCode should be null in MCP mode');
+  assertEqual(generatedCode, null, 'generatedCode should be null in MCP surface');
   assertEqual(calls.length, 2, 'calls should have 2 items matching the toolCalls');
 });
 

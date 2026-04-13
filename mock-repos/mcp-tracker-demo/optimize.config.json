@@ -1,0 +1,30 @@
+{
+  "benchmarkConfig": "./benchmark.config.json",
+  "targetRepo": {
+    "path": ".",
+    "surface": "mcp",
+    "allowedPaths": [
+      "SKILL.md"
+    ],
+    "validation": [],
+    "requireCleanGit": true
+  },
+  "optimizer": {
+    "maxIterations": 5,
+    "stabilityWindow": 2,
+    "minOverallPassDelta": 0.01,
+    "taskGeneration": {
+      "enabled": true,
+      "maxGenerated": 8,
+      "seed": 1,
+      "outputDir": "./.skill-optimizer"
+    }
+  },
+  "mutation": {
+    "provider": "openrouter",
+    "model": "openai/gpt-5.4",
+    "thinkingLevel": "medium",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "reportContextMaxBytes": 16000
+  }
+}

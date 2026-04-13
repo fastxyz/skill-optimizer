@@ -1,382 +1,204 @@
-# @fastxyz/skill-benchmark
+# skill-optimizer
 
-Generic framework for testing whether LLMs can correctly discover and use SDK methods or MCP tools from documentation alone. No code is executed — this is pure static analysis of what the LLM produces.
+Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can use your tool reliably.
 
-## How It Works
+skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
-1. Load a config that describes your SDK classes/methods (or MCP tool definitions)
-2. For each task, send the skill documentation + task prompt to one or more LLMs
-3. **SDK mode**: LLM writes TypeScript code. Tree-sitter parses it to extract `ClassName.method(args)` calls
-4. **MCP mode**: LLM makes structured `tool_calls`. The framework extracts tool names + arguments directly
-5. Compare extracted calls against expected tools/args from the task definition
-6. Compute metrics: tool recall, precision, argument accuracy, hallucination rate, SDK coverage
-
-## Modes
-
-| Mode | Config field | LLM output | Extraction |
-|------|-------------|------------|------------|
-| **SDK** | `mode: "code"` | TypeScript code block | Tree-sitter AST: `ClassName.method` calls, variable tracking |
-| **MCP** | `mode: "mcp"` | Structured `tool_calls` | Direct extraction from tool call names + arguments |
-
-**Use SDK mode** when you have a TypeScript/JavaScript SDK with classes and methods, and a SKILL.md that documents them. The benchmark tests whether an LLM can write correct code using your SDK.
-
-**Use MCP mode** when you have MCP tools (or any function-calling interface). The benchmark tests whether an LLM picks the right tools with the right arguments.
-
-## Quick Start
-
-### Install the framework
+## Quickstart
 
 ```bash
-npm install @fastxyz/skill-benchmark
-```
-
-### Scaffold a new benchmark
-
-```bash
-npx skill-benchmark init
-```
-
-This creates three files:
-- `benchmark.config.json` — SDK mode config with example classes/methods
-- `tasks.json` — example task definitions
-- `tools.json` — example MCP tool definitions
-
-### Run
-
-```bash
-# Set your LLM provider API key
+git clone https://github.com/bucurdavid/skill-optimizer
+cd skill-optimizer
+npm install
 export OPENROUTER_API_KEY=sk-or-...
 
-# Run all tasks against all models
-npx skill-benchmark run
-
-# Run a single task with a single model
-npx skill-benchmark run --task send-data --model gpt-4o
+# Create starter files in this directory
+npx tsx src/cli.ts init
 ```
 
-## Configuration
+`init` writes three files: `skill-optimizer.json` (main config), `tasks.json` (example tasks), and `tools.json` (example MCP tool definitions).
 
-### SDK Mode
+Open `skill-optimizer.json` and make these edits:
 
-Create `benchmark.config.json`:
+| Field | What it does | Set it to |
+|-------|-------------|-----------|
+| `target.surface` | What kind of interface you're benchmarking | `"sdk"` for a library, `"cli"` for a command-line tool, `"mcp"` for an MCP server |
+| `target.repoPath` | Root of the project being benchmarked | Absolute or relative path to your repo |
+| `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["./src/index.ts"]` or `["./src/server.ts"]` |
+| `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
 
-```json
-{
-  "name": "my-sdk",
-  "mode": "code",
-  "code": {
-    "language": "typescript",
-    "classes": ["MyClient", "MyWallet"],
-    "methods": [
-      "MyClient.constructor",
-      "MyClient.getBalance",
-      "MyWallet.fromKeyfile",
-      "MyWallet.send"
-    ]
-  },
-  "skill": {
-    "source": "github:myorg/my-sdk/SKILL.md",
-    "cache": true
-  },
-  "tasks": "./tasks.json",
-  "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
-    "timeout": 240000,
-    "models": [
-      { "id": "openai/gpt-4.1", "name": "GPT-4.1", "tier": "flagship" },
-      { "id": "anthropic/claude-sonnet-4", "name": "Claude Sonnet 4", "tier": "flagship" },
-      { "id": "openai/gpt-4.1-mini", "name": "GPT-4.1 Mini", "tier": "mid" }
-    ]
-  },
-  "output": {
-    "dir": "./benchmark-results"
-  }
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Benchmark name (used in reports) |
-| `mode` | Yes | `"code"` for SDK mode |
-| `code.language` | Yes | Language the LLM should write (e.g. `"typescript"`) |
-| `code.classes` | Yes | SDK class names for tree-sitter tracking (e.g. `["MyClient"]`) |
-| `code.methods` | Yes | All known SDK methods as `ClassName.method` (used for hallucination detection) |
-| `skill.source` | No | Path to skill documentation (see [Skill Sources](#skill-sources)) |
-| `skill.cache` | No | Cache fetched docs locally (default: `true`) |
-| `tasks` | Yes | Path to tasks JSON file |
-| `llm.baseUrl` | Yes | LLM API base URL |
-| `llm.apiKeyEnv` | No | Environment variable name containing the API key |
-| `llm.format` | Yes | `"openai"` or `"anthropic"` (API format) |
-| `llm.models` | Yes | Array of models to test |
-| `output.dir` | No | Output directory (default: `"./benchmark-results"`) |
-
-### MCP Mode
-
-Create `benchmark.mcp.config.json`:
-
-```json
-{
-  "name": "my-mcp-tools",
-  "mode": "mcp",
-  "mcp": {
-    "tools": "./tools.json"
-  },
-  "tasks": "./tasks-mcp.json",
-  "llm": {
-    "baseUrl": "https://openrouter.ai/api/v1",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "format": "openai",
-    "timeout": 240000,
-    "models": [
-      { "id": "openai/gpt-4.1", "name": "GPT-4.1", "tier": "flagship" },
-      { "id": "anthropic/claude-sonnet-4", "name": "Claude Sonnet 4", "tier": "flagship" }
-    ]
-  },
-  "output": {
-    "dir": "./benchmark-results/mcp"
-  }
-}
-```
-
-Key differences from SDK mode:
-- `mode` is `"mcp"` instead of `"code"`
-- `mcp.tools` points to a tools JSON file (OpenAI function calling format)
-- No `code` section needed
-- `skill` is optional — MCP mode relies on tool definitions to guide the LLM. If provided, it's included as supplementary context in the system prompt.
-
-## Tasks
-
-Tasks are defined in a JSON file. Each task has a prompt and a list of expected tool calls.
-
-### SDK Tasks
-
-```json
-{
-  "tasks": [
-    {
-      "id": "create-client",
-      "prompt": "Create a new MyClient connected to the test environment.",
-      "expected_tools": [
-        { "method": "MyClient.constructor", "args": { "environment": "test" } }
-      ]
-    },
-    {
-      "id": "send-tokens",
-      "prompt": "Send 5 tokens to address addr1...",
-      "expected_tools": [
-        { "method": "MyClient.constructor" },
-        { "method": "MyWallet.fromKeyfile" },
-        { "method": "MyWallet.send", "args": { "amount": "5", "to": "addr1..." } }
-      ]
-    }
-  ]
-}
-```
-
-### MCP Tasks
-
-```json
-{
-  "tasks": [
-    {
-      "id": "send-tokens",
-      "prompt": "Send 5 tokens to addr1...",
-      "expected_tools": [
-        { "method": "send_tokens", "args": { "to": "addr1...", "amount": "5" } }
-      ]
-    }
-  ]
-}
-```
-
-### Task Fields
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | Yes | Unique task identifier (used in CLI filtering and reports) |
-| `prompt` | Yes | The natural language instruction sent to the LLM |
-| `expected_tools` | Yes | Array of expected tool/method calls |
-| `expected_tools[].method` | Yes | SDK: `ClassName.method`. MCP: tool name (e.g. `send_tokens`) |
-| `expected_tools[].args` | No | Expected argument key-value pairs |
-
-### Argument Matching
-
-Expected args support several matching modes:
-
-| Pattern | Example | Matches |
-|---------|---------|---------|
-| Exact string | `"amount": "5"` | Value must equal `"5"` (type-coerced) |
-| Regex | `"address": "/^fast1/"` | Value must match the regex |
-| Sentinel (expected) | `"key": "<dynamic>"` | Any value accepted (wildcard) |
-| Sentinel (extracted) | N/A | If the extractor returns `<dynamic>` or `<template>`, it's treated as a match |
-
-Numeric and boolean values are type-coerced: `"5"` matches `5`, `"true"` matches `true`.
-
-## MCP Tool Definitions
-
-For MCP mode, provide a `tools.json` file in OpenAI function calling format:
-
-```json
-[
-  {
-    "type": "function",
-    "function": {
-      "name": "send_tokens",
-      "description": "Send tokens to a recipient address",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "to": { "type": "string", "description": "Recipient address" },
-          "amount": { "type": "string", "description": "Amount to send" },
-          "token": { "type": "string", "description": "Token symbol" }
-        },
-        "required": ["to", "amount"]
-      }
-    }
-  }
-]
-```
-
-These tool definitions are sent to the LLM as available functions. The LLM responds with `tool_calls` which are extracted and evaluated against your task expectations.
-
-## CLI Reference
-
-```
-skill-benchmark init                          Scaffold config and example tasks
-skill-benchmark run [options]                 Run the benchmark
-skill-benchmark compare [options]             Compare two benchmark reports
-```
-
-### Run Options
-
-| Flag | Description |
-|------|-------------|
-| `--config <path>` | Config file path (default: `benchmark.config.json`) |
-| `--tier <flagship\|mid\|low>` | Filter models by tier |
-| `--task <task-id>` | Run a single task |
-| `--model <model-slug>` | Run a single model (slug is the lowercased, hyphenated model name) |
-| `--no-cache` | Force fresh skill documentation fetch |
-
-### Compare Options
-
-| Flag | Description |
-|------|-------------|
-| `--baseline <path>` | Path to baseline `report.json` |
-| `--current <path>` | Path to current `report.json` |
-
-### Examples
+Then run the benchmark:
 
 ```bash
-# Full run (all tasks x all models)
-npx skill-benchmark run
-
-# Use a specific config
-npx skill-benchmark run --config benchmark.mcp.config.json
-
-# Only flagship models
-npx skill-benchmark run --tier flagship
-
-# Single task, single model (fast smoke test)
-npx skill-benchmark run --task send-tokens --model gpt-4-1
-
-# Compare two runs for regressions
-npx skill-benchmark compare --baseline results/old/report.json --current results/report.json
+npx tsx src/cli.ts run --config ./skill-optimizer.json
 ```
 
-## Metrics
+## How it works
 
-| Metric | Description |
-|--------|-------------|
-| **Tool Recall** | Fraction of expected methods the LLM actually called |
-| **Tool Precision** | Fraction of the LLM's calls that were expected |
-| **Tool Selection Accuracy** | Fraction of expected methods where the correct method name was found (ignoring args) |
-| **Argument Accuracy** | Fraction of expected args that matched correctly |
-| **Task Pass Rate** | A task passes only if ALL expected methods are called with ALL correct args (all-or-nothing) |
-| **Hallucination Rate** | Fraction of the LLM's calls that are not in the known method list |
-| **Method Coverage** | Fraction of all known methods that appear in at least one task definition |
+1. **Discover** callable surface (SDK methods / CLI commands / MCP tools) via tree-sitter or a manifest.
+2. **Scope** the surface with `target.scope.include` / `target.scope.exclude` globs.
+3. **Generate tasks** — one prompt per in-scope action, coverage-guaranteed.
+4. **Benchmark** — every configured model attempts every task; static evaluator checks action calls + args.
+5. **Verdict** — PASS/FAIL against two gates (per-model floor, weighted average).
+6. **Optimize** — mutate `SKILL.md` / docs inside `allowedPaths`, re-benchmark, accept only if both gates hold, rollback if not.
+7. **Recommendations** — on FAIL, one critic call summarizes what to improve manually.
 
-## LLM Providers
+## Configuration reference
 
-The framework supports any OpenAI-compatible or Anthropic-compatible API via `baseUrl` + `format`.
+All configuration lives in a single `skill-optimizer.json` file.
 
-### OpenRouter (recommended for multi-model benchmarks)
+### `target` fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `surface` | `"sdk" \| "cli" \| "mcp"` | required | Type of callable surface |
+| `repoPath` | `string` | `.` | Path to the target repo |
+| `skill` | `string \| { source: string; cache?: boolean }` | — | Path to SKILL.md |
+| `discovery.mode` | `"auto" \| "manifest"` | `"auto"` | How to discover actions |
+| `discovery.sources` | `string[]` | — | Source files for tree-sitter discovery |
+| `discovery.language` | `"typescript" \| "python" \| "rust"` | — | Language for code-first discovery |
+| `discovery.fallbackManifest` | `string` | — | Path to manifest JSON when code-first discovery is incomplete |
+| `sdk.language` | `"typescript" \| "python" \| "rust"` | — | SDK language |
+| `sdk.entrypoints` | `string[]` | — | SDK entry files |
+| `cli.commands` | `string` | — | Path to CLI commands manifest JSON |
+| `mcp.tools` | `string` | — | Path to MCP tools manifest JSON |
+
+### `benchmark` fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `format` | `"pi"` | `"pi"` | LLM transport format |
+| `apiKeyEnv` | `string` | `OPENROUTER_API_KEY` | Env var name for the API key |
+| `timeout` | `number` | `240000` | Ms per model call |
+| `models` | `Array<{ id: string; name: string; tier: "flagship"\|"mid"\|"low"; weight?: number }>` | required | Models to benchmark |
+| `taskGeneration.enabled` | `boolean` | `false` | Whether to generate tasks automatically |
+| `taskGeneration.maxTasks` | `number` | `10` | Max tasks to generate (must be >= scope size) |
+| `taskGeneration.seed` | `number` | `1` | RNG seed for reproducible generation |
+| `output.dir` | `string` | `benchmark-results/` | Where reports are saved |
+| `verdict.perModelFloor` | `number` | `0.6` | Minimum per-model pass fraction for a PASS verdict |
+| `verdict.targetWeightedAverage` | `number` | `0.7` | Minimum weighted average across all models for a PASS verdict |
+
+### `optimize` fields (all optional)
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `model` | `string` | — | Model for mutation (e.g. `openrouter/anthropic/claude-sonnet-4-6`) |
+| `apiKeyEnv` | `string` | — | Env var for the optimizer's API key |
+| `thinkingLevel` | `"off"\|"minimal"\|"low"\|"medium"\|"high"\|"xhigh"` | `"medium"` | Reasoning depth for mutation calls |
+| `allowedPaths` | `string[]` | — | Paths the optimizer may edit (safety boundary) |
+| `validation` | `string[]` | — | Shell commands to run to validate each mutation |
+| `requireCleanGit` | `boolean` | `true` | Require clean git state before starting |
+| `maxIterations` | `number` | `5` | Maximum optimization iterations |
+| `minImprovement` | `number` | `0.02` | Minimum weighted-average gain per accepted iteration |
+| `reportContextMaxBytes` | `number` | `16000` | Byte budget for mutation context |
+
+### Annotated example config
 
 ```json
 {
-  "baseUrl": "https://openrouter.ai/api/v1",
-  "apiKeyEnv": "OPENROUTER_API_KEY",
-  "format": "openai"
+  "name": "my-mcp-project",
+  "target": {
+    "surface": "mcp",
+    "repoPath": ".",
+    "skill": "./SKILL.md",
+    "discovery": {
+      "mode": "auto",
+      "sources": ["./src/server.ts"]
+    }
+  },
+  "benchmark": {
+    "format": "pi",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "models": [
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship", "weight": 2 },
+      { "id": "openrouter/openai/gpt-4o-mini",          "name": "GPT-4o mini",   "tier": "mid",      "weight": 1 }
+    ],
+    "taskGeneration": {
+      "enabled": true,
+      "maxTasks": 20,
+      "seed": 1
+    },
+    "output": { "dir": "./benchmark-results" },
+    "verdict": {
+      "perModelFloor": 0.6,
+      "targetWeightedAverage": 0.7
+    }
+  },
+  "optimize": {
+    "model": "openrouter/anthropic/claude-sonnet-4-6",
+    "apiKeyEnv": "OPENROUTER_API_KEY",
+    "thinkingLevel": "medium",
+    "allowedPaths": ["SKILL.md"],
+    "requireCleanGit": true,
+    "maxIterations": 5,
+    "minImprovement": 0.02,
+    "reportContextMaxBytes": 16000
+  }
 }
 ```
 
-### OpenAI Direct
+## Interpreting the verdict
 
-```json
-{
-  "baseUrl": "https://api.openai.com/v1",
-  "apiKeyEnv": "OPENAI_API_KEY",
-  "format": "openai"
-}
+Every benchmark run produces one of two verdicts: **PASS** or **FAIL**.
+
+Two gates must both be satisfied for a PASS:
+
+- **`benchmark.verdict.perModelFloor`** (default `0.6`): every model must pass at least this fraction of tasks. A single model below the floor fails the run, regardless of the average.
+- **`benchmark.verdict.targetWeightedAverage`** (default `0.7`): the weighted average score across all models must reach this threshold.
+
+**`benchmark.models[].weight`** (default `1.0`): heavier-weighted models count more toward the weighted average. Use higher weights for flagship models you care most about.
+
+The **optimizer** only accepts a mutation when:
+1. the weighted average improves by at least `minImprovement`, AND
+2. no model that was above the floor drops below it.
+
+**Exit codes**: `0` = PASS, `1` = FAIL — usable directly in CI pipelines.
+
+## Scope & coverage
+
+Control which actions are benchmarked with `target.scope`:
+
+- **`target.scope.include`** (default `["*"]`): glob patterns for actions to include.
+- **`target.scope.exclude`** (default `[]`): glob patterns for actions to exclude.
+
+The `*` wildcard matches any sequence of characters including dots and slashes — it is not limited to a single path segment.
+
+Examples:
+- `"Wallet.*"` — includes all Wallet methods
+- `"*.internal*"` — excludes anything with "internal" anywhere in the name
+- `"get_*"` — includes only getter actions
+
+Task generation is **coverage-guaranteed**: every in-scope action gets at least one task. If the first generation pass misses any, a targeted retry runs (max 2 iterations). If coverage still fails, an error names the uncovered actions and suggests either fixing SKILL.md guidance or adding them to `scope.exclude`.
+
+## Cost notes
+
+Rough LLM spend per run:
+
+- **Baseline benchmark**: N models × M tasks LLM calls.
+- **Optimizer iteration**: 1 mutation call + N models × M tasks re-benchmark per iteration.
+- **Recommendations**: 1 critic call, only on FAIL verdict.
+
+No per-failure LLM calls — feedback is deterministic (structured failure details + patterns + passing/failing diffs).
+
+## Dependencies
+
+The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent` — a small OSS wrapper around OpenRouter that handles agent sessions and tool loops. Models are accessed through [OpenRouter](https://openrouter.ai/) — you need one API key for everything.
+
+## Troubleshooting
+
+**Missing `OPENROUTER_API_KEY`**: Set it in your shell before running:
+```bash
+export OPENROUTER_API_KEY=sk-or-...
 ```
 
-### Anthropic Direct
+**Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running.
 
-```json
-{
-  "baseUrl": "https://api.anthropic.com",
-  "apiKeyEnv": "ANTHROPIC_API_KEY",
-  "format": "anthropic"
-}
-```
+**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx tsx src/cli.ts --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
 
-The `format` field controls request/response serialization:
-- `"openai"` — Uses `/chat/completions`, `Authorization: Bearer` header, OpenAI tool calling format
-- `"anthropic"` — Uses `/v1/messages`, `x-api-key` header, Anthropic tool_use format
+**Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
 
-## Skill Sources
+**Legacy `skill-benchmark.json`**: Rename it to `skill-optimizer.json`. The loader will tell you if it finds the old name.
 
-The `skill.source` field in config supports three formats:
+## Contributing
 
-| Format | Example | Description |
-|--------|---------|-------------|
-| GitHub | `"github:myorg/my-sdk/SKILL.md"` | Fetches from `raw.githubusercontent.com`, caches locally, tracks commit SHA |
-| Local file | `"./SKILL.md"` | Reads from local filesystem (relative to CWD) |
-| URL | `"https://example.com/docs/skill.md"` | Fetches from any URL, caches locally |
-
-For MCP mode, `skill` is optional. If omitted, the LLM receives only the tool definitions and a generic system prompt.
-
-## Project Structure
-
-```
-src/
-  types.ts              Type definitions (BenchmarkConfig, TaskResult, etc.)
-  config.ts             Load and validate config + tasks
-  cli.ts                CLI: init, run, compare
-  runner.ts             Main benchmark loop
-  prompts.ts            System/task prompt builders (SDK + MCP aware)
-  evaluator.ts          BFCL-style matching (tool selection, arg accuracy, hallucination)
-  coverage.ts           SDK method coverage computation
-  skill-fetcher.ts      Fetch skill docs from github:/file:/https: with caching
-  reporter.ts           Console table + markdown report generation
-  compare.ts            Regression comparison between runs
-  init.ts               Scaffold new projects
-  index.ts              Public API exports
-  llm/
-    index.ts            LLMClient interface + factory
-    openai-format.ts    OpenAI-compatible request handler
-    anthropic-format.ts Anthropic Messages API handler
-  extractors/
-    index.ts            Extraction factory (dispatches by mode)
-    code-analyzer.ts    Tree-sitter: parse TS code -> extract ClassName.method calls
-    code-extractor.ts   Extract TypeScript code blocks from LLM markdown response
-    mcp-extractor.ts    Extract tool names + args from structured tool_calls
-```
-
-See `integration/` for a real-world consumer example using the Fast SDK.
-
-## TODO
-
-- **HTTP mode** (`code` mode, `style: "http"`): LLM writes TypeScript with `fetch()` calls, tree-sitter extracts `METHOD /path` endpoints. The extractor (`http-analyzer.ts`) was previously implemented but has been removed from source and needs to be re-implemented if this mode is desired.
-- **Curl mode** (`code` mode, `style: "curl"`): LLM writes curl commands, regex parser extracts `METHOD /path` endpoints. The extractor (`curl-analyzer.ts`) was previously implemented but has been removed from source and needs to be re-implemented if this mode is desired.
+See [CONTRIBUTING.md](./CONTRIBUTING.md).

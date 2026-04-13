@@ -1,0 +1,70 @@
+export const TRACKER_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'tkt_new',
+      description: 'make ticket row',
+      parameters: {
+        type: 'object',
+        properties: {
+          t: { type: 'string', description: 'title' },
+          d: { type: 'string', description: 'desc text' },
+          p: { type: 'string', description: 'priority code' },
+          usr: { type: 'string', description: 'owner handle' },
+        },
+        required: ['t', 'd', 'p'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_tkt',
+      description: 'pull one ticket by id',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'ticket key' },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_tkt_state',
+      description: 'change state to another',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          to: { type: 'string', description: 'new state label' },
+        },
+        required: ['id', 'to'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'add_cmnt',
+      description: 'append comment on ticket',
+      parameters: {
+        type: 'object',
+        properties: {
+          tkt: { type: 'string', description: 'ticket key' },
+          body: { type: 'string', description: 'comment body' },
+          author: { type: 'string', description: 'user handle' },
+        },
+        required: ['tkt', 'body'],
+        additionalProperties: false,
+      },
+    },
+  },
+] as const;
+
+export default TRACKER_TOOLS;

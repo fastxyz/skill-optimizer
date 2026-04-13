@@ -1,14 +1,25 @@
 #!/usr/bin/env node
 
-import { writeFileSync } from 'node:fs';
+import { existsSync, statSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { config as loadDotenv } from 'dotenv';
 
-import type { Tier } from './types.js';
-import { runBenchmark } from './runner.js';
-import { loadReport, compareReports, printComparison } from './compare.js';
-import { printSummary, generateMarkdown } from './reporter.js';
-import { printCoverage } from './coverage.js';
-import { initBenchmark } from './init.js';
+loadDotenv({ override: true });
+
+import type { Tier } from './benchmark/types.js';
+import type { ResolvedProjectConfig } from './project/types.js';
+import { runBenchmark } from './benchmark/runner.js';
+import { loadReport, compareReports, printComparison } from './benchmark/compare.js';
+import { printSummary, generateMarkdown } from './benchmark/reporter.js';
+import { printCoverage } from './benchmark/coverage.js';
+import { initBenchmark } from './benchmark/init.js';
+import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
+import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
+import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic, discoverActionsOnly, resolveScope } from './tasks/index.js';
+import type { Recommendation } from './verdict/recommendations.js';
+import { generateRecommendations } from './verdict/recommendations.js';
+import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -30,19 +41,46 @@ function hasFlag(args: string[], flag: string): boolean {
 }
 
 /** Return all positional (non-flag) arguments. */
-function positionals(args: string[]): string[] {
+const BOOLEAN_FLAGS = new Set([
+  '--help',
+  '-h',
+  '--dry-run',
+  '--no-cache',
+  '--skip-generation',
+]);
+
+const VALUE_FLAGS = new Set([
+  '--baseline',
+  '--config',
+  '--current',
+  '--max-iterations',
+  '--model',
+  '--task',
+  '--tier',
+]);
+
+export function positionals(args: string[]): string[] {
   const result: string[] = [];
   let i = 0;
   while (i < args.length) {
     const arg = args[i]!;
-    if (arg.startsWith('--')) {
-      // skip flag + its value (if next token is not a flag)
+    if (BOOLEAN_FLAGS.has(arg)) {
+      i += 1;
+      continue;
+    }
+
+    if (VALUE_FLAGS.has(arg)) {
       const next = args[i + 1];
       if (next && !next.startsWith('--')) {
         i += 2;
       } else {
         i += 1;
       }
+      continue;
+    }
+
+    if (arg.startsWith('--')) {
+      throw new Error(`Unknown flag: ${arg}`);
     } else {
       result.push(arg);
       i++;
@@ -53,34 +91,83 @@ function positionals(args: string[]): string[] {
 
 function printUsage(): void {
   console.log(`
-Skill Benchmark CLI — Test SDK/MCP skill documentation quality
+Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
-  skill-benchmark init                          Scaffold config and example tasks
-  skill-benchmark run [options]                 Run the benchmark
-  skill-benchmark compare [options]             Compare two benchmark reports
+  skill-optimizer init                          Scaffold config and example tasks
+  skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
+  skill-optimizer benchmark [options]           Run the benchmark
+  skill-optimizer run [options]                 Run the benchmark
+  skill-optimizer optimize [options]            Run the optimization loop
+  skill-optimizer compare [options]             Compare two benchmark reports
+
+Global options:
+  --dry-run                                     Discover + scope preview only; no LLM calls, no side effects
+  --config <path>                               Config file (overrides per-command default)
 
 Run options:
-  --config <path>                               Config file (default: benchmark.config.json)
+  --config <path>                               Config file (default: skill-optimizer.json)
   --tier <flagship|mid|low>                     Filter models by tier
   --task <task-id>                              Run a single task
   --model <slug>                                Run a single model
   --no-cache                                    Force fresh skill fetch
+
+Optimize options:
+  --config <path>                               Config file (default: skill-optimizer.json)
+  --max-iterations <n>                          Override optimization iteration cap
+  --skip-generation                             Disable task generation for this run
+
+Generate-tasks options:
+  --config <path>                               Config file (default: skill-optimizer.json)
 
 Compare options:
   --baseline <path>                             Path to baseline report.json
   --current <path>                              Path to current report.json
 
 Examples:
-  skill-benchmark init
-  skill-benchmark run
-  skill-benchmark run --config ./my-config.json
-  skill-benchmark run --tier flagship
-  skill-benchmark run --task send-tokens
-  skill-benchmark run --model gpt-4o
-  skill-benchmark run --no-cache
-  skill-benchmark compare --baseline results/old/report.json --current results/report.json
+  skill-optimizer init
+  skill-optimizer --dry-run --config ./skill-optimizer.json
+  skill-optimizer benchmark --config ./skill-optimizer.json
+  skill-optimizer run
+  skill-optimizer run --config ./my-config.json
+  skill-optimizer run --tier flagship
+  skill-optimizer run --task send-tokens
+  skill-optimizer run --model gpt-4o
+  skill-optimizer run --no-cache
+  skill-optimizer generate-tasks --config ./skill-optimizer.json
+  skill-optimizer optimize --config ./skill-optimizer.json
+  skill-optimizer compare --baseline results/old/report.json --current results/report.json
 `);
+}
+
+// ── Dry-run ───────────────────────────────────────────────────────────────────
+
+async function runDryRun(configPath: string): Promise<void> {
+  const project = loadProjectConfig(configPath);
+  const discovered = discoverActionsOnly(project);
+  const { inScope, outOfScope } = resolveScope(discovered, project.target.scope);
+
+  console.log('=== skill-optimizer dry run ===');
+  console.log(`Config: ${project.configPath}`);
+  console.log(`Surface: ${project.target.surface}`);
+  console.log(`Discovered: ${discovered.length} action(s)`);
+  console.log(`In scope:     ${inScope.length} — ${inScope.map((a) => a.name).join(', ')}`);
+  console.log(`Out of scope: ${outOfScope.length} — ${outOfScope.map((a) => a.name).join(', ')}`);
+
+  const maxTasks = project.benchmark.taskGeneration.maxTasks;
+  if (project.benchmark.taskGeneration.enabled && inScope.length > 0 && maxTasks < inScope.length) {
+    console.error(`\nERROR: maxTasks (${maxTasks}) < in-scope action count (${inScope.length}).`);
+    console.error(`Raise benchmark.taskGeneration.maxTasks in ${project.configPath}, or tighten target.scope.exclude.`);
+    process.exit(1);
+  }
+
+  if (inScope.length === 0) {
+    console.error('\nERROR: zero in-scope actions. Adjust target.scope.include/exclude in your config.');
+    process.exit(1);
+  }
+
+  console.log('\nNo LLM calls made. Zero side effects.');
+  process.exit(0);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -92,6 +179,12 @@ async function main(): Promise<void> {
   if (hasFlag(args, '--help') || hasFlag(args, '-h')) {
     printUsage();
     process.exit(0);
+  }
+
+  if (hasFlag(args, '--dry-run')) {
+    const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
+    await runDryRun(configPath);
+    return;
   }
 
   const pos = positionals(args);
@@ -110,12 +203,12 @@ async function main(): Promise<void> {
 
     if (!baselinePath) {
       console.error('ERROR: --baseline <path> is required for compare mode.');
-      console.error('  Example: skill-benchmark compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
       process.exit(1);
     }
     if (!currentPath) {
       console.error('ERROR: --current <path> is required for compare mode.');
-      console.error('  Example: skill-benchmark compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
       process.exit(1);
     }
 
@@ -140,6 +233,93 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // ── Optimize mode ──────────────────────────────────────────────────────────
+  if (command === 'optimize') {
+    const configPath = getFlag(args, '--config');
+    try {
+      const { result, resolvedManifest, ledgerPath } = await runOptimizeFromConfig(configPath ?? DEFAULT_PROJECT_CONFIG_NAME, {
+        maxIterationsRaw: getFlag(args, '--max-iterations'),
+        skipGeneration: hasFlag(args, '--skip-generation'),
+      });
+      printOptimizeSummary(result, resolvedManifest, ledgerPath);
+      // Show verdict and recommendations for best report
+      const bestReport = result.bestReport;
+      if (bestReport.verdict) {
+        let recs: Recommendation[] = [];
+        if (bestReport.verdict.result === 'FAIL') {
+          try {
+            const mutation = resolvedManifest.mutation;
+            if (mutation) {
+              const criticDeps = createDefaultPiCritic({
+                provider: mutation.provider,
+                model: mutation.model,
+                apiKeyEnv: mutation.apiKeyEnv,
+              });
+              recs = await generateRecommendations(
+                bestReport,
+                criticDeps,
+                mutation.reportContextMaxBytes ?? 16_000,
+              );
+            }
+          } catch (err) {
+            console.error(`WARNING: Could not generate recommendations: ${err instanceof Error ? err.message : err}`);
+          }
+        }
+        console.log(renderVerdictConsole(bestReport, recs));
+      }
+      process.exit(bestReport.verdict?.result === 'FAIL' ? 1 : 0);
+    } catch (err) {
+      console.error(`\nFATAL: Optimize failed: ${err instanceof Error ? err.message : err}`);
+      if (err instanceof Error && err.stack) {
+        console.error(err.stack);
+      }
+      process.exit(1);
+    }
+  }
+
+  // ── Generate-tasks mode ───────────────────────────────────────────────────
+  if (command === 'generate-tasks') {
+    const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
+    try {
+      const project = loadProjectConfig(configPath);
+      if (!project.benchmark.taskGeneration.enabled) {
+        throw new Error('benchmark.taskGeneration.enabled must be true to use generate-tasks');
+      }
+      const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
+      const { provider, model } = parseModelRef(modelRef);
+      const deps = createDefaultPiTaskGenerator({
+        provider,
+        model,
+        apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
+      });
+      const result = await generateTasksForProject({
+        configPath,
+        maxTasks: project.benchmark.taskGeneration.maxTasks,
+        seed: project.benchmark.taskGeneration.seed,
+        outputDir: project.benchmark.taskGeneration.outputDir,
+        deps,
+      });
+      console.log('');
+      console.log(`Generated tasks: ${result.kept.length} (rejected: ${result.rejected.length})`);
+      console.log(`Frozen config: ${result.artifacts.benchmarkPath}`);
+      console.log(`Frozen snapshot: ${result.artifacts.snapshotPath}`);
+      console.log(`Generated tasks file: ${result.artifacts.tasksPath}`);
+    } catch (err) {
+      console.error(`\nFATAL: Task generation failed: ${err instanceof Error ? err.message : err}`);
+      if (err instanceof Error && err.stack) {
+        console.error(err.stack);
+      }
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  if (command && command !== 'run' && command !== 'benchmark') {
+    console.error(`ERROR: Unknown command '${command}'.`);
+    printUsage();
+    process.exit(1);
+  }
+
   // ── Benchmark mode (default, also handles explicit 'run' command) ─────────────
   const tierRaw = getFlag(args, '--tier');
   const validTiers: Tier[] = ['flagship', 'mid', 'low'];
@@ -148,7 +328,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const options = {
+  let options = {
     configPath: getFlag(args, '--config'),
     tier: tierRaw as Tier | undefined,
     taskId: getFlag(args, '--task'),
@@ -156,9 +336,58 @@ async function main(): Promise<void> {
     noCache: hasFlag(args, '--no-cache'),
   };
 
+  let project: ResolvedProjectConfig | undefined;
+  let generatedCoverage: import('./benchmark/types.js').CoverageReport | undefined;
+  try {
+    project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
+    if (!existsSync(project.target.repoPath) || !statSync(project.target.repoPath).isDirectory()) {
+      throw new Error(
+        `target.repoPath does not exist or is not a directory: ${project.target.repoPath}. ` +
+          `Edit "target.repoPath" in ${project.configPath}.`,
+      );
+    }
+    if (project.benchmark.format !== 'anthropic' && !process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY']) {
+      throw new Error(
+        `Missing ${project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'} environment variable. ` +
+          `Set it in your shell or in a .env file alongside ${project.configPath}.`,
+      );
+    }
+    if (project.benchmark.taskGeneration.enabled) {
+      const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
+      const { provider, model } = parseModelRef(modelRef);
+      const deps = createDefaultPiTaskGenerator({
+        provider,
+        model,
+        apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
+      });
+      const generation = await generateTasksForProject({
+        configPath: options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME,
+        maxTasks: project.benchmark.taskGeneration.maxTasks,
+        seed: project.benchmark.taskGeneration.seed,
+        outputDir: project.benchmark.taskGeneration.outputDir,
+        deps,
+      });
+      options = {
+        ...options,
+        configPath: generation.artifacts.benchmarkPath,
+      };
+      generatedCoverage = generation.coverage;
+    }
+  } catch (err) {
+    console.error(`\nFATAL: Benchmark setup failed: ${err instanceof Error ? err.message : err}`);
+    if (err instanceof Error && err.stack) {
+      console.error(err.stack);
+    }
+    process.exit(1);
+  }
+
   let report;
   try {
-    report = await runBenchmark(options);
+    report = await runBenchmark({
+      ...options,
+      verdictPolicy: project?.benchmark.verdict,
+      scopeCoverage: generatedCoverage,
+    });
   } catch (err) {
     console.error(`\nFATAL: Benchmark failed: ${err instanceof Error ? err.message : err}`);
     if (err instanceof Error && err.stack) {
@@ -175,13 +404,37 @@ async function main(): Promise<void> {
 
   // Determine output dir — resolve relative to the config file's directory (matching the runner)
   const configFileDir = options.configPath ? dirname(resolve(options.configPath)) : process.cwd();
-  const reportConfig = report.config as { name: string; mode: string; outputDir?: string };
+  const reportConfig = report.config as { name: string; surface: string; outputDir?: string };
   const outputDir = resolve(configFileDir, reportConfig?.outputDir ?? 'benchmark-results');
+
+  // Generate recommendations if verdict is FAIL
+  let recommendations: Recommendation[] = [];
+  if (report.verdict?.result === 'FAIL' && project) {
+    try {
+      const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
+      const { provider, model } = parseModelRef(modelRef);
+      const criticDeps = createDefaultPiCritic({
+        provider,
+        model,
+        apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
+      });
+      recommendations = await generateRecommendations(
+        report,
+        criticDeps,
+        project.optimize?.reportContextMaxBytes ?? 16_000,
+      );
+    } catch (err) {
+      console.error(`WARNING: Could not generate recommendations: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // Print verdict
+  console.log(renderVerdictConsole(report, recommendations));
 
   // Generate and save Markdown report alongside JSON
   const mdPath = resolve(outputDir, 'report.md');
   try {
-    const markdown = generateMarkdown(report);
+    const markdown = generateMarkdown(report) + '\n\n' + renderVerdictMarkdown(report, recommendations);
     writeFileSync(mdPath, markdown, 'utf-8');
     console.log(`[output] Markdown report saved to ${mdPath}`);
   } catch (err) {
@@ -194,13 +447,21 @@ async function main(): Promise<void> {
   console.log(
     `\nDone. ${passedCount}/${summary.totalEvaluations} evaluations passed ` +
       `(${(summary.overallPassRate * 100).toFixed(1)}%). ` +
-      `Coverage: ${(summary.methodCoveragePercent * 100).toFixed(1)}%.`,
+      `Coverage: ${(summary.methodCoveragePercent * 100).toFixed(1)}% ` +
+      `(surface: ${reportConfig.surface}).`,
   );
 
-  process.exit(0);
+  process.exit(report.verdict?.result === 'FAIL' ? 1 : 0);
 }
 
-main().catch(err => {
-  console.error('Unhandled error:', err);
-  process.exit(1);
-});
+function isExecutedDirectly(): boolean {
+  const entry = process.argv[1];
+  return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
+}
+
+if (isExecutedDirectly()) {
+  main().catch(err => {
+    console.error('Unhandled error:', err);
+    process.exit(1);
+  });
+}

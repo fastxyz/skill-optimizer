@@ -1,31 +1,60 @@
 {
-  "name": "@fastxyz/skill-benchmark",
+  "name": "skill-optimizer",
   "version": "0.1.0",
-  "description": "Generic SDK/MCP skill documentation benchmark framework",
+  "description": "Benchmark and optimizer for evaluating SDK, CLI, and MCP guidance with static action matching.",
+  "license": "MIT",
+  "author": "Pi2 Labs",
+  "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
+  "bugs": {
+    "url": "https://github.com/fastxyz/skill-optimizer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fastxyz/skill-optimizer.git"
+  },
+  "keywords": [
+    "benchmark",
+    "optimizer",
+    "mcp",
+    "sdk",
+    "cli",
+    "llm",
+    "tool-calling",
+    "evaluation"
+  ],
   "type": "module",
   "bin": {
-    "skill-benchmark": "./dist/cli.js"
+    "skill-optimizer": "./dist/cli.js"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist/"
-  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
     "benchmark": "tsx src/cli.ts run",
+    "prepack": "npm run build",
+    "clean": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
     "dev": "tsx src/cli.ts",
+    "optimize": "tsx src/cli.ts optimize",
+    "materialize:mock": "tsx src/optimizer/materialize-mock-repo.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts"
+    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts && tsx tests/smoke-scoring.ts && tsx tests/smoke-scope.ts && tsx tests/smoke-coverage.ts && tsx tests/smoke-feedback.ts && tsx tests/smoke-verdict.ts && tsx tests/smoke-dry-run.ts && tsx tests/smoke-errors.ts && tsx tests/smoke-e2e.ts"
   },
   "dependencies": {
+    "@mariozechner/pi-agent-core": "^0.66.1",
+    "@mariozechner/pi-ai": "^0.66.1",
+    "@mariozechner/pi-coding-agent": "^0.66.1",
+    "dotenv": "^17.4.1",
     "tree-sitter-wasms": "^0.1.13",
     "web-tree-sitter": "^0.24.7"
   },
   "devDependencies": {
+    "@types/node": "^22.12.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
-    "@types/node": "^22.12.0"
+    "typescript": "^5.7.0"
   },
   "engines": {
     "node": ">=20"

@@ -1,8 +1,16 @@
-import { extractCodeBlock } from '../src/extractors/code-extractor.js';
-import { extractFromCode, extractAllFromCode } from '../src/extractors/code-analyzer.js';
-import { evaluateTask } from '../src/evaluator.js';
-import { computeCoverage } from '../src/coverage.js';
-import type { ExtractedCall, TaskDefinition, ModelConfig } from '../src/types.js';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+import { extractCodeBlock } from '../src/benchmark/extractors/code-extractor.js';
+import { extractSdkCodeBlock } from '../src/benchmark/extractors/code-extractor.js';
+import { extractFromCode, extractAllFromCode } from '../src/benchmark/extractors/code-analyzer.js';
+import { extract } from '../src/benchmark/extractors/index.js';
+import { evaluateTask } from '../src/benchmark/evaluator.js';
+import { computeCoverage } from '../src/benchmark/coverage.js';
+import { initBenchmark } from '../src/benchmark/init.js';
+import { loadConfig } from '../src/benchmark/config.js';
+import type { ExtractedCall, TaskDefinition, ModelConfig, BenchmarkConfig, LLMResponse } from '../src/benchmark/types.js';
 
 // ── Test harness ───────────────────────────────────────────────────────────
 
@@ -56,7 +64,7 @@ function makeCall(method: string, args: Record<string, unknown> = {}): Extracted
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-console.log('\n=== Code Mode Smoke Tests ===\n');
+console.log('\n=== SDK Surface Smoke Tests ===\n');
 
 // Group 1: extractCodeBlock
 
@@ -83,6 +91,55 @@ await test('extractCodeBlock: returns null on non-ts block', () => {
   const md = "```python\nprint('hello')\n```";
   const result = extractCodeBlock(md);
   assertEqual(result, null, 'should return null for python code block');
+});
+
+await test('extractSdkCodeBlock: finds python block', () => {
+  const md = '```python\nclient = FastClient()\n```';
+  const result = extractSdkCodeBlock(md, 'python');
+  assertEqual(result, 'client = FastClient()', 'should extract python block content');
+});
+
+await test('extractSdkCodeBlock: finds rust block', () => {
+  const md = '```rust\nlet client = FastClient::new();\n```';
+  const result = extractSdkCodeBlock(md, 'rust');
+  assertEqual(result, 'let client = FastClient::new();', 'should extract rust block content');
+});
+
+await test('loadConfig: rejects unsupported sdk language', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-lang-'));
+  try {
+    const configPath = join(dir, 'skill-optimizer.json');
+    writeFileSync(configPath, JSON.stringify({
+      name: 'bad-sdk',
+      target: {
+        surface: 'sdk',
+        repoPath: '.',
+        sdk: { language: 'java' },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        baseUrl: 'https://example.com',
+        format: 'openai',
+        models: [{ id: 'test/model', name: 'Test Model', tier: 'flagship' }],
+      },
+    }, null, 2), 'utf-8');
+    writeFileSync(join(dir, 'tasks.json'), JSON.stringify({ tasks: [] }, null, 2), 'utf-8');
+
+    let threw = false;
+    try {
+      loadConfig(configPath);
+    } catch (error: any) {
+      threw = true;
+      assert(
+        error.message.includes('sdk.language'),
+        'error should mention sdk.language validation',
+      );
+    }
+
+    assert(threw, 'should reject unsupported sdk.language values');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // Group 2: extractFromCode (tree-sitter)
@@ -217,6 +274,50 @@ await test('extractFromCode: resolves identifier-backed nested arguments', async
   assertEqual((wallet[1] as Record<string, unknown>).type as string, 'evm', 'wallet[1].type arg');
 });
 
+await test('extract factory dispatches surface=sdk', async () => {
+  const config: BenchmarkConfig = {
+    name: 'test-sdk',
+    surface: 'sdk',
+    sdk: { language: 'typescript' },
+    tasks: 'tasks.json',
+    llm: {
+      baseUrl: '',
+      apiKeyEnv: 'OPENROUTER_API_KEY',
+      format: 'openai',
+      models: [],
+    },
+  };
+
+  const response: LLMResponse = {
+    content: '```ts\nconst provider = new FastProvider("testnet");\n```',
+  };
+
+  const { calls, generatedCode } = await extract(response, config);
+  assertEqual(generatedCode, 'const provider = new FastProvider("testnet");', 'should preserve extracted TypeScript block');
+  assertEqual(calls.length, 1, 'one call expected');
+  assertEqual(calls[0].method, 'FastProvider.constructor', 'method should be parsed');
+});
+
+await test('initBenchmark scaffolds sdk apiSurface', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
+  try {
+    initBenchmark(dir);
+    const config = JSON.parse(readFileSync(join(dir, 'skill-optimizer.json'), 'utf-8')) as {
+      target: {
+        surface: string;
+        sdk: { apiSurface?: string[]; methods?: string[] };
+      };
+    };
+
+    assertEqual(config.target.surface, 'sdk', 'scaffold should default to sdk surface');
+    assert(Array.isArray(config.target.sdk.apiSurface), 'scaffold should emit sdk.apiSurface');
+    assert(config.target.sdk.apiSurface!.length > 0, 'scaffold apiSurface should contain entries');
+    assertEqual(config.target.sdk.methods, undefined, 'scaffold should not emit deprecated sdk.methods');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // Group 3: evaluateTask
 
 await test('evaluateTask: perfect match → taskPassed=true', () => {
@@ -228,6 +329,7 @@ await test('evaluateTask: perfect match → taskPassed=true', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -249,6 +351,7 @@ await test('evaluateTask: hallucinated method → hallucinationRate > 0', () => 
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -269,6 +372,7 @@ await test('evaluateTask: missing expected method → taskPassed=false', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -310,6 +414,7 @@ await test('evaluateTask: nested expected args match recursively', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -346,6 +451,7 @@ await test('evaluateTask: nested expected args fail when nested field differs', 
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -438,6 +544,7 @@ await test('evaluateTask: resolves raw calls via bindings + task expectations', 
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,
@@ -467,6 +574,7 @@ await test('evaluateTask: resolves constructor-based bindings', () => {
   const result = evaluateTask({
     task,
     model: MODEL,
+    surface: 'sdk',
     generatedCode: null,
     rawResponse: '',
     extractedCalls,

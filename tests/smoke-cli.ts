@@ -1,0 +1,248 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+import { extractShellBlock, parseShellCommands, extractFromCliMarkdown } from '../src/benchmark/extractors/cli-extractor.js';
+import { extract } from '../src/benchmark/extractors/index.js';
+import { loadCliCommands } from '../src/benchmark/config.js';
+import type { BenchmarkConfig, LLMResponse } from '../src/benchmark/types.js';
+
+let passed = 0;
+let failed = 0;
+
+async function test(name: string, fn: () => Promise<void> | void) {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ✓ ${name}`);
+  } catch (e: any) {
+    failed++;
+    console.log(`  ✗ ${name}`);
+    console.log(`    ${e.message}`);
+  }
+}
+
+function assertEqual<T>(actual: T, expected: T, message: string) {
+  if (actual !== expected) {
+    throw new Error(
+      `${message}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
+  }
+}
+
+function assert(condition: boolean, message: string) {
+  if (!condition) {
+    throw new Error(`Assertion failed: ${message}`);
+  }
+}
+
+console.log('\n=== CLI Surface Smoke Tests ===\n');
+
+await test('shell block extraction success', () => {
+  const markdown = 'Before\n```bash\nfast wallet send --to abc --amount 10\n```\nAfter';
+  const shell = extractShellBlock(markdown);
+  assertEqual(shell, 'fast wallet send --to abc --amount 10', 'should extract shell block');
+});
+
+await test('shell block extraction fails when none', () => {
+  const shell = extractShellBlock('No shell block here');
+  assertEqual(shell, null, 'should return null without bash/sh block');
+});
+
+await test('shell block extraction fails when multiple shell blocks', () => {
+  const markdown = [
+    '```bash',
+    'fast wallet send --to a --amount 1',
+    '```',
+    '```sh',
+    'fast wallet send --to b --amount 2',
+    '```',
+  ].join('\n');
+  const shell = extractShellBlock(markdown);
+  assertEqual(shell, null, 'should return null for multiple shell blocks');
+});
+
+await test('simple command', () => {
+  const calls = parseShellCommands('fast status');
+  assertEqual(calls.length, 1, 'one command expected');
+  assertEqual(calls[0].method, 'fast status', 'method should include executable and subcommand');
+});
+
+await test('subcommands', () => {
+  const calls = parseShellCommands('fast wallet send --to abc --amount 10');
+  assertEqual(calls[0].method, 'fast wallet send', 'method should include subcommand path');
+});
+
+await test('long option with separate value', () => {
+  const calls = parseShellCommands('fast wallet send --to fast1abc --amount 10');
+  assertEqual(calls[0].args.to as string, 'fast1abc', 'to should be parsed');
+  assertEqual(calls[0].args.amount as string, '10', 'amount should be parsed');
+});
+
+await test('long option with equals value', () => {
+  const calls = parseShellCommands('fast wallet send --to=fast1abc --amount=10');
+  assertEqual(calls[0].args.to as string, 'fast1abc', 'to should be parsed from = form');
+  assertEqual(calls[0].args.amount as string, '10', 'amount should be parsed from = form');
+});
+
+await test('short option with value', () => {
+  const calls = parseShellCommands('fast wallet create -n testnet');
+  assertEqual(calls[0].args.n as string, 'testnet', 'short option value should be parsed');
+});
+
+await test('positional args', () => {
+  const calls = parseShellCommands('fast wallet send --to fast1abc -- 10 memo');
+  assertEqual(calls[0].args._positional_0 as string, '10', 'first positional should be parsed');
+  assertEqual(calls[0].args._positional_1 as string, 'memo', 'second positional should be parsed');
+});
+
+await test('multiple commands and line numbers', () => {
+  const calls = parseShellCommands([
+    'fast wallet create -n testnet',
+    'fast wallet balance --address fast1abc',
+  ].join('\n'));
+  assertEqual(calls.length, 2, 'two commands expected');
+  assertEqual(calls[0].line, 1, 'first command line should be 1');
+  assertEqual(calls[1].line, 2, 'second command line should be 2');
+});
+
+await test('quoted strings', () => {
+  const calls = parseShellCommands('fast wallet send --memo "hello world" --to fast1abc');
+  assertEqual(calls[0].args.memo as string, 'hello world', 'quoted value should be unwrapped');
+});
+
+await test('known commands keep trailing positional args out of method', async () => {
+  const config = {
+    name: 'test-cli',
+    surface: 'cli',
+    cli: {
+      commands: 'commands.json',
+      commandDefinitions: [
+        { command: 'fast logs' },
+      ],
+    },
+    tasks: 'tasks.json',
+    llm: {
+      baseUrl: '',
+      apiKeyEnv: 'OPENROUTER_API_KEY',
+      format: 'openai',
+      models: [],
+    },
+  } as BenchmarkConfig & {
+    surface: 'cli';
+    cli: { commands: string; commandDefinitions: Array<{ command: string }> };
+  };
+
+  const response: LLMResponse = {
+    content: '```bash\nfast logs my-service\n```',
+  };
+
+  const { calls } = await extract(response, config);
+  assertEqual(calls.length, 1, 'one call expected');
+  assertEqual(calls[0].method, 'fast logs', 'method should match known command path only');
+  assertEqual(calls[0].args._positional_0 as string, 'my-service', 'trailing token should be positional');
+});
+
+await test('command with env assignment', () => {
+  const calls = parseShellCommands('FAST_NETWORK=testnet FAST_PROFILE=dev fast wallet status');
+  const env = calls[0].args.env as Record<string, string>;
+  assertEqual(env.FAST_NETWORK, 'testnet', 'env FAST_NETWORK parsed');
+  assertEqual(env.FAST_PROFILE, 'dev', 'env FAST_PROFILE parsed');
+});
+
+await test('multiline with trailing backslash', () => {
+  const markdown = [
+    '```bash',
+    'fast wallet send \\',
+    '  --to fast1abc \\',
+    '  --amount 10',
+    '```',
+  ].join('\n');
+  const calls = extractFromCliMarkdown(markdown);
+  assertEqual(calls.length, 1, 'one merged command expected');
+  assertEqual(calls[0].args.to as string, 'fast1abc', 'to should be parsed');
+  assertEqual(calls[0].args.amount as string, '10', 'amount should be parsed');
+});
+
+await test('chained commands split into multiple calls', () => {
+  const calls = parseShellCommands('fast auth login && fast wallet balance');
+  assertEqual(calls.length, 2, 'two chained commands expected');
+  assertEqual(calls[0].method, 'fast auth login', 'first chained command should be parsed');
+  assertEqual(calls[1].method, 'fast wallet balance', 'second chained command should be parsed');
+});
+
+await test('extract factory dispatches surface=cli', async () => {
+  const config = {
+    name: 'test-cli',
+    surface: 'cli',
+    cli: { commands: 'commands.json' },
+    tasks: 'tasks.json',
+    llm: {
+      baseUrl: '',
+      apiKeyEnv: 'OPENROUTER_API_KEY',
+      format: 'openai',
+      models: [],
+    },
+  } as BenchmarkConfig & {
+    surface: 'cli';
+    cli: { commands: string };
+  };
+
+  const response: LLMResponse = {
+    content: '```sh\nfast wallet send --to fast1abc --amount 10\n```',
+  };
+
+  const { calls, generatedCode } = await extract(response, config);
+  assertEqual(generatedCode, 'fast wallet send --to fast1abc --amount 10', 'generatedCode should preserve the shell block contents');
+  assertEqual(calls.length, 1, 'one call expected');
+  assertEqual(calls[0].method, 'fast wallet send', 'method should be parsed');
+});
+
+await test('loadCliCommands: accepts flat command schema', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-cli-'));
+  try {
+    const file = join(dir, 'commands.json');
+    writeFileSync(file, JSON.stringify([
+      {
+        command: 'fast wallet send',
+        options: [{ name: 'to', takesValue: true }],
+      },
+    ]), 'utf-8');
+
+    const commands = loadCliCommands(file);
+    assertEqual(commands.length, 1, 'one command expected');
+    assertEqual(commands[0].command, 'fast wallet send', 'command path should be loaded');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('loadCliCommands: rejects entries without command', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-cli-'));
+  try {
+    const file = join(dir, 'commands.json');
+    writeFileSync(file, JSON.stringify([
+      {
+        path: 'fast wallet send',
+      },
+    ]), 'utf-8');
+
+    let threw = false;
+    try {
+      loadCliCommands(file);
+    } catch (error: any) {
+      threw = true;
+      assert(
+        error.message.includes('command'),
+        'error should mention missing command field',
+      );
+    }
+
+    assert(threw, 'should reject command entries without command field');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+console.log(`\n${passed} passed, ${failed} failed\n`);
+process.exit(failed > 0 ? 1 : 0);
