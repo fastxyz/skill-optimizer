@@ -1,4 +1,4 @@
-import type { BenchmarkReport, BenchmarkSurface, ModelConfig } from '../benchmark/types.js';
+import type { BenchmarkReport, BenchmarkSurface, ModelConfig, ModelSummary } from '../benchmark/types.js';
 
 export type FailureBucketKind = 'missing-tool' | 'bad-args' | 'hallucination' | 'error';
 export type StopReason = 'max-iterations' | 'stable';
@@ -117,6 +117,8 @@ export interface OptimizeIteration {
   validation: ValidationResult;
   scoreBefore: number;
   scoreAfter?: number;
+  /** Per-model pass rates after this iteration's benchmark run (absent when no benchmark ran) */
+  perModelAfter?: Record<string, ModelSummary>;
   delta: number;
   failureBuckets: FailureBucket[];
 }

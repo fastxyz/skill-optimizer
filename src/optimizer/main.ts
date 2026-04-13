@@ -16,6 +16,7 @@ import {
   runOptimizeLoop,
 } from './index.js';
 import { createDefaultPiTaskGenerator, generateTasksForProject } from '../tasks/index.js';
+import { renderProgressTable } from './progress-table.js';
 
 function printUsage(): void {
   console.log(`
@@ -145,8 +146,6 @@ export function printOptimizeSummary(
     console.log(`Generated tasks: ${result.generation.taskCount} (rejected: ${result.generation.rejectedCount})`);
     console.log(`Frozen config: ${result.generation.benchmarkConfigPath}`);
   }
-  console.log(`Baseline overall pass rate: ${(result.baselineReport.summary.overallPassRate * 100).toFixed(1)}%`);
-  console.log(`Best overall pass rate: ${(result.bestReport.summary.overallPassRate * 100).toFixed(1)}%`);
   console.log(`Iterations: ${result.iterations.length}`);
   if (result.stopReason === 'stable') {
     console.log(
@@ -156,6 +155,7 @@ export function printOptimizeSummary(
     console.log(`Stop reason: max iterations reached (${resolvedManifest.optimizer.maxIterations})`);
   }
   console.log(`Run log: ${ledgerPath}`);
+  console.log(renderProgressTable(result.baselineReport, result.bestReport, result.iterations));
 }
 
 function isExecutedDirectly(): boolean {

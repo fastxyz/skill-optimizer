@@ -194,6 +194,7 @@ export async function runOptimizeLoop(
         });
         iteration.accepted = true;
         iteration.scoreAfter = epochBaseline.report.summary.overallPassRate;
+        iteration.perModelAfter = epochBaseline.report.summary.perModel;
         iteration.delta = epochBaseline.report.summary.overallPassRate - bestReport.summary.overallPassRate;
         bestReport = epochBaseline.report;
         lastReportPath = epochBaseline.reportPath;
@@ -235,6 +236,7 @@ export async function runOptimizeLoop(
       const beforeReport = bestReport;
       const afterReport = candidateReport;
       iteration.scoreAfter = afterReport.summary.overallPassRate;
+      iteration.perModelAfter = afterReport.summary.perModel;
       iteration.delta = afterReport.summary.overallPassRate - beforeReport.summary.overallPassRate;
 
       const accepted = accept(beforeReport, afterReport, resolvedManifest.optimizer.models, {
