@@ -17,8 +17,8 @@ export function parseHelpOutput(text: string, prefix: string[]): CliCommandDefin
   const commands: CliCommandDefinition[] = [];
   const optionsBuf: CliCommandOptionDefinition[] = [];
 
-  const COMMANDS_HEADER = /^(Commands|Subcommands):\s*$/;
-  const OPTIONS_HEADER = /^(Options|Flags|Global Options):\s*$/;
+  const COMMANDS_HEADER = /^(Commands|Subcommands):\s*$/i;
+  const OPTIONS_HEADER = /^(Options|Flags|Global Options):\s*$/i;
   // Match a subcommand line: leading whitespace, non-dash first char, name token, optional description
   const CMD_LINE = /^\s+(\S+)\s*(.*)/;
   // Match an option line: leading whitespace, dash-starting flag
