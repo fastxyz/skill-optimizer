@@ -47,3 +47,9 @@ coverage/
 # Temp directories
 tmp/
 temp/
+
+# Superpowers planning artifacts
+docs/superpowers/
+
+# Skill-optimizer generated artifacts
+.skill-optimizer/
