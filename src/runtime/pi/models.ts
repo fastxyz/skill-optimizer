@@ -23,19 +23,39 @@ export async function resolvePiModelByRef(
   return resolvePiModel(provider, model, options);
 }
 
+/**
+ * Synthesizes a Model entry for OpenRouter models that are not pre-registered in pi-ai.
+ * OpenRouter exposes an OpenAI-compatible completions API, so any model routed through
+ * it can use the "openai-completions" api type with openrouter.ai/api/v1 as the base URL.
+ * The model ID passed to OpenRouter is the portion after "openrouter/" in the full ref.
+ */
+function synthesizeOpenRouterModel(provider: string, modelName: string): Model<any> | undefined {
+  if (provider !== 'openrouter') return undefined;
+  return {
+    id: modelName,
+    name: modelName,
+    api: 'openai-completions' as const,
+    provider: 'openrouter' as const,
+    baseUrl: 'https://openrouter.ai/api/v1',
+    reasoning: false,
+    input: ['text'] as ('text' | 'image')[],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128000,
+    maxTokens: 16384,
+  };
+}
+
 export async function resolvePiModel(
   provider: string,
   modelName: string,
   options?: { apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
-  // Anthropic models route through the Anthropic API directly (not OpenRouter).
-  // If the configured apiKeyEnv is OPENROUTER_API_KEY, catch this early to avoid
-  // a confusing 401 from api.anthropic.com.
+  // Guard: direct Anthropic provider + OpenRouter key = guaranteed 401.
+  // Users who want Claude should use openrouter/anthropic/claude-* instead.
   if (provider === 'anthropic' && options?.apiKeyEnv === 'OPENROUTER_API_KEY') {
     throw new Error(
-      `Model "${provider}/${modelName}" requires a direct Anthropic API key, but apiKeyEnv is set to OPENROUTER_API_KEY. ` +
-      `Either set apiKeyEnv to ANTHROPIC_API_KEY, or choose an OpenRouter-accessible model ` +
-      `(e.g. openrouter/openai/gpt-4o, openrouter/google/gemini-2.0-flash-001).`,
+      `Model "${provider}/${modelName}" routes through the Anthropic API directly and requires ANTHROPIC_API_KEY. ` +
+      `To use Claude via OpenRouter, change the model ID to "openrouter/anthropic/${modelName}".`,
     );
   }
 
@@ -46,7 +66,9 @@ export async function resolvePiModel(
   });
   const modelRegistry = ModelRegistry.create(authStorage);
   const registryModel = modelRegistry.find(provider, modelName);
-  const resolvedModel = registryModel ?? getModel(provider as never, modelName);
+  const resolvedModel = registryModel
+    ?? getModel(provider as never, modelName)
+    ?? synthesizeOpenRouterModel(provider, modelName);
   if (!resolvedModel) {
     throw new Error(`Could not resolve pi model ${provider}/${modelName}`);
   }

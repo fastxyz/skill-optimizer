@@ -3,13 +3,13 @@ import { resolve } from 'node:path';
 import type { WizardAnswers } from './answers.js';
 import { scaffoldInit } from './scaffold.js';
 
-// All values use OpenRouter model IDs (provider/org/model).
-// Anthropic models are intentionally excluded: pi-ai routes them through the
-// Anthropic API directly, which requires ANTHROPIC_API_KEY — not OPENROUTER_API_KEY.
-// Users who have a direct Anthropic key can add anthropic/claude-* manually.
+// All values use OpenRouter model IDs (openrouter/provider/model).
+// pi-ai resolves these through OpenRouter's OpenAI-compatible API using OPENROUTER_API_KEY.
 export const MODEL_PRESETS = [
   { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o             · OpenAI', hint: 'recommended' },
   { value: 'openrouter/openai/gpt-4o-mini', label: 'GPT-4o Mini        · OpenAI', hint: 'fast' },
+  { value: 'openrouter/anthropic/claude-sonnet-4-5', label: 'Claude Sonnet 4.5  · Anthropic' },
+  { value: 'openrouter/anthropic/claude-haiku-4-5', label: 'Claude Haiku 4.5   · Anthropic', hint: 'fast' },
   { value: 'openrouter/google/gemini-2.5-pro-preview', label: 'Gemini 2.5 Pro     · Google' },
   { value: 'openrouter/google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash   · Google', hint: 'fast' },
   { value: 'openrouter/meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B      · Meta', hint: 'open' },

@@ -6,6 +6,8 @@ import { importCommands } from '../import/index.js';
 const KNOWN_MODELS: Record<string, { name: string; tier: 'flagship' | 'mid' | 'low' }> = {
   'openrouter/openai/gpt-4o': { name: 'GPT-4o', tier: 'flagship' },
   'openrouter/openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid' },
+  'openrouter/anthropic/claude-sonnet-4-5': { name: 'Claude Sonnet 4.5', tier: 'flagship' },
+  'openrouter/anthropic/claude-haiku-4-5': { name: 'Claude Haiku 4.5', tier: 'mid' },
   'openrouter/google/gemini-2.5-pro-preview': { name: 'Gemini 2.5 Pro', tier: 'flagship' },
   'openrouter/google/gemini-2.0-flash-001': { name: 'Gemini 2.0 Flash', tier: 'mid' },
   'openrouter/meta-llama/llama-3.3-70b-instruct': { name: 'Llama 3.3 70B', tier: 'mid' },
