@@ -6,38 +6,70 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 
 ## Quickstart
 
+**Requirements:** Node.js 20+, an [OpenRouter](https://openrouter.ai) API key.
+
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
+```
 
-# Run the wizard from your project root
+**Step 1 — Scaffold config** (run from your project root):
+
+```bash
 npx skill-optimizer init cli       # or: init sdk, init mcp
+```
 
-# Non-interactive: accept all defaults
+The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `skill-optimizer/` directory:
+- `skill-optimizer.json` — the main config (commit this)
+- `.skill-optimizer/cli-commands.json` — CLI surface manifest (template to edit, or auto-extracted)
+- `.skill-optimizer/tools.json` — MCP surface manifest (template to edit)
+
+**Step 2 — (CLI/MCP only) Extract your surface** if code-first discovery yields nothing:
+
+```bash
+npx skill-optimizer import-commands --from ./src/cli.ts
+# or for a compiled binary:
+npx skill-optimizer import-commands --from my-cli --scrape
+```
+
+**Step 3 — Run a benchmark:**
+
+```bash
+npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json
+```
+
+**Step 4 — Run the optimizer** (iteratively improves your `SKILL.md`):
+
+```bash
+npx skill-optimizer optimize --config ./skill-optimizer/skill-optimizer.json
+```
+
+The optimizer never modifies your original `SKILL.md` — it works from versioned local copies in `.skill-optimizer/` and prints a progress table at the end showing per-model improvement.
+
+---
+
+**Non-interactive / CI mode:**
+
+```bash
+# Accept all wizard defaults without prompts
 npx skill-optimizer init cli --yes
 
-# CI mode: load answers from a JSON file
+# Load answers from a JSON file
 npx skill-optimizer init --answers answers.json
 ```
 
-`init` creates a `skill-optimizer/` directory with:
-- `skill-optimizer.json` — the main config (commit this)
-- `skill-optimizer/.skill-optimizer/` — generated artifacts (gitignored)
-  - `cli-commands.json` — CLI surface: auto-extracted via `import-commands`, or template
-  - `tools.json` — MCP surface: template to edit with your real tools
-
-**`answers.json` format for CI/`--answers` mode:**
+`answers.json` format:
 ```json
 {
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
-  "models": ["openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4o"],
+  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
   "maxTasks": 20,
   "maxIterations": 5,
   "entryFile": "src/cli.ts"
 }
 ```
 
-Open `skill-optimizer/skill-optimizer.json` and review these fields:
+**Key config fields** in `skill-optimizer/skill-optimizer.json`:
 
 | Field | What it does | Set it to |
 |-------|-------------|-----------|
@@ -45,16 +77,6 @@ Open `skill-optimizer/skill-optimizer.json` and review these fields:
 | `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["../src/index.ts"]` or `["../src/server.ts"]` |
 | `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
 | `benchmark.models` | Models to benchmark | Valid [OpenRouter](https://openrouter.ai/models) model IDs |
-
-For CLI and MCP surfaces: if code-first discovery yields nothing, edit the companion manifest (`cli-commands.json` or `tools.json`) with your real commands/tools — the config already points to it as a fallback.
-
-Tasks are generated automatically from your discovered surface — you don't need to write them manually.
-
-Then run the benchmark:
-
-```bash
-npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json
-```
 
 ## How it works
 
