@@ -228,6 +228,23 @@ function parseSingleCommand(command: string, line: number, knownCommands?: reado
   };
 }
 
+function findKnownCommand(
+  tokens: string[],
+  fromIndex: number,
+  knownSet: Set<string>,
+): { methodParts: string[]; nextIndex: number } | null {
+  for (let end = tokens.length; end > fromIndex; end--) {
+    const candidateTokens = tokens.slice(fromIndex, end);
+    if (candidateTokens.some((token) => token === '--' || token.startsWith('-'))) {
+      continue;
+    }
+    if (knownSet.has(candidateTokens.join(' '))) {
+      return { methodParts: candidateTokens, nextIndex: end };
+    }
+  }
+  return null;
+}
+
 function resolveMethod(
   tokens: string[],
   startIndex: number,
@@ -235,17 +252,13 @@ function resolveMethod(
 ): { methodParts: string[]; nextIndex: number } {
   if (knownCommands && knownCommands.length > 0) {
     const knownSet = new Set(knownCommands.map((command) => command.trim()).filter(Boolean));
-    for (let end = tokens.length; end > startIndex; end--) {
-      const candidateTokens = tokens.slice(startIndex, end);
-      if (candidateTokens.some((token) => token === '--' || token.startsWith('-'))) {
-        continue;
-      }
 
-      const candidate = candidateTokens.join(' ');
-      if (knownSet.has(candidate)) {
-        return { methodParts: candidateTokens, nextIndex: end };
-      }
-    }
+    // Try matching from startIndex first, then skip one token (the executable name, e.g. "fast")
+    const match =
+      findKnownCommand(tokens, startIndex, knownSet) ??
+      (startIndex + 1 < tokens.length ? findKnownCommand(tokens, startIndex + 1, knownSet) : null);
+
+    if (match) return match;
   }
 
   const executable = tokens[startIndex];
