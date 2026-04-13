@@ -2,7 +2,7 @@ import { strict as assert } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detectProject } from '../src/init/detect-project.js';
+import { detectProject, detectedToPreseed } from '../src/init/detect-project.js';
 import type { WizardAnswers } from '../src/init/answers.js';
 import { buildDefaultAnswers, readAnswersFile } from '../src/init/answers.js';
 import { scaffoldInit } from '../src/init/scaffold.js';
@@ -297,7 +297,6 @@ assert.strictEqual(typeof _a.surface, 'string');
 
 // detectedToPreseed maps DetectedProject to Partial<WizardAnswers>
 {
-  const { detectedToPreseed, detectProject } = await import('../src/init/detect-project.js');
   const dir = mkdtempSync(join(tmpdir(), 'preseed-'));
   try {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({
@@ -319,7 +318,6 @@ assert.strictEqual(typeof _a.surface, 'string');
 
 // --auto --yes high confidence path: scaffoldInit called without wizard
 {
-  const { detectProject, detectedToPreseed } = await import('../src/init/detect-project.js');
   const { buildDefaultAnswers } = await import('../src/init/answers.js');
   const dir = mkdtempSync(join(tmpdir(), 'auto-yes-'));
   try {
@@ -346,7 +344,9 @@ assert.strictEqual(typeof _a.surface, 'string');
   }
 }
 
-// --auto --yes low confidence should reject (E_INIT_AUTO_LOW_CONFIDENCE)
+// --auto --yes low confidence: verifies error infrastructure (E_INIT_AUTO_LOW_CONFIDENCE exists and can be thrown)
+// Note: this simulates the guard logic in cli.ts rather than calling through the CLI handler,
+// since the full CLI path requires process.argv and process.exit mocking.
 {
   const { detectProject } = await import('../src/init/detect-project.js');
   const { ERRORS, SkillOptimizerError } = await import('../src/errors.js');
