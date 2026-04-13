@@ -43,7 +43,7 @@ export async function generateTasksForProject(
     console.warn(
       `[warn] Discovery found 0 in-scope actions for surface "${surface.snapshot.surface}".` +
       ` If using CLI surface, add target.cli.commands in your config.` +
-      ` Run 'skill-optimizer doctor' for a full diagnosis.`
+      ` Run 'npx skill-optimizer doctor' for a full diagnosis.`
     );
   }
   console.log(`[optimize] Scope filter: ${inScope.length} in scope, ${outOfScope.length} out of scope.`);

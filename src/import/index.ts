@@ -17,7 +17,7 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
   const absOut = resolve(cwd, out);
 
   const detection = scrape ? { kind: 'unknown' as const, binaryHint: from } : detectFramework(from, cwd);
-  console.log(`\nskill-optimizer import-commands — detecting framework from ${from}`);
+  console.log(`\nnpx skill-optimizer import-commands — detecting framework from ${from}`);
   if (detection.kind !== 'unknown') {
     console.log(`  Detected: ${detection.kind}`);
   }
@@ -64,7 +64,7 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
   }
 
   if (commands.length === 0) {
-    throw new Error('No commands found after all strategies. Try: skill-optimizer import-commands --from <binary> --scrape');
+    throw new Error('No commands found after all strategies. Try: npx skill-optimizer import-commands --from <binary> --scrape');
   }
 
   console.log(`  Found ${commands.length} commands`);
@@ -80,5 +80,5 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
   mkdirSync(dirname(absOut), { recursive: true });
   writeOutput(commands, absOut);
   console.log(`\n  Wrote ${commands.length} commands to ${out}`);
-  console.log(`  Done. Review the file and run 'skill-optimizer doctor' to validate.\n`);
+  console.log(`  Done. Review the file and run 'npx skill-optimizer doctor' to validate.\n`);
 }

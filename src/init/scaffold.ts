@@ -209,11 +209,11 @@ function printNextSteps(answers: WizardAnswers, configPath: string): void {
       console.log('  1. Review skill-optimizer/.skill-optimizer/cli-commands.json — auto-extracted from your CLI');
     } else {
       console.log('  1. Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace template with real commands');
-      console.log('     Or run: skill-optimizer import-commands --from <entry-file>');
+      console.log('     Or run: npx skill-optimizer import-commands --from <entry-file>');
     }
   } else {
     console.log('  1. Edit skill-optimizer/.skill-optimizer/tools.json — replace template with your real MCP tools');
   }
   console.log('  2. Add a SKILL.md to your repo root explaining the surface to the model');
-  console.log('  3. Run: skill-optimizer run --config ./skill-optimizer/skill-optimizer.json');
+  console.log('  3. Run: npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json');
 }
