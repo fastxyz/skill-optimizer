@@ -309,7 +309,7 @@ export async function checkConfig(
   if (optimize?.allowedPaths && target.repoPath) {
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     for (const ap of optimize.allowedPaths) {
-      const absAp = isAbsolute(ap) ? ap : resolve(configDir, ap);
+      const absAp = isAbsolute(ap) ? ap : resolve(absRepo, ap);
       if (!absAp.startsWith(absRepo + '/') && absAp !== absRepo) {
         issues.push({
           code: 'allowed-path-outside-repo', severity: 'error', field: 'optimize.allowedPaths',
