@@ -154,13 +154,20 @@ await test('code-first discovery fails fast when MCP source is missing', async (
       },
     }, null, 2), 'utf-8');
 
-    const project = await loadProjectConfig(configPath);
+    // loadProjectConfig now validates paths eagerly — expect it to throw when source is missing
     let threw = false;
     try {
+      const project = await loadProjectConfig(configPath);
+      // If load succeeds (future behavior change), check that buildSurfaceSnapshot also fails
       buildSurfaceSnapshot(project);
     } catch (error: any) {
       threw = true;
-      assert(error.message.includes('not found'), 'missing source error should mention not found');
+      // Accept either the new validation error or the old discovery error
+      const msg: string = error.message;
+      assert(
+        msg.includes('does not exist') || msg.includes('not found'),
+        `missing source error should mention missing path, got: ${msg}`,
+      );
     }
     assert(threw, 'missing discovery source should fail fast');
   } finally {
@@ -245,13 +252,20 @@ await test('discoverActions fails fast when MCP discovery source is missing and 
       },
     }, null, 2), 'utf-8');
 
-    const project = await loadProjectConfig(configPath);
+    // loadProjectConfig now validates paths eagerly — expect it to throw when source is missing
     let threw = false;
     try {
+      const project = await loadProjectConfig(configPath);
+      // If load succeeds (future behavior change), check that discoverActions also fails
       discoverActions(project);
     } catch (error: any) {
       threw = true;
-      assert(error.message.includes('not found'), 'missing source error should mention not found');
+      // Accept either the new validation error or the old discovery error
+      const msg: string = error.message;
+      assert(
+        msg.includes('does not exist') || msg.includes('not found'),
+        `missing source error should mention missing path, got: ${msg}`,
+      );
     }
 
     assert(threw, 'missing discovery source should fail fast when no fallback exists');

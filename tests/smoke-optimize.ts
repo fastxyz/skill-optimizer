@@ -177,12 +177,14 @@ console.log('\n=== Optimizer Smoke Tests ===\n');
 await test('loadOptimizeManifest: applies defaults', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
+    const repoDir = join(dir, 'sdk');
+    mkdirSync(join(repoDir, 'src'), { recursive: true });
     const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-defaults',
       target: {
         surface: 'sdk',
-        repoPath: '../sdk',
+        repoPath: './sdk',
         sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
       },
       benchmark: {
@@ -192,7 +194,7 @@ await test('loadOptimizeManifest: applies defaults', async () => {
       },
       optimize: {
         model: 'openrouter/openai/gpt-5.4',
-        allowedPaths: ['src'],
+        allowedPaths: ['./sdk/src'],
         validation: ['npm test'],
       },
     }), 'utf-8');
@@ -211,12 +213,14 @@ await test('loadOptimizeManifest: applies defaults', async () => {
 await test('loadOptimizeManifest: defaults optimize.model to the first benchmark model', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
+    const repoDir = join(dir, 'sdk');
+    mkdirSync(join(repoDir, 'src'), { recursive: true });
     const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-default-model',
       target: {
         surface: 'sdk',
-        repoPath: '../sdk',
+        repoPath: './sdk',
         sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
       },
       benchmark: {
@@ -225,7 +229,7 @@ await test('loadOptimizeManifest: defaults optimize.model to the first benchmark
         models: [{ id: 'openrouter/openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' }],
       },
       optimize: {
-        allowedPaths: ['src'],
+        allowedPaths: ['./sdk/src'],
         validation: ['npm test'],
       },
     }), 'utf-8');
@@ -241,12 +245,14 @@ await test('loadOptimizeManifest: defaults optimize.model to the first benchmark
 await test('loadOptimizeManifest: allows empty target validation commands', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-'));
   try {
+    const repoDir = join(dir, 'sdk');
+    mkdirSync(join(repoDir, 'src'), { recursive: true });
     const file = join(dir, 'skill-optimizer.json');
     writeFileSync(file, JSON.stringify({
       name: 'opt-validation',
       target: {
         surface: 'sdk',
-        repoPath: '../sdk',
+        repoPath: './sdk',
         sdk: { language: 'typescript', apiSurface: ['Client.doThing'] },
       },
       benchmark: {
@@ -256,7 +262,7 @@ await test('loadOptimizeManifest: allows empty target validation commands', asyn
       },
       optimize: {
         model: 'openrouter/openai/gpt-5.4',
-        allowedPaths: ['src'],
+        allowedPaths: ['./sdk/src'],
         validation: [],
       },
     }), 'utf-8');

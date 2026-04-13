@@ -652,18 +652,28 @@ console.log('\n=== Doctor / checkConfig Tests ===\n');
 
 await test('checkConfig: valid sdk config returns no errors', async () => {
   const { checkConfig } = await import('../src/project/validate.js');
-  const config = {
-    name: 'my-sdk',
-    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
-    benchmark: {
-      format: 'pi' as const,
-      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' as const }],
-      tasks: './tasks.json',
-    },
-  };
-  const issues = await checkConfig(config as any, '/fake/path/skill-optimizer.json');
-  const errors = issues.filter(i => i.severity === 'error');
-  assert(errors.length === 0, `expected 0 errors, got: ${errors.map(i => i.message).join(', ')}`);
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-check-'));
+  try {
+    // Create real files so path-existence checks pass
+    writeFileSync(join(dir, 'index.ts'), '// entry', 'utf-8');
+    writeFileSync(join(dir, 'tasks.json'), JSON.stringify({ tasks: [] }), 'utf-8');
+    const configPath = join(dir, 'skill-optimizer.json');
+    const config = {
+      name: 'my-sdk',
+      target: { surface: 'sdk' as const, discovery: { sources: ['./index.ts'], language: 'typescript' as const } },
+      benchmark: {
+        format: 'pi' as const,
+        models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' as const }],
+        tasks: './tasks.json',
+      },
+    };
+    const issues = await checkConfig(config as any, configPath);
+    // Filter out api-key-not-set warning (env-dependent) and focus on real errors
+    const errors = issues.filter(i => i.severity === 'error');
+    assert(errors.length === 0, `expected 0 errors, got: ${errors.map(i => i.message).join(', ')}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 await test('checkConfig: missing name returns error', async () => {
@@ -701,6 +711,62 @@ await test('checkConfig: empty models array returns error', async () => {
   const issues = await checkConfig(config as any, '/fake/path/skill-optimizer.json');
   const err = issues.find(i => i.code === 'missing-models');
   assert(err !== undefined, 'expected missing-models error for benchmark.models');
+});
+
+await test('checkConfig: model ID missing openrouter/ prefix → fixable error', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'z-ai/glm-5.1', name: 'GLM', tier: 'mid' as const }],
+      taskGeneration: { enabled: true, maxTasks: 5 },
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'model-id-missing-prefix');
+  assert(err !== undefined, 'expected model-id-missing-prefix issue');
+  assert(err!.fixable === true, 'model-id-missing-prefix should be fixable');
+  assert(err!.hint?.includes('openrouter/z-ai/glm-5.1'), `hint should show corrected ID, got: ${err!.hint}`);
+});
+
+await test('checkConfig: model ID with dot version → fixable warning', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openrouter/anthropic/claude-sonnet-4.6', name: 'Claude', tier: 'flagship' as const }],
+      taskGeneration: { enabled: true, maxTasks: 5 },
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const warn = issues.find(i => i.code === 'model-id-bad-format');
+  assert(warn !== undefined, 'expected model-id-bad-format issue');
+  assert(warn!.severity === 'warning', 'should be warning severity');
+  assert(warn!.fixable === true, 'model-id-bad-format should be fixable');
+  assert(warn!.hint?.includes('4-6'), `hint should show hyphen version, got: ${warn!.hint}`);
+});
+
+await test('checkConfig: deprecated benchmark.tasks field → fixable warning', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT', tier: 'flagship' as const }],
+      tasks: './tasks.json',
+      taskGeneration: { enabled: true, maxTasks: 5 },
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const warn = issues.find(i => i.code === 'deprecated-tasks-field');
+  assert(warn !== undefined, 'expected deprecated-tasks-field issue');
+  assert(warn!.severity === 'warning', 'should be warning');
+  assert(warn!.fixable === true, 'deprecated-tasks-field should be fixable');
 });
 
 // ── Summary ────────────────────────────────────────────────────────────────

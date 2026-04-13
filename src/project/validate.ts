@@ -1,5 +1,12 @@
+import { existsSync } from 'node:fs';
+import { resolve, dirname, isAbsolute } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
 import type { ProjectConfig } from './types.js';
 import { isSdkLanguage } from './types.js';
+
+const execFileAsync = promisify(execFile);
 
 export type IssueSeverity = 'error' | 'warning' | 'info';
 
@@ -196,7 +203,168 @@ export async function checkConfig(
     }
   }
 
-  // filesystem and environment checks will be added in Task 2
+  const configDir = dirname(_configPath);
+
+  // Check: target.repoPath exists
+  if (target.repoPath !== undefined) {
+    const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
+    if (!existsSync(absRepo)) {
+      issues.push({
+        code: 'repo-path-missing', severity: 'error', field: 'target.repoPath',
+        message: `"target.repoPath" does not exist: ${absRepo}`,
+        hint: `Set target.repoPath to the absolute path of your project root`,
+        fixable: false,
+      });
+    }
+  }
+
+  // Check: target.skill file exists
+  if (target.skill !== undefined) {
+    const skillSource = typeof target.skill === 'string' ? target.skill : (target.skill as any).source;
+    if (skillSource) {
+      const absSkill = isAbsolute(skillSource) ? skillSource : resolve(configDir, skillSource);
+      if (!existsSync(absSkill)) {
+        issues.push({
+          code: 'skill-file-missing', severity: 'error', field: 'target.skill',
+          message: `"target.skill" does not exist: ${absSkill}`,
+          hint: `Create SKILL.md at that path or update target.skill`,
+          fixable: false,
+        });
+      }
+    }
+  }
+
+  // Check: target.discovery.sources all exist
+  if (Array.isArray(target.discovery?.sources)) {
+    for (const src of target.discovery!.sources) {
+      const absSrc = isAbsolute(src) ? src : resolve(configDir, src);
+      if (!existsSync(absSrc)) {
+        issues.push({
+          code: 'discovery-source-missing', severity: 'error', field: 'target.discovery.sources',
+          message: `discovery source does not exist: ${absSrc}`,
+          hint: `Update target.discovery.sources to point at your entry file`,
+          fixable: false,
+        });
+      }
+    }
+  }
+
+  // Check: CLI/MCP manifest file exists if configured
+  const manifestPath = (target as any).cli?.commands ?? (target as any).mcp?.tools ?? target.discovery?.fallbackManifest;
+  if (manifestPath) {
+    const absManifest = isAbsolute(manifestPath) ? manifestPath : resolve(configDir, manifestPath);
+    if (!existsSync(absManifest)) {
+      const field = (target as any).cli?.commands ? 'target.cli.commands'
+        : (target as any).mcp?.tools ? 'target.mcp.tools'
+        : 'target.discovery.fallbackManifest';
+      issues.push({
+        code: 'manifest-file-missing', severity: 'error', field,
+        message: `manifest file does not exist: ${absManifest}`,
+        hint: `Run 'skill-optimizer init ${target.surface}' to generate a template manifest`,
+        fixable: false,
+      });
+    }
+  }
+
+  // Check: model ID format
+  if (Array.isArray(benchmark.models)) {
+    for (let i = 0; i < benchmark.models.length; i++) {
+      const model = benchmark.models[i]!;
+      if (!model.id) continue;
+
+      const hasProviderPrefix = model.id.includes('/') && (
+        model.id.startsWith('openrouter/') ||
+        model.id.startsWith('anthropic/') ||
+        model.id.startsWith('openai/')
+      );
+      if (!hasProviderPrefix) {
+        issues.push({
+          code: 'model-id-missing-prefix', severity: 'error', field: `benchmark.models[${i}].id`,
+          message: `model ID "${model.id}" is missing a provider prefix`,
+          hint: `Change to: openrouter/${model.id}`,
+          fixable: true,
+        });
+      }
+
+      if (/\d+\.\d+/.test(model.id)) {
+        const corrected = model.id.replace(/(\d+)\.(\d+)/g, '$1-$2');
+        issues.push({
+          code: 'model-id-bad-format', severity: 'warning', field: `benchmark.models[${i}].id`,
+          message: `model ID "${model.id}" uses dots in version segment — OpenRouter expects hyphens`,
+          hint: `Change to: ${corrected}`,
+          fixable: true,
+        });
+      }
+    }
+  }
+
+  // Check: optimize.allowedPaths inside target.repoPath
+  if (optimize?.allowedPaths && target.repoPath) {
+    const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
+    for (const ap of optimize.allowedPaths) {
+      const absAp = isAbsolute(ap) ? ap : resolve(configDir, ap);
+      if (!absAp.startsWith(absRepo)) {
+        issues.push({
+          code: 'allowed-path-outside-repo', severity: 'error', field: 'optimize.allowedPaths',
+          message: `allowedPath "${ap}" is not inside target.repoPath "${absRepo}"`,
+          hint: `Use a path inside ${absRepo}`,
+          fixable: false,
+        });
+      }
+    }
+  }
+
+  // Check: API key env var
+  const apiKeyEnv = benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY';
+  if (!process.env[apiKeyEnv]) {
+    issues.push({
+      code: 'api-key-not-set', severity: 'warning', field: 'benchmark.apiKeyEnv',
+      message: `env var "${apiKeyEnv}" is not set`,
+      hint: `Run: export ${apiKeyEnv}=sk-or-...`,
+      fixable: false,
+    });
+  }
+
+  // Check: dirty git (injection-safe: fixed arg array, no shell)
+  if (optimize?.requireCleanGit !== false && target.repoPath) {
+    const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
+    if (existsSync(absRepo)) {
+      try {
+        const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: absRepo });
+        if (stdout.trim().length > 0) {
+          issues.push({
+            code: 'dirty-git', severity: 'error', field: 'target.repoPath',
+            message: `target repo has uncommitted changes (optimize.requireCleanGit is enabled)`,
+            hint: `Run: git stash  or commit your changes in ${absRepo}`,
+            fixable: false,
+          });
+        }
+      } catch {
+        // Not a git repo or git unavailable — skip silently
+      }
+    }
+  }
+
+  // Check: deprecated benchmark.tasks field
+  if ((benchmark as any).tasks !== undefined && benchmark.taskGeneration?.enabled === true) {
+    issues.push({
+      code: 'deprecated-tasks-field', severity: 'warning', field: 'benchmark.tasks',
+      message: '"benchmark.tasks" is set but task generation is enabled — the tasks field is deprecated',
+      hint: `Remove "tasks" from benchmark — task generation replaces it`,
+      fixable: true,
+    });
+  }
+
+  // Check: legacy skill-benchmark.json alongside skill-optimizer.json
+  const legacyPath = resolve(dirname(_configPath), 'skill-benchmark.json');
+  if (existsSync(legacyPath)) {
+    issues.push({
+      code: 'legacy-config-name', severity: 'warning', field: '(config file)',
+      message: `Found legacy "skill-benchmark.json" alongside "skill-optimizer.json"`,
+      hint: `Delete skill-benchmark.json — it is no longer used`,
+      fixable: false,
+    });
+  }
 
   return issues;
 }
