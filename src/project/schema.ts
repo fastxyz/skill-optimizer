@@ -69,7 +69,7 @@ const BenchmarkConfigSchema = z.object({
   taskGeneration: TaskGenerationConfigSchema.optional().describe('Automatic task generation config'),
   output: z.object({
     dir: z.string().optional().describe('Directory where reports are saved (default "benchmark-results/")'),
-  }).optional(),
+  }).optional().describe('Output configuration'),
   verdict: VerdictConfigSchema.optional().describe('PASS/FAIL thresholds'),
 });
 
