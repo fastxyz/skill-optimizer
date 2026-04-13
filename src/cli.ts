@@ -23,6 +23,7 @@ import { importCommands } from './import/index.js';
 import { scaffoldInit } from './init/scaffold.js';
 import { buildDefaultAnswers, readAnswersFile } from './init/answers.js';
 import { runWizard } from './init/wizard.js';
+import { ERRORS, SkillOptimizerError, printError } from './errors.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ function hasFlag(args: string[], flag: string): boolean {
 const BOOLEAN_FLAGS = new Set([
   '--help',
   '-h',
+  '--auto',
   '--dry-run',
   '--no-cache',
   '--skip-generation',
@@ -327,9 +329,11 @@ async function main(): Promise<void> {
       }
       process.exit(bestReport.verdict?.result === 'FAIL' ? 1 : 0);
     } catch (err) {
-      console.error(`\nFATAL: Optimize failed: ${err instanceof Error ? err.message : err}`);
-      if (err instanceof Error && err.stack) {
-        console.error(err.stack);
+      if (err instanceof SkillOptimizerError) {
+        printError(err);
+      } else {
+        printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
+        if (err instanceof Error && err.stack) console.error(err.stack);
       }
       process.exit(1);
     }
@@ -432,9 +436,11 @@ async function main(): Promise<void> {
       generatedCoverage = generation.coverage;
     }
   } catch (err) {
-    console.error(`\nFATAL: Benchmark setup failed: ${err instanceof Error ? err.message : err}`);
-    if (err instanceof Error && err.stack) {
-      console.error(err.stack);
+    if (err instanceof SkillOptimizerError) {
+      printError(err);
+    } else {
+      printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
+      if (err instanceof Error && err.stack) console.error(err.stack);
     }
     process.exit(1);
   }
@@ -447,9 +453,11 @@ async function main(): Promise<void> {
       scopeCoverage: generatedCoverage,
     });
   } catch (err) {
-    console.error(`\nFATAL: Benchmark failed: ${err instanceof Error ? err.message : err}`);
-    if (err instanceof Error && err.stack) {
-      console.error(err.stack);
+    if (err instanceof SkillOptimizerError) {
+      printError(err);
+    } else {
+      printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
+      if (err instanceof Error && err.stack) console.error(err.stack);
     }
     process.exit(1);
   }
