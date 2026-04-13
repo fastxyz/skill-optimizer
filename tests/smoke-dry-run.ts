@@ -36,25 +36,22 @@ function testDryRunMaxTasksTooSmall() {
     const baseTarget = base.target as Record<string, unknown>;
     const baseDiscovery = (baseTarget.discovery ?? {}) as Record<string, unknown>;
     const baseSources = (baseDiscovery.sources ?? []) as string[];
+    const baseBenchmark = base.benchmark as Record<string, unknown>;
+    const baseTaskGen = (baseBenchmark.taskGeneration ?? {}) as Record<string, unknown>;
+
     // Resolve paths to absolute so they work from the temp dir
-    const absoluteSources = baseSources.map((s) => resolve(mockDir, s));
-    const absoluteSkill = baseTarget.skill ? resolve(mockDir, String(baseTarget.skill)) : undefined;
-    (base as Record<string, unknown>).target = {
+    base.target = {
       ...baseTarget,
       repoPath: mockDir,
-      ...(absoluteSkill !== undefined && { skill: absoluteSkill }),
+      ...(baseTarget.skill && { skill: resolve(mockDir, String(baseTarget.skill)) }),
       discovery: {
         ...baseDiscovery,
-        sources: absoluteSources,
+        sources: baseSources.map((s) => resolve(mockDir, s)),
       },
     };
-    (base as Record<string, unknown>).benchmark = {
-      ...(base.benchmark as object),
-      taskGeneration: {
-        ...((base.benchmark as Record<string, unknown>).taskGeneration as object ?? {}),
-        enabled: true,
-        maxTasks: 1,
-      },
+    base.benchmark = {
+      ...baseBenchmark,
+      taskGeneration: { ...baseTaskGen, enabled: true, maxTasks: 1 },
     };
     const cfgPath = join(dir, 'skill-optimizer.json');
     writeFileSync(cfgPath, JSON.stringify(base, null, 2));

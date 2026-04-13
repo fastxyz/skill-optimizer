@@ -5,18 +5,27 @@ import { resolve } from 'node:path';
 
 const REPO_ROOT = resolve(import.meta.dirname, '..');
 
-function test(name: string, fn: () => void) {
+function test(name: string, fn: () => void): void {
   try {
     fn();
     console.log(`PASS: ${name}`);
-  } catch (e: any) {
-    console.error(`FAIL: ${name} — ${e.message}`);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`FAIL: ${name} — ${message}`);
     process.exit(1);
   }
 }
 
 const ERRORS_MD = resolve(REPO_ROOT, 'docs/reference/errors.md');
 const CONFIG_SCHEMA_MD = resolve(REPO_ROOT, 'docs/reference/config-schema.md');
+
+function assertContainsAllErrorCodes(content: string, contextMsg: string): Promise<void> {
+  return import('../src/errors.js').then(({ ERRORS }) => {
+    for (const key of Object.keys(ERRORS)) {
+      assert.ok(content.includes(`\`${key}\``), `${contextMsg}: missing error code \`${key}\``);
+    }
+  });
+}
 
 test('gen-docs: errors.md exists and contains AUTO-GENERATED header', () => {
   assert.ok(existsSync(ERRORS_MD), `errors.md should exist at ${ERRORS_MD}`);
@@ -30,14 +39,7 @@ test('gen-docs: errors.md exists and contains AUTO-GENERATED header', () => {
 });
 
 test('gen-docs: errors.md contains all ERRORS codes', async () => {
-  const { ERRORS } = await import('../src/errors.js');
-  const content = readFileSync(ERRORS_MD, 'utf-8');
-  for (const key of Object.keys(ERRORS)) {
-    assert.ok(
-      content.includes(`\`${key}\``),
-      `errors.md should contain error code \`${key}\``
-    );
-  }
+  await assertContainsAllErrorCodes(readFileSync(ERRORS_MD, 'utf-8'), 'errors.md');
 });
 
 test('gen-docs: config-schema.md exists and contains expected fields', () => {
@@ -65,14 +67,7 @@ test('gen-docs: script runs cleanly and output is stable', async () => {
     `gen-docs should exit 0, got ${result.status}. stderr: ${result.stderr}`
   );
 
-  const { ERRORS } = await import('../src/errors.js');
-  const content = readFileSync(ERRORS_MD, 'utf-8');
-  for (const key of Object.keys(ERRORS)) {
-    assert.ok(
-      content.includes(`\`${key}\``),
-      `After re-run, errors.md should still contain \`${key}\``
-    );
-  }
+  await assertContainsAllErrorCodes(readFileSync(ERRORS_MD, 'utf-8'), 'errors.md after re-run');
 });
 
 console.log('ALL PASS: smoke-gen-docs');
