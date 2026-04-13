@@ -64,9 +64,7 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
   }
 
   if (commands.length === 0) {
-    console.error('\n  ERROR: No commands found after all strategies.');
-    console.error('  Try: skill-optimizer import-commands --from <binary> --scrape');
-    process.exit(1);
+    throw new Error('No commands found after all strategies. Try: skill-optimizer import-commands --from <binary> --scrape');
   }
 
   console.log(`  Found ${commands.length} commands`);

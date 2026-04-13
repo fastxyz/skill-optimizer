@@ -308,13 +308,18 @@ async function main(): Promise<void> {
     }
     const outFlag = getFlag(args, '--out') ?? 'skill-optimizer/cli-commands.json';
     const depthRaw = getFlag(args, '--depth');
-    await importCommands({
-      from: fromFlag,
-      out: outFlag,
-      scrape: hasFlag(args, '--scrape'),
-      depth: depthRaw ? parseInt(depthRaw, 10) : 2,
-      cwd: process.cwd(),
-    });
+    try {
+      await importCommands({
+        from: fromFlag,
+        out: outFlag,
+        scrape: hasFlag(args, '--scrape'),
+        depth: depthRaw ? parseInt(depthRaw, 10) : 2,
+        cwd: process.cwd(),
+      });
+    } catch (err) {
+      console.error(`\n  ERROR: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
     process.exit(0);
   }
 
