@@ -34,8 +34,9 @@ function generateErrorsMd(): string {
   ];
 
   for (const def of entries) {
+    const msg = def.message.replace(/\|/g, '\\|');
     const quickFix = (def.fix[0] ?? '').replace(/\|/g, '\\|');
-    lines.push(`| \`${def.code}\` | ${def.message} | ${quickFix} |`);
+    lines.push(`| \`${def.code}\` | ${msg} | ${quickFix} |`);
   }
 
   lines.push('', '## Details', '');
