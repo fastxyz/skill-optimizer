@@ -10,6 +10,8 @@ import { extractYargs } from '../src/import/extractors/ts-yargs.js';
 import { extractClick } from '../src/import/extractors/py-click.js';
 import { extractArgparse } from '../src/import/extractors/py-argparse.js';
 import { extractClap } from '../src/import/extractors/rs-clap.js';
+import { detectFramework } from '../src/import/detect.js';
+import { importCommands } from '../src/import/index.js';
 
 // === Types check ===
 const _typeCheck: CliCommandDefinition = { command: 'create', description: 'Create item' };
@@ -153,6 +155,41 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
   const deleteCmd = commands.find(c => c.command === 'delete');
   assert.ok(deleteCmd !== undefined, 'Should find "delete" command');
+}
+
+// === detectFramework ===
+{
+  const clickFixture = join('tests/fixtures/import-commands/click-sample.py');
+  const result = detectFramework(clickFixture, process.cwd());
+  assert.strictEqual(result.kind, 'click');
+}
+
+{
+  const argparseFixture = join('tests/fixtures/import-commands/argparse-sample.py');
+  const result = detectFramework(argparseFixture, process.cwd());
+  assert.strictEqual(result.kind, 'argparse');
+}
+
+{
+  const commanderFixture = join('tests/fixtures/import-commands/commander-sample.ts');
+  const result = detectFramework(commanderFixture, process.cwd());
+  assert.strictEqual(result.kind, 'commander');
+}
+
+// === importCommands orchestration ===
+{
+  const dir = mkdtempSync(join(tmpdir(), 'import-orch-'));
+  const outPath = join(dir, 'cli-commands.json');
+  await importCommands({
+    from: 'tests/fixtures/import-commands/commander-sample.ts',
+    out: outPath,
+    scrape: false,
+    depth: 2,
+    cwd: process.cwd(),
+  });
+  assert.strictEqual(existsSync(outPath), true);
+  const written = JSON.parse(readFileSync(outPath, 'utf-8')) as CliCommandDefinition[];
+  assert.strictEqual(written.length, 3);
 }
 
 console.log('smoke-import: all tests passed');
