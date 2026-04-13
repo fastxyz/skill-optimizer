@@ -34,8 +34,8 @@ export function readAnswersFile(filePath: string): WizardAnswers {
   if (!raw.repoPath) {
     throw new Error('answers file must have repoPath');
   }
-  if (!raw.models || raw.models.length === 0) {
-    throw new Error('answers file must have at least one model');
+  if (!Array.isArray(raw.models) || raw.models.length === 0) {
+    throw new Error('answers file must have at least one model (as a JSON array)');
   }
   return {
     surface: raw.surface,

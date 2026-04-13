@@ -1,11 +1,14 @@
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, basename } from 'node:path';
+import { resolve, relative, join, basename } from 'node:path';
 import type { WizardAnswers } from './answers.js';
 import { importCommands } from '../import/index.js';
 
-export function buildConfigFromAnswers(answers: WizardAnswers): object {
+export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
   const projectName = name ?? basename(repoPath);
+
+  // Paths stored in the JSON are relative to configDir so the config is portable
+  const relRepo = relative(configDir, repoPath) || '.';
 
   const commonBenchmark = {
     apiKeyEnv: 'OPENROUTER_API_KEY',
@@ -22,7 +25,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers): object {
       ? 'openrouter/anthropic/claude-sonnet-4-6'
       : models[0]!,
     apiKeyEnv: 'OPENROUTER_API_KEY',
-    allowedPaths: ['../SKILL.md'],
+    allowedPaths: [join(relRepo, 'SKILL.md')],
     validation: [],
     maxIterations,
   };
@@ -32,26 +35,26 @@ export function buildConfigFromAnswers(answers: WizardAnswers): object {
       name: projectName,
       target: {
         surface: 'sdk',
-        repoPath,
-        skill: resolve(repoPath, 'SKILL.md'),
-        discovery: { mode: 'auto', sources: [resolve(repoPath, 'src/index.ts')] },
+        repoPath: relRepo,
+        skill: join(relRepo, 'SKILL.md'),
+        discovery: { mode: 'auto', sources: [join(relRepo, 'src/index.ts')] },
       },
       benchmark: commonBenchmark,
       optimize: commonOptimize,
     };
   }
 
+  const defaultEntry = surface === 'cli' ? 'src/cli.ts' : 'src/server.ts';
+  const entryRelative = answers.entryFile ?? defaultEntry;
+
   if (surface === 'cli') {
     return {
       name: projectName,
       target: {
         surface: 'cli',
-        repoPath,
-        skill: resolve(repoPath, 'SKILL.md'),
-        discovery: {
-          mode: 'auto',
-          sources: [answers.entryFile ? resolve(repoPath, answers.entryFile) : resolve(repoPath, 'src/cli.ts')],
-        },
+        repoPath: relRepo,
+        skill: join(relRepo, 'SKILL.md'),
+        discovery: { mode: 'auto', sources: [join(relRepo, entryRelative)] },
         cli: { commands: './.skill-optimizer/cli-commands.json' },
       },
       benchmark: commonBenchmark,
@@ -64,12 +67,9 @@ export function buildConfigFromAnswers(answers: WizardAnswers): object {
     name: projectName,
     target: {
       surface: 'mcp',
-      repoPath,
-      skill: resolve(repoPath, 'SKILL.md'),
-      discovery: {
-        mode: 'auto',
-        sources: [answers.entryFile ? resolve(repoPath, answers.entryFile) : resolve(repoPath, 'src/server.ts')],
-      },
+      repoPath: relRepo,
+      skill: join(relRepo, 'SKILL.md'),
+      discovery: { mode: 'auto', sources: [join(relRepo, entryRelative)] },
       mcp: { tools: './.skill-optimizer/tools.json' },
     },
     benchmark: commonBenchmark,
@@ -87,7 +87,7 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
   } else {
-    writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers), null, 2) + '\n', 'utf-8');
+    writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, configDir), null, 2) + '\n', 'utf-8');
     console.log(`[init] Created ${configPath}`);
   }
 
