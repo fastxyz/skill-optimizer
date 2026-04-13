@@ -6,6 +6,7 @@ import type { CliCommandDefinition } from '../src/import/types.js';
 import { writeOutput } from '../src/import/output.js';
 import { parseHelpOutput } from '../src/import/extractors/help-scraper.js';
 import { extractCommander } from '../src/import/extractors/ts-commander.js';
+import { extractYargs } from '../src/import/extractors/ts-yargs.js';
 
 // === Types check ===
 const _typeCheck: CliCommandDefinition = { command: 'create', description: 'Create item' };
@@ -61,6 +62,28 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
   const dryRun = create?.options?.find(o => o.name === '--dry-run');
   assert.ok(dryRun !== undefined, 'Should find --dry-run option');
   assert.strictEqual(dryRun?.takesValue, false);
+
+  const deleteCmd = commands.find(c => c.command === 'delete');
+  assert.ok(deleteCmd !== undefined, 'Should find "delete" command (positional stripped)');
+}
+
+// === ts-yargs extractor ===
+{
+  const fixturePath = join('tests/fixtures/import-commands/yargs-sample.ts');
+  const commands = extractYargs(fixturePath);
+  assert.strictEqual(commands.length, 2, `Expected 2 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
+
+  const create = commands.find(c => c.command === 'create');
+  assert.ok(create !== undefined, 'Should find "create" command');
+  assert.strictEqual(create?.description, 'Create a new item');
+
+  const nameOpt = create?.options?.find(o => o.name === '--name');
+  assert.ok(nameOpt !== undefined, 'Should find --name option');
+  assert.strictEqual(nameOpt?.takesValue, true);
+
+  const verboseOpt = create?.options?.find(o => o.name === '--verbose');
+  assert.ok(verboseOpt !== undefined, 'Should find --verbose option');
+  assert.strictEqual(verboseOpt?.takesValue, false);
 
   const deleteCmd = commands.find(c => c.command === 'delete');
   assert.ok(deleteCmd !== undefined, 'Should find "delete" command (positional stripped)');
