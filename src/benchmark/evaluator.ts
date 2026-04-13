@@ -12,6 +12,28 @@ import { getExpectedActionName, getExpectedActions } from './types.js';
 // ── Argument matching ──────────────────────────────────────────────────────
 
 /**
+ * Resolve an argument value from an extracted call's args, with positional fallback.
+ *
+ * CLI commands often take positional arguments (e.g. `fast account set-default myname`)
+ * which the extractor records as `_positional_0`, `_positional_1`, etc. When the expected
+ * args use the semantic name (e.g. `{name: "myname"}`), we look for the value in positionals
+ * as a fallback so that positional and named-flag invocations both match.
+ */
+function resolveArgValue(args: Record<string, unknown>, key: string, expectedValue: unknown): unknown {
+  const direct = args[key];
+  if (direct !== undefined) return direct;
+  // Positional fallback: if expected is a plain string, check _positional_N entries
+  if (typeof expectedValue === 'string') {
+    for (const [k, v] of Object.entries(args)) {
+      if (k.startsWith('_positional_') && v === expectedValue) {
+        return v;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * Compare an extracted argument value against an expected string value.
  *
  * Rules:
@@ -175,7 +197,7 @@ export function matchTools(
         const trialArgResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
         let allArgsMatch = true;
         for (const [key, expectedValue] of Object.entries(expected.args!)) {
-          if (!matchExpectedValue(expectedValue, extractedCalls[i].args[key], key, trialArgResults)) {
+          if (!matchExpectedValue(expectedValue, resolveArgValue(extractedCalls[i].args, key, expectedValue), key, trialArgResults)) {
             allArgsMatch = false;
           }
         }
@@ -191,7 +213,7 @@ export function matchTools(
         const found = extractedCalls[perfectMatchIndex];
         const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
         for (const [key, expectedValue] of Object.entries(expected.args!)) {
-          matchExpectedValue(expectedValue, found.args[key], key, argResults);
+          matchExpectedValue(expectedValue, resolveArgValue(found.args, key, expectedValue), key, argResults);
         }
         return {
           expected,
@@ -231,7 +253,7 @@ export function matchTools(
       const argResults: Record<string, { expected: string; got: unknown; match: boolean }> = {};
       let allArgsMatch = true;
       for (const [key, expectedValue] of Object.entries(expected.args!)) {
-        if (!matchExpectedValue(expectedValue, found.args[key], key, argResults)) {
+        if (!matchExpectedValue(expectedValue, resolveArgValue(found.args, key, expectedValue), key, argResults)) {
           allArgsMatch = false;
         }
       }

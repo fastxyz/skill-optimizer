@@ -1,5 +1,5 @@
-import { mkdirSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 import { analyzeFailures } from './failure-analysis.js';
 import { accept } from '../benchmark/scoring.js';
@@ -42,6 +42,13 @@ export async function runOptimizeLoop(
       `[optimize] Using generated benchmark config: ${generation.benchmarkConfigPath} ` +
         `(tasks=${generation.taskCount}, rejected=${generation.rejectedCount})`,
     );
+  } else {
+    // Task generation disabled (e.g. --skip-generation). Try to reuse existing frozen benchmark config.
+    const frozenConfigPath = join(outputDir, 'benchmark.generated.json');
+    if (existsSync(frozenConfigPath)) {
+      resolvedManifest.benchmarkConfig = frozenConfigPath;
+      console.log(`[optimize] Using existing frozen benchmark config: ${frozenConfigPath}`);
+    }
   }
   if (resolvedManifest.optimizer.mode === 'surface-changing' && !resolvedManifest.optimizer.taskGeneration.enabled) {
     throw new Error('surface-changing optimize mode requires task generation to stay enabled so new epochs can regenerate tasks');

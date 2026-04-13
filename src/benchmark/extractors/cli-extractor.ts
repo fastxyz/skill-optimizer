@@ -138,12 +138,21 @@ function splitCommandChain(command: string, line: number): CommandLine[] {
   return parts;
 }
 
+// Shell control-flow keywords that can appear as the first token of a split command
+// (e.g. "then fast account list" after splitting "if ...; then fast account list; fi" on ';')
+const SHELL_CONTROL_KEYWORDS = new Set(['then', 'else', 'elif', 'do', 'fi', 'done', 'esac']);
+
 function parseSingleCommand(command: string, line: number, knownCommands?: readonly string[]): ExtractedCall | null {
   const tokens = tokenizeShell(command);
   if (tokens.length === 0) return null;
 
   let i = 0;
   const env: Record<string, string> = {};
+
+  // Skip leading shell control-flow keywords (then, else, elif, do, fi, done, esac)
+  while (i < tokens.length && SHELL_CONTROL_KEYWORDS.has(tokens[i])) {
+    i++;
+  }
 
   while (i < tokens.length && isEnvAssignment(tokens[i])) {
     const [key, ...rest] = tokens[i].split('=');
