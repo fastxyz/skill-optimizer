@@ -27,6 +27,20 @@ import { runWizard } from './init/wizard.js';
 import { detectProject, detectedToPreseed, printDetectionSummary } from './init/detect-project.js';
 import { ERRORS, SkillOptimizerError, printError } from './errors.js';
 
+// ── Error handling ────────────────────────────────────────────────────────────
+
+/** Print an error and exit. SkillOptimizerErrors render their fix list; others
+ * are wrapped in E_UNEXPECTED and include the stack trace. */
+function fatalError(err: unknown): never {
+  if (err instanceof SkillOptimizerError) {
+    printError(err);
+  } else {
+    printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
+    if (err instanceof Error && err.stack) console.error(err.stack);
+  }
+  process.exit(1);
+}
+
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
 /** Return the value of a named flag, e.g. --tier flagship → 'flagship' */
@@ -354,13 +368,7 @@ async function main(): Promise<void> {
       }
       process.exit(bestReport.verdict?.result === 'FAIL' ? 1 : 0);
     } catch (err) {
-      if (err instanceof SkillOptimizerError) {
-        printError(err);
-      } else {
-        printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
-        if (err instanceof Error && err.stack) console.error(err.stack);
-      }
-      process.exit(1);
+      fatalError(err);
     }
   }
 
@@ -461,13 +469,7 @@ async function main(): Promise<void> {
       generatedCoverage = generation.coverage;
     }
   } catch (err) {
-    if (err instanceof SkillOptimizerError) {
-      printError(err);
-    } else {
-      printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
-      if (err instanceof Error && err.stack) console.error(err.stack);
-    }
-    process.exit(1);
+    fatalError(err);
   }
 
   let report;
@@ -478,13 +480,7 @@ async function main(): Promise<void> {
       scopeCoverage: generatedCoverage,
     });
   } catch (err) {
-    if (err instanceof SkillOptimizerError) {
-      printError(err);
-    } else {
-      printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
-      if (err instanceof Error && err.stack) console.error(err.stack);
-    }
-    process.exit(1);
+    fatalError(err);
   }
 
   // Print console summary

@@ -318,7 +318,6 @@ assert.strictEqual(typeof _a.surface, 'string');
 
 // --auto --yes high confidence path: scaffoldInit called without wizard
 {
-  const { buildDefaultAnswers } = await import('../src/init/answers.js');
   const dir = mkdtempSync(join(tmpdir(), 'auto-yes-'));
   try {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({

@@ -45,14 +45,11 @@ export function detectProject(dir: string): DetectedProject {
       entryFile = existsSync(join(dir, 'src', 'server.ts'))
         ? 'src/server.ts'
         : 'src/index.ts';
-    } else if (pkg.bin && Object.keys(pkg.bin as Record<string, string>).length > 0) {
+    } else if (pkg.bin && (typeof pkg.bin === 'string' || Object.keys(pkg.bin).length > 0)) {
       surface = 'cli';
       confidence = 'high';
       signals.push('package.json: bin field');
-      const binValues = typeof pkg.bin === 'string'
-        ? [pkg.bin]
-        : Object.values(pkg.bin as Record<string, string>);
-      const firstBin = binValues[0] ?? '';
+      const firstBin = typeof pkg.bin === 'string' ? pkg.bin : Object.values(pkg.bin)[0] ?? '';
       const srcGuess = firstBin.replace(/dist\//, 'src/').replace(/\.js$/, '.ts');
       entryFile = existsSync(join(dir, srcGuess)) ? srcGuess : 'src/cli.ts';
     } else {
@@ -139,12 +136,16 @@ export function detectedToPreseed(detected: DetectedProject): Partial<WizardAnsw
   };
 }
 
+function confidenceLabel(confidence: DetectedProject['confidence']): string {
+  switch (confidence) {
+    case 'high': return 'high confidence';
+    case 'medium': return 'medium confidence';
+    case 'low': return 'low confidence — review carefully';
+  }
+}
+
 export function printDetectionSummary(detected: DetectedProject): void {
-  const confidenceLabel =
-    detected.confidence === 'high' ? 'high confidence' :
-    detected.confidence === 'medium' ? 'medium confidence' :
-    'low confidence — review carefully';
-  console.log(`\nDetected: ${detected.surface} (${confidenceLabel})`);
+  console.log(`\nDetected: ${detected.surface} (${confidenceLabel(detected.confidence)})`);
   console.log(`  Name:    ${detected.name}`);
   console.log(`  Entry:   ${detected.entryFile}`);
   if (detected.skillFile) console.log(`  Skill:   ${detected.skillFile}`);

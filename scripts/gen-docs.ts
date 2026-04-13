@@ -81,6 +81,12 @@ function typeLabel(node: JsonSchemaNode): string {
   return node.type ?? '';
 }
 
+function resolveRef(node: JsonSchemaNode, defs: Record<string, JsonSchemaNode>): JsonSchemaNode {
+  if (!node.$ref) return node;
+  const refKey = node.$ref.replace(/^#\/\$defs\//, '').replace(/^#\/definitions\//, '');
+  return defs[refKey] ?? node;
+}
+
 function flattenSchema(
   node: JsonSchemaNode,
   prefix: string,
@@ -91,13 +97,7 @@ function flattenSchema(
 
   for (const [key, child] of Object.entries(node.properties)) {
     const path = prefix ? `${prefix}.${key}` : key;
-    let resolved = child;
-
-    // Resolve $ref
-    if (child.$ref) {
-      const refKey = child.$ref.replace(/^#\/\$defs\//, '').replace(/^#\/definitions\//, '');
-      resolved = defs[refKey] ?? child;
-    }
+    const resolved = resolveRef(child, defs);
 
     // If it has nested properties, recurse without adding a row for the parent
     if (resolved.properties) {
@@ -125,11 +125,7 @@ function generateConfigSchemaMd(): string {
   };
 
   // Resolve a top-level $ref if the named schema strategy wrapped everything in one
-  let root = jsonSchema;
-  if (jsonSchema.$ref && !jsonSchema.properties) {
-    const refKey = jsonSchema.$ref.replace(/^#\/\$defs\//, '').replace(/^#\/definitions\//, '');
-    root = defs[refKey] ?? jsonSchema;
-  }
+  const root = jsonSchema.properties ? jsonSchema : resolveRef(jsonSchema, defs);
 
   const rows: Array<{ path: string; type: string; default: string; description: string }> = [];
   flattenSchema(root, '', rows, defs);
