@@ -303,7 +303,7 @@ export async function checkConfig(
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     for (const ap of optimize.allowedPaths) {
       const absAp = isAbsolute(ap) ? ap : resolve(configDir, ap);
-      if (!absAp.startsWith(absRepo)) {
+      if (!absAp.startsWith(absRepo + '/') && absAp !== absRepo) {
         issues.push({
           code: 'allowed-path-outside-repo', severity: 'error', field: 'optimize.allowedPaths',
           message: `allowedPath "${ap}" is not inside target.repoPath "${absRepo}"`,
@@ -326,7 +326,7 @@ export async function checkConfig(
   }
 
   // Check: dirty git (injection-safe: fixed arg array, no shell)
-  if (optimize?.requireCleanGit !== false && target.repoPath) {
+  if (optimize !== undefined && optimize.requireCleanGit !== false && target.repoPath) {
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     if (existsSync(absRepo)) {
       try {

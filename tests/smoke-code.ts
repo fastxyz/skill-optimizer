@@ -728,6 +728,7 @@ await test('checkConfig: model ID missing openrouter/ prefix → fixable error',
   const err = issues.find(i => i.code === 'model-id-missing-prefix');
   assert(err !== undefined, 'expected model-id-missing-prefix issue');
   assert(err!.fixable === true, 'model-id-missing-prefix should be fixable');
+  assert(err!.severity === 'error', 'model-id-missing-prefix should be error severity');
   assert(err!.hint?.includes('openrouter/z-ai/glm-5.1'), `hint should show corrected ID, got: ${err!.hint}`);
 });
 
