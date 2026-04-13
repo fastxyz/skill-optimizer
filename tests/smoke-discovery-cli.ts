@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -291,6 +291,91 @@ await test('discoverActions uses manifest commands when CLI discovery mode is ma
     assertEqual(catalog.actions.length, 1, 'manifest-backed discovery should return one action');
     assertEqual(catalog.actions[0].key, 'tickets:list', 'action key should come from manifest command');
     assertEqual(catalog.actions[0].args[0]?.name, 'limit', 'manifest options should be normalized');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── Optique extractor tests ───────────────────────────────────────────────────
+
+const FAST_CLI = '/root/openclaw-workspace/fast-sdk/app/cli/src/cli.ts';
+const fastCliExists = existsSync(FAST_CLI);
+
+await test('optique: discovers all 20 leaf commands from fast-sdk cli.ts', () => {
+  if (!fastCliExists) { console.log('    (skipped — fast-sdk not present)'); return; }
+  const snapshot = discoverCliSurfaceFromSources([FAST_CLI]);
+  assertEqual(snapshot.surface, 'cli', 'surface should be cli');
+  assertEqual(snapshot.actions.length, 20, `expected 20 commands, got ${snapshot.actions.length}`);
+});
+
+await test('optique: command names include full hierarchical path', () => {
+  if (!fastCliExists) { console.log('    (skipped — fast-sdk not present)'); return; }
+  const snapshot = discoverCliSurfaceFromSources([FAST_CLI]);
+  const names = new Set(snapshot.actions.map((a) => a.name));
+  for (const expected of ['account create', 'account import', 'account list',
+    'account set-default', 'account export', 'account delete',
+    'network list', 'network add', 'network set-default', 'network remove',
+    'info status', 'info balance', 'info tx', 'info history',
+    'info bridge-tokens', 'info bridge-chains',
+    'send', 'fund fiat', 'fund crypto', 'pay']) {
+    assert(names.has(expected), `missing expected command: ${expected}`);
+  }
+});
+
+await test('optique: extracts descriptions from tagged template literals', () => {
+  if (!fastCliExists) { console.log('    (skipped — fast-sdk not present)'); return; }
+  const snapshot = discoverCliSurfaceFromSources([FAST_CLI]);
+  const send = snapshot.actions.find((a) => a.name === 'send');
+  assert(send !== undefined, 'send command should be discovered');
+  assert(send!.description !== undefined && send!.description.length > 0, 'send should have a description');
+});
+
+await test('optique: extracts named options with correct types', () => {
+  if (!fastCliExists) { console.log('    (skipped — fast-sdk not present)'); return; }
+  const snapshot = discoverCliSurfaceFromSources([FAST_CLI]);
+  const send = snapshot.actions.find((a) => a.name === 'send');
+  assert(send !== undefined, 'send command should be discovered');
+  const byName = new Map(send!.args.map((a) => [a.name, a]));
+  assertEqual(byName.get('--token')?.type, 'string', '--token should be string');
+  assertEqual(byName.get('--eip-7702')?.type, 'boolean', '--eip-7702 should be boolean');
+  assertEqual(byName.get('--from-chain')?.type, 'string', '--from-chain should be string');
+});
+
+await test('optique: positional arguments marked required and use property key as name', () => {
+  if (!fastCliExists) { console.log('    (skipped — fast-sdk not present)'); return; }
+  const snapshot = discoverCliSurfaceFromSources([FAST_CLI]);
+  const send = snapshot.actions.find((a) => a.name === 'send');
+  assert(send !== undefined, 'send command should be discovered');
+  const byName = new Map(send!.args.map((a) => [a.name, a]));
+  assert(byName.get('address')?.required === true, 'address should be required');
+  assert(byName.get('amount')?.required === true, 'amount should be required');
+});
+
+await test('optique: optional/withDefault wrappers produce non-required args', () => {
+  if (!fastCliExists) { console.log('    (skipped — fast-sdk not present)'); return; }
+  const snapshot = discoverCliSurfaceFromSources([FAST_CLI]);
+  const accountExport = snapshot.actions.find((a) => a.name === 'account export');
+  assert(accountExport !== undefined, 'account export should be discovered');
+  // `name` is optional(argument(...)) → required: false
+  const nameArg = accountExport!.args.find((a) => a.name === 'name');
+  assert(nameArg !== undefined, 'name arg should be present');
+  assert(nameArg!.required === false, 'optional argument should not be required');
+});
+
+await test('optique: static — does not execute source file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'optique-static-'));
+  const sourcePath = join(dir, 'cli.ts');
+  try {
+    writeFileSync(sourcePath, [
+      "import { command, object, or } from '@optique/core/primitives';",
+      "throw new Error('must never execute');",
+      "const listParser = command('list', object({}), {});",
+      "export const parser = command('items', or(listParser), {});",
+    ].join('\n'), 'utf-8');
+    // discoverCliSurfaceFromSources uses static AST — no execution
+    // We just verify it doesn't throw (the file would throw if imported)
+    const snapshot = discoverCliSurfaceFromSources([sourcePath]);
+    assert(Array.isArray(snapshot.actions), 'should return actions array without executing the file');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
