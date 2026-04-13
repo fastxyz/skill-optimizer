@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CliCommandDefinition } from '../src/import/types.js';
 import { writeOutput } from '../src/import/output.js';
+import { parseHelpOutput } from '../src/import/extractors/help-scraper.js';
 
 // === Types check ===
 const _typeCheck: CliCommandDefinition = { command: 'create', description: 'Create item' };
@@ -23,28 +24,21 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
   assert.strictEqual(written[0]!.command, 'create');
 }
 
-import { parseHelpOutput } from '../src/import/extractors/help-scraper.js';
-import { readFileSync } from 'node:fs';
-
 // === help-scraper: parseHelpOutput (root) ===
 {
   const rootHelp = readFileSync('tests/fixtures/import-commands/help-output-sample.txt', 'utf-8');
   const commands = parseHelpOutput(rootHelp, []);
-  // Should find: account, network, send, fund, pay (5 commands; skip "help" as it starts with 'h' not '-')
-  // Actually "help" is a valid command name — should be 6. But "help [cmd]" — the name is "help" without brackets.
-  // Filter: exclude "help" since it's a meta-command? No — just parse everything non-dash.
-  // Expected: at minimum 5 real commands (account, network, send, fund, pay). "help" may or may not be included.
-  assert.ok(commands.length >= 5, `Expected >=5 commands, got ${commands.length}: ${commands.map(c=>c.command).join(', ')}`);
+  assert.ok(commands.length >= 5, `Expected >=5 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
   const accountCmd = commands.find(c => c.command === 'account');
   assert.ok(accountCmd !== undefined, 'Should find "account" command');
   assert.strictEqual(accountCmd?.description, 'Account management');
 }
 
-// === help-scraper: parseHelpOutput (subcommand) ===
+// === help-scraper: parseHelpOutput (subcommand with prefix) ===
 {
   const subHelp = readFileSync('tests/fixtures/import-commands/help-output-account.txt', 'utf-8');
   const commands = parseHelpOutput(subHelp, ['account']);
-  assert.strictEqual(commands.length, 3, `Expected 3, got ${commands.length}: ${commands.map(c=>c.command).join(', ')}`);
+  assert.strictEqual(commands.length, 3, `Expected 3, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
   assert.ok(commands.find(c => c.command === 'account create') !== undefined);
   assert.ok(commands.find(c => c.command === 'account delete') !== undefined);
 }
