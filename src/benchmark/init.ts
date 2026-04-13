@@ -15,7 +15,9 @@ import { resolve } from 'node:path';
  */
 export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' = 'sdk'): void {
   const configDir = resolve(targetDir, 'skill-optimizer');
+  const generatedDir = resolve(configDir, '.skill-optimizer');
   mkdirSync(configDir, { recursive: true });
+  mkdirSync(generatedDir, { recursive: true });
 
   const configPath = resolve(configDir, 'skill-optimizer.json');
 
@@ -31,7 +33,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
 
   // ── Surface-specific companion files ─────────────────────────────────────
   if (surface === 'cli') {
-    const commandsPath = resolve(configDir, 'cli-commands.json');
+    const commandsPath = resolve(generatedDir, 'cli-commands.json');
     if (existsSync(commandsPath)) {
       console.log(`[init] Skipping ${commandsPath} (already exists)`);
     } else {
@@ -57,7 +59,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
   }
 
   if (surface === 'mcp') {
-    const toolsPath = resolve(configDir, 'tools.json');
+    const toolsPath = resolve(generatedDir, 'tools.json');
     if (existsSync(toolsPath)) {
       console.log(`[init] Skipping ${toolsPath} (already exists)`);
     } else {
@@ -179,7 +181,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
           sources: ['../src/cli.ts'],
         },
         cli: {
-          commands: './cli-commands.json',
+          commands: './.skill-optimizer/cli-commands.json',
         },
       },
       benchmark: commonBenchmark,
@@ -199,7 +201,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
         sources: ['../src/server.ts'],
       },
       mcp: {
-        tools: './tools.json',
+        tools: './.skill-optimizer/tools.json',
       },
     },
     benchmark: commonBenchmark,
