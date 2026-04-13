@@ -8,6 +8,7 @@ import { parseHelpOutput } from '../src/import/extractors/help-scraper.js';
 import { extractCommander } from '../src/import/extractors/ts-commander.js';
 import { extractYargs } from '../src/import/extractors/ts-yargs.js';
 import { extractClick } from '../src/import/extractors/py-click.js';
+import { extractArgparse } from '../src/import/extractors/py-argparse.js';
 
 // === Types check ===
 const _typeCheck: CliCommandDefinition = { command: 'create', description: 'Create item' };
@@ -110,6 +111,25 @@ assert.strictEqual(typeof _typeCheck.command, 'string');
 
   const deleteCmd = commands.find(c => c.command === 'delete');
   assert.ok(deleteCmd !== undefined, 'Should find "delete" command');
+}
+
+// === py-argparse extractor ===
+{
+  const fixturePath = join('tests/fixtures/import-commands/argparse-sample.py');
+  const commands = await extractArgparse(fixturePath);
+  assert.strictEqual(commands.length, 2, `Expected 2 commands, got ${commands.length}: ${commands.map(c => c.command).join(', ')}`);
+
+  const create = commands.find(c => c.command === 'create');
+  assert.ok(create !== undefined, 'Should find "create" command');
+  assert.strictEqual(create?.description, 'Create a new item');
+
+  const nameOpt = create?.options?.find(o => o.name === '--name');
+  assert.ok(nameOpt !== undefined, 'Should find --name option');
+  assert.strictEqual(nameOpt?.takesValue, true);
+
+  const listCmd = commands.find(c => c.command === 'list');
+  assert.ok(listCmd !== undefined, 'Should find "list" command');
+  assert.strictEqual(listCmd?.description, 'List all items');
 }
 
 console.log('smoke-import: all tests passed');
