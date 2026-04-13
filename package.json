@@ -23,6 +23,12 @@
     "evaluation"
   ],
   "type": "module",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "bin": {
     "skill-optimizer": "./dist/cli.js"
   },

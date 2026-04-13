@@ -7,22 +7,19 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 ## Quickstart
 
 ```bash
-git clone https://github.com/bucurdavid/skill-optimizer
-cd skill-optimizer
-npm install
 export OPENROUTER_API_KEY=sk-or-...
 
 # Auto-detect project type and pre-fill wizard
-npx tsx src/cli.ts init --auto
+npx skill-optimizer init --auto
 
 # Or specify the surface directly
-npx tsx src/cli.ts init cli       # or: init sdk, init mcp
+npx skill-optimizer init cli       # or: init sdk, init mcp
 
 # Non-interactive: accept all defaults
-npx tsx src/cli.ts init cli --yes
+npx skill-optimizer init cli --yes
 
 # CI mode: load answers from a JSON file
-npx tsx src/cli.ts init --answers answers.json
+npx skill-optimizer init --answers answers.json
 ```
 
 `init` creates a `skill-optimizer/` directory with:
@@ -59,7 +56,7 @@ Tasks are generated automatically from your discovered surface — you don't nee
 Then run the benchmark:
 
 ```bash
-npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json
+npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json
 ```
 
 ## How it works
@@ -135,7 +132,7 @@ export OPENROUTER_API_KEY=sk-or-...
 
 **Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 
-**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx tsx src/cli.ts --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
+**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx skill-optimizer --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
 
 **Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
 
