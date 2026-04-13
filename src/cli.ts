@@ -16,6 +16,7 @@ import { printCoverage } from './benchmark/coverage.js';
 import { initBenchmark } from './benchmark/init.js';
 import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
 import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
+import { runDoctor } from './doctor/index.js';
 import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic, discoverActionsOnly, resolveScope } from './tasks/index.js';
 import type { Recommendation } from './verdict/recommendations.js';
 import { generateRecommendations } from './verdict/recommendations.js';
@@ -47,6 +48,9 @@ const BOOLEAN_FLAGS = new Set([
   '--dry-run',
   '--no-cache',
   '--skip-generation',
+  '--check-models',
+  '--fix',
+  '--static',
 ]);
 
 const VALUE_FLAGS = new Set([
@@ -95,6 +99,7 @@ Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
   skill-optimizer init <sdk|cli|mcp>            Scaffold config for the given surface type
+  skill-optimizer doctor [options]              Validate config pre-flight
   skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
   skill-optimizer benchmark [options]           Run the benchmark
   skill-optimizer run [options]                 Run the benchmark
@@ -104,6 +109,12 @@ Usage:
 Global options:
   --dry-run                                     Discover + scope preview only; no LLM calls, no side effects
   --config <path>                               Config file (overrides per-command default)
+
+Doctor options:
+  --config <path>                               Config file (default: skill-optimizer.json)
+  --static                                      Run tier-1 structural checks only (no discovery)
+  --check-models                                Also ping each model for reachability (tier 3)
+  --fix                                         Apply auto-fixable issues and write config to disk
 
 Run options:
   --config <path>                               Config file (default: skill-optimizer.json)
@@ -128,6 +139,10 @@ Examples:
   skill-optimizer init cli
   skill-optimizer init sdk
   skill-optimizer init mcp
+  skill-optimizer doctor --config ./skill-optimizer.json
+  skill-optimizer doctor --static
+  skill-optimizer doctor --check-models
+  skill-optimizer doctor --fix
   skill-optimizer --dry-run --config ./skill-optimizer.json
   skill-optimizer benchmark --config ./skill-optimizer.json
   skill-optimizer run
@@ -205,6 +220,17 @@ async function main(): Promise<void> {
     }
     initBenchmark(process.cwd(), surface as 'sdk' | 'cli' | 'mcp');
     process.exit(0);
+  }
+
+  // ── Doctor mode ──────────────────────────────────────────────────────────────
+  if (command === 'doctor') {
+    const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
+    const exitCode = await runDoctor(configPath, {
+      staticOnly: hasFlag(args, '--static'),
+      checkModels: hasFlag(args, '--check-models'),
+      fix: hasFlag(args, '--fix'),
+    });
+    process.exit(exitCode);
   }
 
   // ── Compare mode ────────────────────────────────────────────────────────────
