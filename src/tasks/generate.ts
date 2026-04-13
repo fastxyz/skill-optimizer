@@ -34,19 +34,25 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
   return [
     `Generate benchmark tasks for a ${surface.snapshot.surface} callable surface.`,
     '',
-    'Return JSON only. The top-level shape must be:',
+    'Return a JSON object with EXACTLY this shape and no other keys:',
     '{"tasks":[{"id":"string","prompt":"string","expected_actions":[{"name":"string","args":{"key":"value"}}]}]}',
+    '',
+    'STRICT SCHEMA RULES - violations cause test failures:',
+    '- Each task object has EXACTLY three keys: id, prompt, expected_actions.',
+    '- Do NOT add keys like: cli_command, instruction, action, description, expected_outcome, expected_args, source, steps, calls.',
+    '- expected_actions is an ARRAY of objects, each with exactly two keys: name and args.',
+    '- name is the action name string (e.g. "account create", "network list").',
+    '- args is a flat object of key-value argument pairs (e.g. {"name": "my-wallet"}).',
     '',
     `Task count limit: produce at most ${clampedMax} tasks.`,
     `Seed for deterministic variety: ${config.seed}.`,
     'Variety requirement: include a mix of simple, medium, and multi-step tasks using different actions and argument combinations.',
     '',
-    'Critical rules:',
+    'Additional rules:',
     '1) Use ONLY action names that exist in the provided discovered surface snapshot.',
     '2) For each expected_actions entry, args keys MUST match discovered action argument names.',
     '3) Include required params in args when an action marks them as required.',
     '4) expected_actions must never be empty.',
-    '5) Do not include any keys beyond id, prompt, expected_actions at task level; and name, args at expected_actions level.',
     '',
     'Full SKILL.md:',
     '---BEGIN SKILL---',
@@ -60,10 +66,16 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
   ].join('\n');
 }
 
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/);
+  return match ? match[1].trim() : trimmed;
+}
+
 function parseGeneratedTasks(raw: string): GeneratedTask[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(stripCodeFence(raw));
   } catch (error) {
     throw new Error(`Task generator returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -80,38 +92,55 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
   return tasks.map((task, index) => validateTask(task, index));
 }
 
+function resolveStringField(obj: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    if (typeof obj[key] === 'string' && (obj[key] as string).trim() !== '') {
+      return (obj[key] as string).trim();
+    }
+  }
+  return null;
+}
+
 function validateTask(task: unknown, index: number): GeneratedTask {
   if (!task || typeof task !== 'object') {
     throw new Error(`Task at index ${index} must be an object`);
   }
 
-  const candidate = task as {
-    id?: unknown;
-    prompt?: unknown;
-    expected_actions?: unknown;
-    expected_tools?: unknown;
-  };
+  const candidate = task as Record<string, unknown>;
 
-  if (typeof candidate.id !== 'string' || candidate.id.trim() === '') {
-    throw new Error(`Task at index ${index} must include a non-empty string id`);
+  const taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
+  if (!taskId) {
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task at index ${index} must include a non-empty string id (received keys: ${received})`);
   }
-  if (typeof candidate.prompt !== 'string' || candidate.prompt.trim() === '') {
-    throw new Error(`Task ${candidate.id} must include a non-empty string prompt`);
+
+  const taskPrompt = resolveStringField(candidate, 'prompt', 'description', 'instruction', 'task');
+  if (!taskPrompt) {
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
-  const taskId = candidate.id;
-  const taskPrompt = candidate.prompt;
   if (!isSafeTaskId(taskId)) {
     throw new Error(`Task ${taskId} must match ${SAFE_TASK_ID.toString()} and cannot be . or ..`);
   }
 
-  const rawExpectedActions = Array.isArray(candidate.expected_actions)
-    ? candidate.expected_actions
-    : Array.isArray(candidate.expected_tools)
-      ? candidate.expected_tools
-      : null;
+  let rawExpectedActions = (
+    ['expected_actions', 'expected_tools', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
+  )
+    .map((key) => candidate[key])
+    .find((v) => Array.isArray(v)) as unknown[] | undefined;
+
+  // Fallback: model returned a single action at task level (e.g. {action:"send", args:{...}})
+  if (!rawExpectedActions) {
+    const actionName = typeof candidate['action'] === 'string' ? candidate['action'] :
+                       typeof candidate['method'] === 'string' ? candidate['method'] : null;
+    if (actionName && actionName.trim()) {
+      rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
+    }
+  }
 
   if (!rawExpectedActions) {
-    throw new Error(`Task ${taskId} must include an expected_actions array`);
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include an expected_actions array (received keys: ${received})`);
   }
 
   const expected_actions = rawExpectedActions.map((action, actionIndex) => validateExpectedAction(taskId, action, actionIndex));

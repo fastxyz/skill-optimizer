@@ -138,12 +138,21 @@ function splitCommandChain(command: string, line: number): CommandLine[] {
   return parts;
 }
 
+// Shell control-flow keywords that can appear as the first token of a split command
+// (e.g. "then fast account list" after splitting "if ...; then fast account list; fi" on ';')
+const SHELL_CONTROL_KEYWORDS = new Set(['then', 'else', 'elif', 'do', 'fi', 'done', 'esac']);
+
 function parseSingleCommand(command: string, line: number, knownCommands?: readonly string[]): ExtractedCall | null {
   const tokens = tokenizeShell(command);
   if (tokens.length === 0) return null;
 
   let i = 0;
   const env: Record<string, string> = {};
+
+  // Skip leading shell control-flow keywords (then, else, elif, do, fi, done, esac)
+  while (i < tokens.length && SHELL_CONTROL_KEYWORDS.has(tokens[i])) {
+    i++;
+  }
 
   while (i < tokens.length && isEnvAssignment(tokens[i])) {
     const [key, ...rest] = tokens[i].split('=');
@@ -228,6 +237,23 @@ function parseSingleCommand(command: string, line: number, knownCommands?: reado
   };
 }
 
+function findKnownCommand(
+  tokens: string[],
+  fromIndex: number,
+  knownSet: Set<string>,
+): { methodParts: string[]; nextIndex: number } | null {
+  for (let end = tokens.length; end > fromIndex; end--) {
+    const candidateTokens = tokens.slice(fromIndex, end);
+    if (candidateTokens.some((token) => token === '--' || token.startsWith('-'))) {
+      continue;
+    }
+    if (knownSet.has(candidateTokens.join(' '))) {
+      return { methodParts: candidateTokens, nextIndex: end };
+    }
+  }
+  return null;
+}
+
 function resolveMethod(
   tokens: string[],
   startIndex: number,
@@ -235,17 +261,13 @@ function resolveMethod(
 ): { methodParts: string[]; nextIndex: number } {
   if (knownCommands && knownCommands.length > 0) {
     const knownSet = new Set(knownCommands.map((command) => command.trim()).filter(Boolean));
-    for (let end = tokens.length; end > startIndex; end--) {
-      const candidateTokens = tokens.slice(startIndex, end);
-      if (candidateTokens.some((token) => token === '--' || token.startsWith('-'))) {
-        continue;
-      }
 
-      const candidate = candidateTokens.join(' ');
-      if (knownSet.has(candidate)) {
-        return { methodParts: candidateTokens, nextIndex: end };
-      }
-    }
+    // Try matching from startIndex first, then skip one token (the executable name, e.g. "fast")
+    const match =
+      findKnownCommand(tokens, startIndex, knownSet) ??
+      (startIndex + 1 < tokens.length ? findKnownCommand(tokens, startIndex + 1, knownSet) : null);
+
+    if (match) return match;
   }
 
   const executable = tokens[startIndex];

@@ -1,5 +1,5 @@
-import { mkdirSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 
 import { analyzeFailures } from './failure-analysis.js';
 import { accept } from '../benchmark/scoring.js';
@@ -42,6 +42,13 @@ export async function runOptimizeLoop(
       `[optimize] Using generated benchmark config: ${generation.benchmarkConfigPath} ` +
         `(tasks=${generation.taskCount}, rejected=${generation.rejectedCount})`,
     );
+  } else {
+    // Task generation disabled (e.g. --skip-generation). Try to reuse existing frozen benchmark config.
+    const frozenConfigPath = join(outputDir, 'benchmark.generated.json');
+    if (existsSync(frozenConfigPath)) {
+      resolvedManifest.benchmarkConfig = frozenConfigPath;
+      console.log(`[optimize] Using existing frozen benchmark config: ${frozenConfigPath}`);
+    }
   }
   if (resolvedManifest.optimizer.mode === 'surface-changing' && !resolvedManifest.optimizer.taskGeneration.enabled) {
     throw new Error('surface-changing optimize mode requires task generation to stay enabled so new epochs can regenerate tasks');
@@ -348,8 +355,9 @@ function summarizeTopFailures(report: BenchmarkReport, limit = 3): string[] {
 }
 
 function validateChangedFiles(changedFiles: string[], manifest: ResolvedOptimizeManifest) {
+  const repoRoot = manifest.targetRepo.path;
   const disallowedFiles = changedFiles.filter(
-    (file) => !isFrameworkArtifactPath(file, manifest) && !isAllowedPath(file, manifest.targetRepo.allowedPaths),
+    (file) => !isFrameworkArtifactPath(file, manifest) && !isAllowedPath(file, manifest.targetRepo.allowedPaths, repoRoot),
   );
   if (disallowedFiles.length === 0) {
     return null;
@@ -390,8 +398,11 @@ function toRelativeTargetPath(path: string, manifest: ResolvedOptimizeManifest):
   return path;
 }
 
-function isAllowedPath(file: string, allowedPaths: string[]): boolean {
-  const normalizedFile = normalizeRelativePath(file);
+function isAllowedPath(file: string, allowedPaths: string[], repoRoot?: string): boolean {
+  // Resolve relative changed file against the repo root so it can be compared
+  // with absolute allowedPaths entries (and vice versa).
+  const absoluteFile = repoRoot && !file.startsWith('/') ? `${repoRoot}/${file}` : file;
+  const normalizedFile = normalizeRelativePath(absoluteFile);
   return allowedPaths.some((allowedPath) => {
     const normalizedAllowed = normalizeRelativePath(allowedPath);
     return normalizedFile === normalizedAllowed || normalizedFile.startsWith(`${normalizedAllowed}/`);

@@ -47,3 +47,15 @@ coverage/
 # Temp directories
 tmp/
 temp/
+
+# Superpowers planning artifacts
+docs/superpowers/
+
+# Skill-optimizer generated artifacts
+.skill-optimizer/
+
+# Local user config (personal paths, model choices — not repo artifacts)
+skill-optimizer.json
+cli-commands.json
+tools.json
+tasks.json

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -298,21 +298,57 @@ await test('extract factory dispatches surface=sdk', async () => {
   assertEqual(calls[0].method, 'FastProvider.constructor', 'method should be parsed');
 });
 
-await test('initBenchmark scaffolds sdk apiSurface', () => {
+await test('initBenchmark sdk: creates skill-optimizer.json with task generation enabled', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
-    initBenchmark(dir);
-    const config = JSON.parse(readFileSync(join(dir, 'skill-optimizer.json'), 'utf-8')) as {
-      target: {
-        surface: string;
-        sdk: { apiSurface?: string[]; methods?: string[] };
-      };
+    initBenchmark(dir, 'sdk');
+    const config = JSON.parse(readFileSync(join(dir, 'skill-optimizer', 'skill-optimizer.json'), 'utf-8')) as {
+      target: { surface: string };
+      benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };
     };
+    assertEqual(config.target.surface, 'sdk', 'sdk scaffold should emit sdk surface');
+    assert(config.benchmark.taskGeneration?.enabled === true, 'scaffold should enable task generation');
+    assert(!config.benchmark.tasks, 'scaffold should not set benchmark.tasks when task generation is on');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
-    assertEqual(config.target.surface, 'sdk', 'scaffold should default to sdk surface');
-    assert(Array.isArray(config.target.sdk.apiSurface), 'scaffold should emit sdk.apiSurface');
-    assert(config.target.sdk.apiSurface!.length > 0, 'scaffold apiSurface should contain entries');
-    assertEqual(config.target.sdk.methods, undefined, 'scaffold should not emit deprecated sdk.methods');
+await test('initBenchmark cli: creates cli-commands.json and sets target.cli.commands', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
+  try {
+    initBenchmark(dir, 'cli');
+    const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
+    const commandsPath = join(dir, 'skill-optimizer', 'cli-commands.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+      target: { surface: string; cli?: { commands?: string } };
+      benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };
+    };
+    assertEqual(config.target.surface, 'cli', 'cli scaffold should emit cli surface');
+    assert(existsSync(commandsPath), 'cli scaffold should create cli-commands.json');
+    assert(typeof config.target.cli?.commands === 'string', 'cli scaffold should set target.cli.commands');
+    assert(config.benchmark.taskGeneration?.enabled === true, 'cli scaffold should enable task generation');
+    assert(!config.benchmark.tasks, 'cli scaffold should not set benchmark.tasks');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('initBenchmark mcp: creates tools.json and sets target.mcp.tools', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
+  try {
+    initBenchmark(dir, 'mcp');
+    const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
+    const toolsPath = join(dir, 'skill-optimizer', 'tools.json');
+    const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+      target: { surface: string; mcp?: { tools?: string } };
+      benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };
+    };
+    assertEqual(config.target.surface, 'mcp', 'mcp scaffold should emit mcp surface');
+    assert(existsSync(toolsPath), 'mcp scaffold should create tools.json');
+    assert(typeof config.target.mcp?.tools === 'string', 'mcp scaffold should set target.mcp.tools');
+    assert(config.benchmark.taskGeneration?.enabled === true, 'mcp scaffold should enable task generation');
+    assert(!config.benchmark.tasks, 'mcp scaffold should not set benchmark.tasks');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
