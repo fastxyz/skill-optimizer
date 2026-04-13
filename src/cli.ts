@@ -244,8 +244,16 @@ async function main(): Promise<void> {
     const useAuto = hasFlag(args, '--auto');
 
     if (useAuto) {
-      const detected = detectProject(process.cwd());
+      let detected;
+      try {
+        detected = detectProject(process.cwd());
+      } catch (err) {
+        fatalError(err);
+      }
       printDetectionSummary(detected);
+      if (surfaceArg && surfaceArg !== detected.surface) {
+        console.log(`Note: explicit surface '${surfaceArg}' overridden by auto-detected '${detected.surface}'.`);
+      }
       if (useDefaults) {
         if (detected.confidence !== 'high') {
           printError(new SkillOptimizerError(ERRORS.E_INIT_AUTO_LOW_CONFIDENCE,

@@ -108,11 +108,16 @@ export function detectProject(dir: string): DetectedProject {
       confidence = 'high';
       signals.push('Cargo.toml: [lib] section');
       entryFile = 'src/lib.rs';
-    } else {
-      surface = existsSync(join(dir, 'src', 'main.rs')) ? 'cli' : 'sdk';
+    } else if (existsSync(join(dir, 'src', 'main.rs'))) {
+      surface = 'cli';
       confidence = 'medium';
-      signals.push('Cargo.toml: inferred from src/main.rs existence');
-      entryFile = surface === 'cli' ? 'src/main.rs' : 'src/lib.rs';
+      signals.push('Cargo.toml: inferred cli from src/main.rs existence');
+      entryFile = 'src/main.rs';
+    } else {
+      surface = 'sdk';
+      confidence = 'medium';
+      signals.push('Cargo.toml: no [[bin]] or [lib] found, no src/main.rs — defaulting to sdk');
+      entryFile = 'src/lib.rs';
     }
   }
 
