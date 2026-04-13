@@ -64,7 +64,7 @@ export async function runOptimizeFromConfig(
   manifestPath: string,
   options: { maxIterationsRaw?: string; skipGeneration?: boolean } = {},
 ) {
-  const manifest = loadOptimizeManifest(manifestPath);
+  const manifest = await loadOptimizeManifest(manifestPath);
   const maxIterations = options.maxIterationsRaw ? Number(options.maxIterationsRaw) : undefined;
   if (options.maxIterationsRaw && (!Number.isInteger(maxIterations) || (maxIterations ?? 0) <= 0)) {
     throw new Error(`Invalid --max-iterations value '${options.maxIterationsRaw}'. Must be a positive integer.`);

@@ -100,7 +100,7 @@ await test('discovery remains static and does not execute source file', () => {
   }
 });
 
-await test('code-first MCP project config works without fallback manifest', () => {
+await test('code-first MCP project config works without fallback manifest', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-project-config-'));
   try {
     const serverPath = join(dir, 'server.ts');
@@ -124,7 +124,7 @@ await test('code-first MCP project config works without fallback manifest', () =
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const snapshot = buildSurfaceSnapshot(project);
     assertEqual(snapshot.actions.length, 4, 'code-first config should discover tools without fallback manifest');
   } finally {
@@ -132,7 +132,7 @@ await test('code-first MCP project config works without fallback manifest', () =
   }
 });
 
-await test('code-first discovery fails fast when MCP source is missing', () => {
+await test('code-first discovery fails fast when MCP source is missing', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-project-config-'));
   try {
     const configPath = join(dir, 'skill-optimizer.json');
@@ -154,13 +154,20 @@ await test('code-first discovery fails fast when MCP source is missing', () => {
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    // loadProjectConfig now validates paths eagerly — expect it to throw when source is missing
     let threw = false;
     try {
+      const project = await loadProjectConfig(configPath);
+      // If load succeeds (future behavior change), check that buildSurfaceSnapshot also fails
       buildSurfaceSnapshot(project);
     } catch (error: any) {
       threw = true;
-      assert(error.message.includes('not found'), 'missing source error should mention not found');
+      // Accept either the new validation error or the old discovery error
+      const msg: string = error.message;
+      assert(
+        msg.includes('does not exist') || msg.includes('not found'),
+        `missing source error should mention missing path, got: ${msg}`,
+      );
     }
     assert(threw, 'missing discovery source should fail fast');
   } finally {
@@ -168,7 +175,7 @@ await test('code-first discovery fails fast when MCP source is missing', () => {
   }
 });
 
-await test('discovers mcp actions via public action discovery entrypoint', () => {
+await test('discovers mcp actions via public action discovery entrypoint', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-discovery-actions-'));
   const sourcePath = join(dir, 'server.ts');
   const configPath = join(dir, 'skill-optimizer.json');
@@ -213,7 +220,7 @@ await test('discovers mcp actions via public action discovery entrypoint', () =>
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    const project = await loadProjectConfig(configPath);
     const catalog = discoverActions(project);
     assertEqual(catalog.surface, 'mcp', 'surface should be mcp');
     assertEqual(catalog.actions.length, 1, 'should discover one mcp action');
@@ -223,7 +230,7 @@ await test('discovers mcp actions via public action discovery entrypoint', () =>
   }
 });
 
-await test('discoverActions fails fast when MCP discovery source is missing and no fallback exists', () => {
+await test('discoverActions fails fast when MCP discovery source is missing and no fallback exists', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-actions-missing-source-'));
   const configPath = join(dir, 'skill-optimizer.json');
 
@@ -245,13 +252,20 @@ await test('discoverActions fails fast when MCP discovery source is missing and 
       },
     }, null, 2), 'utf-8');
 
-    const project = loadProjectConfig(configPath);
+    // loadProjectConfig now validates paths eagerly — expect it to throw when source is missing
     let threw = false;
     try {
+      const project = await loadProjectConfig(configPath);
+      // If load succeeds (future behavior change), check that discoverActions also fails
       discoverActions(project);
     } catch (error: any) {
       threw = true;
-      assert(error.message.includes('not found'), 'missing source error should mention not found');
+      // Accept either the new validation error or the old discovery error
+      const msg: string = error.message;
+      assert(
+        msg.includes('does not exist') || msg.includes('not found'),
+        `missing source error should mention missing path, got: ${msg}`,
+      );
     }
 
     assert(threw, 'missing discovery source should fail fast when no fallback exists');

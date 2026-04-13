@@ -8,7 +8,7 @@ import { validateProjectConfig } from './validate.js';
 export const DEFAULT_PROJECT_CONFIG_NAME = 'skill-optimizer.json';
 export const LEGACY_PROJECT_CONFIG_NAME = 'skill-benchmark.json';
 
-export function loadProjectConfig(configPath?: string): ResolvedProjectConfig {
+export async function loadProjectConfig(configPath?: string): Promise<ResolvedProjectConfig> {
   const resolvedPath = configPath
     ? resolve(configPath)
     : resolve(process.cwd(), DEFAULT_PROJECT_CONFIG_NAME);
@@ -49,6 +49,6 @@ export function loadProjectConfig(configPath?: string): ResolvedProjectConfig {
     );
   }
 
-  validateProjectConfig(parsed, resolvedPath);
+  await validateProjectConfig(parsed, resolvedPath);
   return resolveProjectConfig(parsed, resolvedPath);
 }

@@ -102,7 +102,7 @@ export interface RunnerOptions {
  */
 export async function runBenchmark(options: RunnerOptions = {}): Promise<BenchmarkReport> {
   // 1. Load config
-  const { config, configDir } = loadConfig(options.configPath);
+  const { config, configDir } = await loadConfig(options.configPath);
 
   console.log('================================================================');
   console.log(`  Skill Benchmark — ${config.name}`);
