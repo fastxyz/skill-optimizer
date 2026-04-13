@@ -49,7 +49,7 @@ export function detectFramework(fromPath: string, cwd: string): DetectionResult 
     const content = readFileSync(abs, 'utf-8');
     if (/from ['"]commander['"]|require\(['"]commander['"]\)/.test(content)) return { kind: 'commander', binaryHint };
     if (/from ['"]yargs['"]|require\(['"]yargs['"]\)/.test(content)) return { kind: 'yargs', binaryHint };
-    if (/\{\s*command\s*:/.test(content)) return { kind: 'optique', binaryHint };
+    if (/@optique\/core/.test(content)) return { kind: 'optique', binaryHint };
     return { kind: 'unknown', binaryHint };
   }
 
