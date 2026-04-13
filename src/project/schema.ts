@@ -1,7 +1,7 @@
 // src/project/schema.ts
 // Zod schema for config documentation generation only.
 // Runtime validation stays in src/project/validate.ts.
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 const ModelConfigSchema = z.object({
   id: z.string().describe('OpenRouter model ID, e.g. openrouter/anthropic/claude-sonnet-4-6'),
