@@ -12,7 +12,7 @@ export interface WizardAnswers {
 }
 
 const DEFAULT_MODELS = [
-  'openrouter/anthropic/claude-sonnet-4-6',
+  'anthropic/claude-sonnet-4-6',
   'openrouter/google/gemini-2.0-flash-001',
 ];
 

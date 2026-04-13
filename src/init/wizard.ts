@@ -4,8 +4,8 @@ import type { WizardAnswers } from './answers.js';
 import { scaffoldInit } from './scaffold.js';
 
 export const MODEL_PRESETS = [
-  { value: 'openrouter/anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6  · Anthropic', hint: 'recommended' },
-  { value: 'openrouter/anthropic/claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5   · Anthropic', hint: 'fast' },
+  { value: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6  · Anthropic', hint: 'recommended' },
+  { value: 'anthropic/claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5   · Anthropic', hint: 'fast' },
   { value: 'openrouter/openai/gpt-4o', label: 'GPT-4o             · OpenAI' },
   { value: 'openrouter/openai/gpt-4o-mini', label: 'GPT-4o Mini        · OpenAI', hint: 'fast' },
   { value: 'openrouter/google/gemini-2.5-pro-preview', label: 'Gemini 2.5 Pro     · Google' },
@@ -57,7 +57,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     message: 'Which models to benchmark? (space to toggle, enter to confirm)',
     options: MODEL_PRESETS,
     required: true,
-    initialValues: ['openrouter/anthropic/claude-sonnet-4-6', 'openrouter/google/gemini-2.0-flash-001'],
+    initialValues: ['anthropic/claude-sonnet-4-6', 'openrouter/google/gemini-2.0-flash-001'],
   }) as string[]);
   const models: string[] = selectedPresets;
 
