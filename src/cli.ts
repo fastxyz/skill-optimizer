@@ -20,6 +20,7 @@ import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiC
 import type { Recommendation } from './verdict/recommendations.js';
 import { generateRecommendations } from './verdict/recommendations.js';
 import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js';
+import { importCommands } from './import/index.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -47,14 +48,18 @@ const BOOLEAN_FLAGS = new Set([
   '--dry-run',
   '--no-cache',
   '--skip-generation',
+  '--scrape',
 ]);
 
 const VALUE_FLAGS = new Set([
   '--baseline',
   '--config',
   '--current',
+  '--depth',
+  '--from',
   '--max-iterations',
   '--model',
+  '--out',
   '--task',
   '--tier',
 ]);
@@ -95,6 +100,7 @@ Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
   skill-optimizer init <sdk|cli|mcp>            Scaffold config for the given surface type
+  skill-optimizer import-commands [options]     Extract CLI commands from source or binary
   skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
   skill-optimizer benchmark [options]           Run the benchmark
   skill-optimizer run [options]                 Run the benchmark
@@ -120,6 +126,12 @@ Optimize options:
 Generate-tasks options:
   --config <path>                               Config file (default: skill-optimizer.json)
 
+Import-commands options:
+  --from <path>                                 Entry file or binary name (required)
+  --out <path>                                  Output path (default: skill-optimizer/cli-commands.json)
+  --scrape                                      Force --help scraping regardless of file type
+  --depth <n>                                   Max subcommand depth for --help scraping (default: 2)
+
 Compare options:
   --baseline <path>                             Path to baseline report.json
   --current <path>                              Path to current report.json
@@ -128,6 +140,8 @@ Examples:
   skill-optimizer init cli
   skill-optimizer init sdk
   skill-optimizer init mcp
+  skill-optimizer import-commands --from ./src/cli.ts
+  skill-optimizer import-commands --from fast-cli --scrape
   skill-optimizer --dry-run --config ./skill-optimizer.json
   skill-optimizer benchmark --config ./skill-optimizer.json
   skill-optimizer run
@@ -204,6 +218,26 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     initBenchmark(process.cwd(), surface as 'sdk' | 'cli' | 'mcp');
+    process.exit(0);
+  }
+
+  // ── Import-commands mode ─────────────────────────────────────────────────────
+  if (command === 'import-commands') {
+    const fromFlag = getFlag(args, '--from');
+    if (!fromFlag) {
+      console.error('ERROR: --from <path> is required for import-commands.');
+      console.error('  Example: skill-optimizer import-commands --from ./src/cli.ts');
+      process.exit(1);
+    }
+    const outFlag = getFlag(args, '--out') ?? 'skill-optimizer/cli-commands.json';
+    const depthRaw = getFlag(args, '--depth');
+    await importCommands({
+      from: fromFlag,
+      out: outFlag,
+      scrape: hasFlag(args, '--scrape'),
+      depth: depthRaw ? parseInt(depthRaw, 10) : 2,
+      cwd: process.cwd(),
+    });
     process.exit(0);
   }
 
