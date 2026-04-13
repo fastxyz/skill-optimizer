@@ -319,7 +319,7 @@ await test('initBenchmark cli: creates cli-commands.json and sets target.cli.com
   try {
     initBenchmark(dir, 'cli');
     const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
-    const commandsPath = join(dir, 'skill-optimizer', 'cli-commands.json');
+    const commandsPath = join(dir, 'skill-optimizer', '.skill-optimizer', 'cli-commands.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
       target: { surface: string; cli?: { commands?: string } };
       benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };
@@ -339,7 +339,7 @@ await test('initBenchmark mcp: creates tools.json and sets target.mcp.tools', ()
   try {
     initBenchmark(dir, 'mcp');
     const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
-    const toolsPath = join(dir, 'skill-optimizer', 'tools.json');
+    const toolsPath = join(dir, 'skill-optimizer', '.skill-optimizer', 'tools.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
       target: { surface: string; mcp?: { tools?: string } };
       benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };

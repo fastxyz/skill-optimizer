@@ -1,37 +1,23 @@
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-/**
- * Scaffold benchmark config and surface-specific files for a new project.
- * All files are written into a `skill-optimizer/` subdirectory so they
- * don't clutter the project root.
- *
- * - sdk: creates skill-optimizer.json only (code-first discovery via sources)
- * - cli: creates skill-optimizer.json + cli-commands.json manifest template
- * - mcp: creates skill-optimizer.json + tools.json manifest template
- *
- * Tasks are never scaffolded — task generation (benchmark.taskGeneration.enabled)
- * handles them automatically at run time.
- */
 export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' = 'sdk'): void {
   const configDir = resolve(targetDir, 'skill-optimizer');
+  const generatedDir = resolve(configDir, '.skill-optimizer');
   mkdirSync(configDir, { recursive: true });
+  mkdirSync(generatedDir, { recursive: true });
 
   const configPath = resolve(configDir, 'skill-optimizer.json');
 
-  // ── skill-optimizer.json ─────────────────────────────────────────────────
-  // Paths use "../" because this config lives one level below the project root.
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
   } else {
-    const config = buildConfig(surface);
-    writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    writeFileSync(configPath, JSON.stringify(buildConfig(surface), null, 2) + '\n', 'utf-8');
     console.log(`[init] Created ${configPath}`);
   }
 
-  // ── Surface-specific companion files ─────────────────────────────────────
   if (surface === 'cli') {
-    const commandsPath = resolve(configDir, 'cli-commands.json');
+    const commandsPath = resolve(generatedDir, 'cli-commands.json');
     if (existsSync(commandsPath)) {
       console.log(`[init] Skipping ${commandsPath} (already exists)`);
     } else {
@@ -57,7 +43,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
   }
 
   if (surface === 'mcp') {
-    const toolsPath = resolve(configDir, 'tools.json');
+    const toolsPath = resolve(generatedDir, 'tools.json');
     if (existsSync(toolsPath)) {
       console.log(`[init] Skipping ${toolsPath} (already exists)`);
     } else {
@@ -97,7 +83,6 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
     }
   }
 
-  // ── Next steps ────────────────────────────────────────────────────────────
   console.log('\n[init] Done! Next steps:');
   console.log('  1. Edit skill-optimizer/skill-optimizer.json:');
   console.log('       target.repoPath  → path to your repo');
@@ -179,7 +164,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
           sources: ['../src/cli.ts'],
         },
         cli: {
-          commands: './cli-commands.json',
+          commands: './.skill-optimizer/cli-commands.json',
         },
       },
       benchmark: commonBenchmark,
@@ -199,7 +184,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
         sources: ['../src/server.ts'],
       },
       mcp: {
-        tools: './tools.json',
+        tools: './.skill-optimizer/tools.json',
       },
     },
     benchmark: commonBenchmark,
