@@ -24,13 +24,13 @@ function cancelGuard<T>(value: T | symbol): T {
   return value as T;
 }
 
-export async function runWizard(cwd: string, preseedSurface?: 'sdk' | 'cli' | 'mcp'): Promise<void> {
+export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): Promise<void> {
   p.intro('skill-optimizer init');
 
   // 1. Surface
   let surface: 'sdk' | 'cli' | 'mcp';
-  if (preseedSurface) {
-    surface = preseedSurface;
+  if (preseed?.surface) {
+    surface = preseed.surface;
     p.log.info(`Surface: ${surface}`);
   } else {
     surface = cancelGuard(await p.select({
@@ -46,11 +46,11 @@ export async function runWizard(cwd: string, preseedSurface?: 'sdk' | 'cli' | 'm
   // 2. Target repo path
   const repoPathRaw = cancelGuard(await p.text({
     message: 'Target repo path (absolute):',
-    defaultValue: cwd,
-    placeholder: cwd,
+    defaultValue: preseed?.repoPath ?? cwd,
+    placeholder: preseed?.repoPath ?? cwd,
     validate: (v) => (v !== undefined && v.trim().length === 0 ? 'Required — enter the absolute path to your project' : undefined),
   }) as string);
-  const repoPath = resolve(repoPathRaw.trim() || cwd);
+  const repoPath = resolve(repoPathRaw.trim() || preseed?.repoPath || cwd);
 
   // 3. Models (multi-select)
   const selectedPresets = cancelGuard(await p.multiselect({
@@ -106,11 +106,11 @@ export async function runWizard(cwd: string, preseedSurface?: 'sdk' | 'cli' | 'm
       ? 'Path to CLI entry file or binary (relative to repo, leave blank to skip):'
       : 'Path to MCP server entry file (relative to repo, leave blank to skip):';
     const placeholder = surface === 'cli' ? 'src/cli.ts' : 'src/server.ts';
-    const raw = cancelGuard(await p.text({ message, placeholder }) as string);
-    entryFile = raw.trim() || undefined;
+    const raw = cancelGuard(await p.text({ message, placeholder, defaultValue: preseed?.entryFile }) as string);
+    entryFile = raw.trim() || preseed?.entryFile || undefined;
   }
 
-  const answers: WizardAnswers = { surface, repoPath, models, maxTasks, maxIterations, entryFile };
+  const answers: WizardAnswers = { surface, repoPath, models, maxTasks, maxIterations, entryFile, name: preseed?.name };
 
   const spinner = p.spinner();
   spinner.start('Scaffolding...');

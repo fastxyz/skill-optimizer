@@ -22,7 +22,9 @@ import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js
 import { importCommands } from './import/index.js';
 import { scaffoldInit } from './init/scaffold.js';
 import { buildDefaultAnswers, readAnswersFile } from './init/answers.js';
+import type { WizardAnswers } from './init/answers.js';
 import { runWizard } from './init/wizard.js';
+import { detectProject, detectedToPreseed, printDetectionSummary } from './init/detect-project.js';
 import { ERRORS, SkillOptimizerError, printError } from './errors.js';
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
@@ -106,6 +108,8 @@ Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
   skill-optimizer init [sdk|cli|mcp]            Interactive wizard — scaffold config for the given surface
+  skill-optimizer init --auto                   Auto-detect project type and pre-fill wizard
+  skill-optimizer init --auto --yes             Auto-detect and scaffold non-interactively (high confidence only)
   skill-optimizer init [surface] --yes          Accept all defaults non-interactively
   skill-optimizer init --answers <file.json>    Load wizard answers from a JSON file (CI mode)
   skill-optimizer import-commands [options]     Extract CLI commands from source or binary
@@ -223,6 +227,27 @@ async function main(): Promise<void> {
     }
     const answersFlag = getFlag(args, '--answers');
     const useDefaults = hasFlag(args, '--yes');
+    const useAuto = hasFlag(args, '--auto');
+
+    if (useAuto) {
+      const detected = detectProject(process.cwd());
+      printDetectionSummary(detected);
+      if (useDefaults) {
+        if (detected.confidence !== 'high') {
+          printError(new SkillOptimizerError(ERRORS.E_INIT_AUTO_LOW_CONFIDENCE,
+            `detected confidence is ${detected.confidence}`));
+          process.exit(1);
+        }
+        const answers: WizardAnswers = {
+          ...buildDefaultAnswers(detected.surface, detected.repoPath),
+          ...detectedToPreseed(detected),
+        };
+        await scaffoldInit(answers, process.cwd());
+      } else {
+        await runWizard(process.cwd(), detectedToPreseed(detected));
+      }
+      process.exit(0);
+    }
 
     if (answersFlag) {
       const answers = readAnswersFile(resolve(process.cwd(), answersFlag));
@@ -231,7 +256,7 @@ async function main(): Promise<void> {
       const answers = buildDefaultAnswers(surfaceArg ?? 'sdk', process.cwd());
       await scaffoldInit(answers, process.cwd());
     } else {
-      await runWizard(process.cwd(), surfaceArg);
+      await runWizard(process.cwd(), surfaceArg ? { surface: surfaceArg } : undefined);
     }
     process.exit(0);
   }

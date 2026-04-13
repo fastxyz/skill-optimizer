@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import type { WizardAnswers } from './answers.js';
 
 export interface DetectedProject {
   surface: 'sdk' | 'cli' | 'mcp';
@@ -127,4 +128,26 @@ export function detectProject(dir: string): DetectedProject {
   const skillFile = skillCandidates.find(f => existsSync(join(dir, f)));
 
   return { surface, name, repoPath: dir, entryFile, skillFile, confidence, signals };
+}
+
+export function detectedToPreseed(detected: DetectedProject): Partial<WizardAnswers> {
+  return {
+    surface: detected.surface,
+    repoPath: detected.repoPath,
+    entryFile: detected.entryFile,
+    name: detected.name,
+  };
+}
+
+export function printDetectionSummary(detected: DetectedProject): void {
+  const confidenceLabel =
+    detected.confidence === 'high' ? 'high confidence' :
+    detected.confidence === 'medium' ? 'medium confidence' :
+    'low confidence — review carefully';
+  console.log(`\nDetected: ${detected.surface} (${confidenceLabel})`);
+  console.log(`  Name:    ${detected.name}`);
+  console.log(`  Entry:   ${detected.entryFile}`);
+  if (detected.skillFile) console.log(`  Skill:   ${detected.skillFile}`);
+  console.log(`  Signals: ${detected.signals.join('; ')}`);
+  console.log('');
 }
