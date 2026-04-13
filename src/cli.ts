@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
@@ -581,7 +581,12 @@ async function main(): Promise<void> {
 
 function isExecutedDirectly(): boolean {
   const entry = process.argv[1];
-  return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
 }
 
 if (isExecutedDirectly()) {
