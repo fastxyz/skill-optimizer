@@ -60,10 +60,16 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
   ].join('\n');
 }
 
+function stripCodeFence(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```\s*$/);
+  return match ? match[1].trim() : trimmed;
+}
+
 function parseGeneratedTasks(raw: string): GeneratedTask[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(stripCodeFence(raw));
   } catch (error) {
     throw new Error(`Task generator returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
