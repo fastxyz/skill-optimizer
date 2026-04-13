@@ -4,9 +4,19 @@ Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can 
 
 skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
-## Quickstart
-
 **Requirements:** Node.js 20+, an [OpenRouter](https://openrouter.ai) API key.
+
+## Installation
+
+```bash
+git clone https://github.com/fastxyz/skill-optimizer
+cd skill-optimizer
+npm install
+npm run build
+npm link        # makes `skill-optimizer` available globally
+```
+
+## Quickstart
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
