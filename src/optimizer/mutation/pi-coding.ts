@@ -1,3 +1,4 @@
+import { readFileSync, statSync } from 'node:fs';
 import { dirname, basename } from 'node:path';
 import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
@@ -19,6 +20,18 @@ export class PiCodingMutationExecutor {
     const agentCwd = context.localSkillPath
       ? dirname(context.localSkillPath)
       : context.manifest.targetRepo.path;
+
+    console.log(`[mutation] cwd: ${agentCwd}`);
+    if (context.localSkillPath) {
+      console.log(`[mutation] skill file: ${basename(context.localSkillPath)}`);
+      try {
+        const before = statSync(context.localSkillPath);
+        console.log(`[mutation] skill file size before: ${before.size} bytes`);
+      } catch {
+        console.log('[mutation] skill file not found before mutation');
+      }
+    }
+
     const { session } = await createCodingOrchestratorSession({
       cwd: agentCwd,
       modelRef: `${mutation.provider}/${mutation.model}`,
@@ -28,12 +41,27 @@ export class PiCodingMutationExecutor {
 
     await session.prompt(buildMutationPrompt(context));
 
+    const messages = session.state.messages as unknown[];
+    const toolActivity = extractToolActivity(messages);
+    console.log(`[mutation] session messages: ${messages.length}, tool calls: ${toolActivity.length}`);
+    if (toolActivity.length === 0) {
+      console.log('[mutation] WARNING: agent made no tool calls — skill file was not modified');
+    }
+
+    if (context.localSkillPath) {
+      try {
+        const after = statSync(context.localSkillPath);
+        console.log(`[mutation] skill file size after: ${after.size} bytes`);
+      } catch {
+        console.log('[mutation] skill file missing after mutation');
+      }
+    }
+
     // If we wrote to a local skill file, return it directly — no git detection needed.
     // Otherwise fall back to git status for target-repo mutations.
     const changedFiles = context.localSkillPath
       ? [context.localSkillPath]
       : await collectGitChangedFiles(context.manifest.targetRepo.path);
-    const toolActivity = extractToolActivity(session.state.messages);
     const summary = extractLatestAssistantText(session.state.messages)
       ?? context.failureBuckets[0]?.kind
       ?? 'benchmark failures';
