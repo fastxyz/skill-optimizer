@@ -7,7 +7,7 @@ import { scaffoldInit } from './scaffold.js';
 // Ordered by OpenRouter weekly token volume (top 20).
 export const MODEL_PRESETS = [
   // DeepSeek
-  { value: 'openrouter/deepseek/deepseek-v3',              label: 'DeepSeek V3.2          · DeepSeek',  hint: '#1' },
+  { value: 'openrouter/deepseek/deepseek-v3.2',            label: 'DeepSeek V3.2          · DeepSeek',  hint: '#1' },
   // Anthropic
   { value: 'openrouter/anthropic/claude-opus-4.6',         label: 'Claude Opus 4.6        · Anthropic', hint: 'flagship' },
   { value: 'openrouter/anthropic/claude-sonnet-4.6',       label: 'Claude Sonnet 4.6      · Anthropic' },
@@ -18,13 +18,13 @@ export const MODEL_PRESETS = [
   { value: 'openrouter/google/gemini-3-flash-preview',     label: 'Gemini 3 Flash Preview · Google',    hint: 'fast' },
   { value: 'openrouter/google/gemini-3.1-pro-preview',     label: 'Gemini 3.1 Pro Preview · Google',    hint: 'flagship' },
   { value: 'openrouter/google/gemini-2.5-flash',           label: 'Gemini 2.5 Flash       · Google',    hint: 'fast' },
-  { value: 'openrouter/google/gemini-2.5-flash-lite-preview', label: 'Gemini 2.5 Flash Lite · Google',  hint: 'fast' },
+  { value: 'openrouter/google/gemini-2.5-flash-lite',       label: 'Gemini 2.5 Flash Lite  · Google',    hint: 'fast' },
   // Qwen
   { value: 'openrouter/qwen/qwen3.6-plus',                 label: 'Qwen 3.6 Plus          · Alibaba',   hint: 'open' },
   // Xiaomi
   { value: 'openrouter/xiaomi/mimo-v2-pro',                label: 'MiMo-V2-Pro            · Xiaomi' },
   // Nvidia
-  { value: 'openrouter/nvidia/nemotron-3-super',           label: 'Nemotron 3 Super       · Nvidia',    hint: 'open' },
+  { value: 'openrouter/nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B  · Nvidia',    hint: 'open' },
   // Moonshot
   { value: 'openrouter/moonshotai/kimi-k2.5',              label: 'Kimi K2.5              · Moonshot',  hint: 'flagship' },
   // xAI
@@ -111,7 +111,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     message: 'Which models to benchmark? (space to toggle, enter to confirm)',
     options: MODEL_PRESETS,
     required: true,
-    initialValues: ['openrouter/anthropic/claude-sonnet-4.6', 'openrouter/deepseek/deepseek-v3', 'openrouter/google/gemini-2.5-flash'],
+    initialValues: ['openrouter/anthropic/claude-sonnet-4.6', 'openrouter/deepseek/deepseek-v3.2', 'openrouter/google/gemini-2.5-flash'],
   }) as string[]);
   const models: string[] = selectedPresets;
 
