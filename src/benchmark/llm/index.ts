@@ -16,6 +16,21 @@ export interface LLMClient {
 }
 
 /**
+ * Strip the provider prefix from a model ID when talking directly to a provider API.
+ *
+ * Only strips "anthropic/" and "openai/" prefixes — the prefixes that belong to
+ * direct-API configs. "openrouter/" prefixes are intentionally left intact: they
+ * signal that the ID belongs to format:'pi' (OpenRouter), so encountering one here
+ * means the config is misconfigured and we want a fast, visible API error rather
+ * than silently misrouting the request.
+ */
+function stripProviderPrefix(modelId: string): string {
+  if (modelId.startsWith('anthropic/')) return modelId.slice('anthropic/'.length);
+  if (modelId.startsWith('openai/')) return modelId.slice('openai/'.length);
+  return modelId;
+}
+
+/**
  * Create an LLM client from config.
  */
 export function createLLMClient(config: LLMConfig): LLMClient {
@@ -29,33 +44,41 @@ export function createLLMClient(config: LLMConfig): LLMClient {
 
   const extraHeaders = config.headers ?? {};
 
+  // When format is 'anthropic' or 'openai', we're talking directly to a provider
+  // API that doesn't understand prefixed model IDs like "anthropic/claude-sonnet-4-6".
+  // Strip the prefix so only the bare model name (e.g. "claude-sonnet-4-6") is sent.
+  const shouldStripPrefix = config.format === 'anthropic' || config.format === 'openai';
+
   return {
     async chat(modelId, system, user) {
+      const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatPi({ timeout, modelId, system, user, apiKeyOverride: apiKey, headers: config.headers });
       }
       if (config.format === 'anthropic') {
-        return chatAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user });
+        return chatAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user });
       }
-      return chatOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user });
+      return chatOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user });
     },
     async chatWithTools(modelId, system, user, tools) {
+      const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatWithToolsPi({ timeout, modelId, system, user, tools, apiKeyOverride: apiKey, headers: config.headers });
       }
       if (config.format === 'anthropic') {
-        return chatWithToolsAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools });
+        return chatWithToolsAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools });
       }
-      return chatWithToolsOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools });
+      return chatWithToolsOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools });
     },
     async chatAgentLoop(modelId, system, user, tools, executor, maxTurns = 5) {
+      const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatAgentLoopPi({ timeout, modelId, system, user, tools, executor, maxTurns, apiKeyOverride: apiKey, headers: config.headers });
       }
       if (config.format === 'anthropic') {
-        return chatAgentLoopAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools, executor, maxTurns });
+        return chatAgentLoopAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools, executor, maxTurns });
       }
-      return chatAgentLoopOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools, executor, maxTurns });
+      return chatAgentLoopOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools, executor, maxTurns });
     },
   };
 }

@@ -592,6 +592,207 @@ await test('anthropic format: converts McpToolDefinition to Anthropic tool forma
 });
 
 // ---------------------------------------------------------------------------
+// Provider prefix stripping for direct API formats
+// ---------------------------------------------------------------------------
+
+await test('anthropic format: strips provider prefix from model ID', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'ok' }],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  // Pass a prefixed model ID like the config validation requires
+  await client.chat('anthropic/claude-sonnet-4-6', 'system', 'user');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'claude-sonnet-4-6',
+    'model field should have provider prefix stripped for direct Anthropic API',
+  );
+});
+
+await test('anthropic format: strips provider prefix in chatWithTools', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'no tools needed' }],
+        stop_reason: 'end_turn',
+      },
+    };
+  }) as any;
+
+  const tools: McpToolDefinition[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'test_tool',
+        description: 'A test tool',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+  ];
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chatWithTools('anthropic/claude-sonnet-4-6', 'system', 'user', tools);
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'claude-sonnet-4-6',
+    'model field should have provider prefix stripped in chatWithTools',
+  );
+});
+
+await test('anthropic format: strips provider prefix in chatAgentLoop', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'no tools needed' }],
+        stop_reason: 'end_turn',
+      },
+    };
+  }) as any;
+
+  const tools: McpToolDefinition[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'test_tool',
+        description: 'A test tool',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+  ];
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chatAgentLoop('anthropic/claude-sonnet-4-6', 'system', 'user', tools, async () => 'result');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'claude-sonnet-4-6',
+    'model field should have provider prefix stripped in chatAgentLoop',
+  );
+});
+
+await test('anthropic format: does not strip when no prefix present', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'ok' }],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chat('claude-sonnet-4-6', 'system', 'user');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'claude-sonnet-4-6',
+    'model field should remain unchanged when no prefix',
+  );
+});
+
+await test('openai format: strips provider prefix from model ID', async () => {
+  let capturedBody: any = null;
+
+  const openaiConfig: LLMConfig = {
+    format: 'openai',
+    baseUrl: 'https://api.openai.com',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    timeout: 5000,
+    models: [],
+  };
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        choices: [{ message: { role: 'assistant', content: 'ok' } }],
+      },
+    };
+  }) as any;
+
+  // Temporarily set the env var so createLLMClient doesn't throw.
+  // Capture and restore the original value so we don't clobber it in CI.
+  const hadOpenAiApiKey = Object.prototype.hasOwnProperty.call(process.env, 'OPENAI_API_KEY');
+  const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key';
+  const client = createLLMClient(openaiConfig);
+  try {
+    await client.chat('openai/gpt-4o', 'system', 'user');
+  } finally {
+    if (hadOpenAiApiKey) {
+      process.env.OPENAI_API_KEY = previousOpenAiApiKey;
+    } else {
+      delete process.env.OPENAI_API_KEY;
+    }
+  }
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'gpt-4o',
+    'model field should have provider prefix stripped for direct OpenAI API',
+  );
+});
+
+await test('anthropic format: leaves openrouter/-prefixed model ID unchanged', async () => {
+  // openrouter/ IDs belong to format:'pi'. If one appears with format:'anthropic',
+  // the config is misconfigured — we pass it through unchanged so the Anthropic API
+  // returns a fast, visible error rather than silently misrouting the request.
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'ok' }],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chat('openrouter/anthropic/claude-sonnet-4-6', 'system', 'user');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'openrouter/anthropic/claude-sonnet-4-6',
+    'openrouter/ prefix should be left intact — not silently stripped',
+  );
+});
+
+// NOTE: pi format prefix preservation is already covered by existing
+// "pi format: uses provider/model id" tests above. The prefix stripping
+// only applies to anthropic and openai direct formats.
+
+// ---------------------------------------------------------------------------
 // Restore original fetch
 // ---------------------------------------------------------------------------
 
