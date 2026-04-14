@@ -724,6 +724,7 @@ await test('openai format: strips provider prefix from model ID', async () => {
     baseUrl: 'https://api.openai.com',
     apiKeyEnv: 'OPENAI_API_KEY',
     timeout: 5000,
+    models: [],
   };
 
   globalThis.fetch = mockFetch((_url, init) => {
