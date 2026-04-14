@@ -302,7 +302,7 @@ await test('initBenchmark sdk: creates skill-optimizer.json with task generation
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
     initBenchmark(dir, 'sdk');
-    const config = JSON.parse(readFileSync(join(dir, 'skill-optimizer', 'skill-optimizer.json'), 'utf-8')) as {
+    const config = JSON.parse(readFileSync(join(dir, 'skill-optimizer.json'), 'utf-8')) as {
       target: { surface: string };
       benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };
     };
@@ -318,8 +318,8 @@ await test('initBenchmark cli: creates cli-commands.json and sets target.cli.com
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
     initBenchmark(dir, 'cli');
-    const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
-    const commandsPath = join(dir, 'skill-optimizer', '.skill-optimizer', 'cli-commands.json');
+    const configPath = join(dir, 'skill-optimizer.json');
+    const commandsPath = join(dir, '.skill-optimizer', 'cli-commands.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
       target: { surface: string; cli?: { commands?: string } };
       benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };
@@ -338,8 +338,8 @@ await test('initBenchmark mcp: creates tools.json and sets target.mcp.tools', ()
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-init-'));
   try {
     initBenchmark(dir, 'mcp');
-    const configPath = join(dir, 'skill-optimizer', 'skill-optimizer.json');
-    const toolsPath = join(dir, 'skill-optimizer', '.skill-optimizer', 'tools.json');
+    const configPath = join(dir, 'skill-optimizer.json');
+    const toolsPath = join(dir, '.skill-optimizer', 'tools.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
       target: { surface: string; mcp?: { tools?: string } };
       benchmark: { taskGeneration?: { enabled?: boolean }; tasks?: string };

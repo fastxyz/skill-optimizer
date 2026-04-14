@@ -2,12 +2,10 @@ import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' = 'sdk'): void {
-  const configDir = resolve(targetDir, 'skill-optimizer');
-  const generatedDir = resolve(configDir, '.skill-optimizer');
-  mkdirSync(configDir, { recursive: true });
+  const generatedDir = resolve(targetDir, '.skill-optimizer');
   mkdirSync(generatedDir, { recursive: true });
 
-  const configPath = resolve(configDir, 'skill-optimizer.json');
+  const configPath = resolve(targetDir, 'skill-optimizer.json');
 
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
@@ -38,7 +36,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
         },
       ];
       writeFileSync(commandsPath, JSON.stringify(commands, null, 2) + '\n', 'utf-8');
-      console.log(`[init] Created ${commandsPath}`);
+      console.log(`[init] Created ${commandsPath} (template — edit with your real commands)`);
     }
   }
 
@@ -79,29 +77,35 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
         },
       ];
       writeFileSync(toolsPath, JSON.stringify(tools, null, 2) + '\n', 'utf-8');
-      console.log(`[init] Created ${toolsPath}`);
+      console.log(`[init] Created ${toolsPath} (template — edit with your real tools)`);
     }
   }
 
-  console.log('\n[init] Done! Next steps:');
-  console.log('  1. Edit skill-optimizer/skill-optimizer.json:');
-  console.log('       target.repoPath  → path to your repo');
+  console.log('\n[init] Done!');
+  console.log(`  Surface:    ${surface}`);
+  console.log(`  Config:     ${configPath}`);
+  console.log(`  Artifacts:  ${generatedDir}/`);
+  console.log('');
+  console.log('  Next steps:');
+  console.log('  1. Edit skill-optimizer.json:');
+  console.log('       target.repoPath  → path to your repo (default: current dir)');
   console.log('       target.skill     → path to your SKILL.md');
 
   if (surface === 'sdk') {
     console.log('       target.discovery.sources → entry file(s) for SDK discovery');
   } else if (surface === 'cli') {
     console.log('       target.discovery.sources → CLI entry file (for code-first discovery)');
-    console.log('       skill-optimizer/cli-commands.json → replace example commands with your real commands');
+    console.log('       .skill-optimizer/cli-commands.json → replace template with your real commands');
     console.log('       (cli-commands.json is used as a fallback if code-first discovery finds nothing)');
   } else {
     console.log('       target.discovery.sources → MCP server file (for code-first discovery)');
-    console.log('       skill-optimizer/tools.json → replace example tools with your real tools');
+    console.log('       .skill-optimizer/tools.json → replace template with your real tools');
     console.log('       (tools.json is used as a fallback if code-first discovery finds nothing)');
   }
 
   console.log('       benchmark.models → update with real OpenRouter model IDs');
-  console.log('  2. Run: npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json');
+  console.log('  2. Create SKILL.md — explain your surface to the model');
+  console.log('  3. Run: skill-optimizer optimize --config ./skill-optimizer.json');
 }
 
 function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
@@ -119,7 +123,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       { id: 'openrouter/google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', tier: 'mid' },
     ],
     output: {
-      dir: '../benchmark-results',
+      dir: './benchmark-results',
     },
     verdict: {
       perModelFloor: 0.6,
@@ -130,7 +134,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
   const commonOptimize = {
     model: 'openrouter/anthropic/claude-sonnet-4-6',
     apiKeyEnv: 'OPENROUTER_API_KEY',
-    allowedPaths: ['../SKILL.md'],
+    allowedPaths: ['./SKILL.md'],
     validation: [],
     maxIterations: 5,
   };
@@ -140,11 +144,11 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       name: 'my-sdk',
       target: {
         surface: 'sdk',
-        repoPath: '..',
-        skill: '../SKILL.md',
+        repoPath: '.',
+        skill: './SKILL.md',
         discovery: {
           mode: 'auto',
-          sources: ['../src/index.ts'],
+          sources: ['./src/index.ts'],
         },
       },
       benchmark: commonBenchmark,
@@ -157,11 +161,11 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       name: 'my-cli',
       target: {
         surface: 'cli',
-        repoPath: '..',
-        skill: '../SKILL.md',
+        repoPath: '.',
+        skill: './SKILL.md',
         discovery: {
           mode: 'auto',
-          sources: ['../src/cli.ts'],
+          sources: ['./src/cli.ts'],
         },
         cli: {
           commands: './.skill-optimizer/cli-commands.json',
@@ -177,11 +181,11 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
     name: 'my-mcp',
     target: {
       surface: 'mcp',
-      repoPath: '..',
-      skill: '../SKILL.md',
+      repoPath: '.',
+      skill: './SKILL.md',
       discovery: {
         mode: 'auto',
-        sources: ['../src/server.ts'],
+        sources: ['./src/server.ts'],
       },
       mcp: {
         tools: './.skill-optimizer/tools.json',

@@ -150,14 +150,12 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
 }
 
 export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise<void> {
-  const configDir = resolve(cwd, 'skill-optimizer');
-  const generatedDir = resolve(configDir, '.skill-optimizer');
-  mkdirSync(configDir, { recursive: true });
+  const generatedDir = resolve(cwd, '.skill-optimizer');
   mkdirSync(generatedDir, { recursive: true });
 
-  const configPath = resolve(configDir, 'skill-optimizer.json');
+  const configPath = resolve(cwd, 'skill-optimizer.json');
   const configExisted = existsSync(configPath);
-  writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, configDir), null, 2) + '\n', 'utf-8');
+  writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, cwd), null, 2) + '\n', 'utf-8');
   console.log(`[init] ${configExisted ? 'Updated' : 'Created'} ${configPath}`);
 
   // 'extracted' = auto-extracted from source, 'template' = placeholder written, undefined = n/a
@@ -277,11 +275,11 @@ function printNextSteps(answers: WizardAnswers, configPath: string, commandsSour
   if (needsManifestEdit) {
     if (answers.surface === 'cli') {
       steps.push(
-        'Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace the template with your real commands\n' +
+        'Edit .skill-optimizer/cli-commands.json — replace the template with your real commands\n' +
         '     (or rerun with an entry file: skill-optimizer import-commands --from <entry-file>)',
       );
     } else {
-      steps.push('Edit skill-optimizer/.skill-optimizer/tools.json — replace the template with your real MCP tools');
+      steps.push('Edit .skill-optimizer/tools.json — replace the template with your real MCP tools');
     }
   }
 
@@ -289,7 +287,7 @@ function printNextSteps(answers: WizardAnswers, configPath: string, commandsSour
     steps.push(`Create ${skillAbsPath}\n     Explain your surface to the model: what it does, key concepts, usage examples`);
   }
 
-  steps.push('Run: skill-optimizer optimize --config ./skill-optimizer/skill-optimizer.json');
+  steps.push('Run: skill-optimizer optimize --config ./skill-optimizer.json');
 
   if (steps.length > 0) {
     console.log('\n  Next steps:');

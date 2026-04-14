@@ -179,5 +179,5 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     process.exit(1);
   }
 
-  p.outro('Config written. Next: skill-optimizer optimize --config ./skill-optimizer/skill-optimizer.json');
+  p.outro('Config written. Next: skill-optimizer optimize --config ./skill-optimizer.json');
 }
