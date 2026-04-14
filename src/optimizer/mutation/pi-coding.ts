@@ -13,10 +13,14 @@ export class PiCodingMutationExecutor {
     }
 
     // When localSkillPath is provided, the skill file is a local versioned copy
-    // outside the target repo — the agent edits it directly by absolute path.
-    // We keep cwd = targetRepo.path so the coding agent operates in a git repo.
+    // outside the target repo. Set cwd to the skill file's directory so the agent
+    // operates in isolation — it can't see or accidentally edit the target repo,
+    // and the file it needs to edit is right in its working directory.
+    const agentCwd = context.localSkillPath
+      ? dirname(context.localSkillPath)
+      : context.manifest.targetRepo.path;
     const { session } = await createCodingOrchestratorSession({
-      cwd: context.manifest.targetRepo.path,
+      cwd: agentCwd,
       modelRef: `${mutation.provider}/${mutation.model}`,
       apiKeyEnv: mutation.apiKeyEnv,
       thinkingLevel: mutation.thinkingLevel ?? 'medium',
@@ -46,7 +50,7 @@ function buildMutationPrompt(context: MutationContext): string {
   // If we have a local skill path, that's the only file the agent should edit.
   // The path is absolute so the agent can find it regardless of cwd.
   const allowedPaths = context.localSkillPath
-    ? `- ${context.localSkillPath}`
+    ? `- ${basename(context.localSkillPath)}  (in current working directory)`
     : context.manifest.targetRepo.allowedPaths.map((p) => `- ${p}`).join('\n');
   const feedbackCtx = buildMutationContext(
     context.currentReport,
@@ -68,9 +72,11 @@ function buildMutationPrompt(context: MutationContext): string {
       ].join('\n')
     : '';
 
-  const skillPreamble = context.localSkillPath
+  const skillFileName = context.localSkillPath ? basename(context.localSkillPath) : null;
+  const skillPreamble = skillFileName
     ? [
-        `Improve the SKILL.md at: ${context.localSkillPath}`,
+        `Improve the skill documentation file: ${skillFileName}`,
+        '(This file is in your current working directory.)',
         '',
         'IMPORTANT: Read the file first, then make surgical edits.',
         '- Do NOT rewrite or replace the file — patch only the sections that are weak or missing.',
