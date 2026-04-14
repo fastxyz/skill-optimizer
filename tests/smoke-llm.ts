@@ -656,6 +656,42 @@ await test('anthropic format: strips provider prefix in chatWithTools', async ()
   );
 });
 
+await test('anthropic format: strips provider prefix in chatAgentLoop', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'no tools needed' }],
+        stop_reason: 'end_turn',
+      },
+    };
+  }) as any;
+
+  const tools: McpToolDefinition[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'test_tool',
+        description: 'A test tool',
+        parameters: { type: 'object', properties: {} },
+      },
+    },
+  ];
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chatAgentLoop('anthropic/claude-sonnet-4-6', 'system', 'user', tools, async () => 'result');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'claude-sonnet-4-6',
+    'model field should have provider prefix stripped in chatAgentLoop',
+  );
+});
+
 await test('anthropic format: does not strip when no prefix present', async () => {
   let capturedBody: any = null;
 
@@ -700,11 +736,21 @@ await test('openai format: strips provider prefix from model ID', async () => {
     };
   }) as any;
 
-  // Temporarily set the env var so createLLMClient doesn't throw
+  // Temporarily set the env var so createLLMClient doesn't throw.
+  // Capture and restore the original value so we don't clobber it in CI.
+  const hadOpenAiApiKey = Object.prototype.hasOwnProperty.call(process.env, 'OPENAI_API_KEY');
+  const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = 'test-key';
   const client = createLLMClient(openaiConfig);
-  await client.chat('openai/gpt-4o', 'system', 'user');
-  delete process.env.OPENAI_API_KEY;
+  try {
+    await client.chat('openai/gpt-4o', 'system', 'user');
+  } finally {
+    if (hadOpenAiApiKey) {
+      process.env.OPENAI_API_KEY = previousOpenAiApiKey;
+    } else {
+      delete process.env.OPENAI_API_KEY;
+    }
+  }
 
   assert(capturedBody !== null, 'fetch should have been called');
   assertEqual(
