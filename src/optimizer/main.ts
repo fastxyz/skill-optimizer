@@ -2,10 +2,6 @@
 
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { config as loadDotenv } from 'dotenv';
-
-loadDotenv({ override: true });
-
 import {
   createBenchmarkAdapter,
   createJsonLedger,
@@ -16,6 +12,7 @@ import {
   runOptimizeLoop,
 } from './index.js';
 import { createDefaultPiTaskGenerator, generateTasksForProject } from '../tasks/index.js';
+import { renderProgressTable } from './progress-table.js';
 
 function printUsage(): void {
   console.log(`
@@ -64,7 +61,7 @@ export async function runOptimizeFromConfig(
   manifestPath: string,
   options: { maxIterationsRaw?: string; skipGeneration?: boolean } = {},
 ) {
-  const manifest = loadOptimizeManifest(manifestPath);
+  const manifest = await loadOptimizeManifest(manifestPath);
   const maxIterations = options.maxIterationsRaw ? Number(options.maxIterationsRaw) : undefined;
   if (options.maxIterationsRaw && (!Number.isInteger(maxIterations) || (maxIterations ?? 0) <= 0)) {
     throw new Error(`Invalid --max-iterations value '${options.maxIterationsRaw}'. Must be a positive integer.`);
@@ -145,8 +142,6 @@ export function printOptimizeSummary(
     console.log(`Generated tasks: ${result.generation.taskCount} (rejected: ${result.generation.rejectedCount})`);
     console.log(`Frozen config: ${result.generation.benchmarkConfigPath}`);
   }
-  console.log(`Baseline overall pass rate: ${(result.baselineReport.summary.overallPassRate * 100).toFixed(1)}%`);
-  console.log(`Best overall pass rate: ${(result.bestReport.summary.overallPassRate * 100).toFixed(1)}%`);
   console.log(`Iterations: ${result.iterations.length}`);
   if (result.stopReason === 'stable') {
     console.log(
@@ -156,6 +151,7 @@ export function printOptimizeSummary(
     console.log(`Stop reason: max iterations reached (${resolvedManifest.optimizer.maxIterations})`);
   }
   console.log(`Run log: ${ledgerPath}`);
+  console.log(renderProgressTable(result.baselineReport, result.bestReport, result.iterations));
 }
 
 function isExecutedDirectly(): boolean {

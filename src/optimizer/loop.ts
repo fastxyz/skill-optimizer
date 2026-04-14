@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import { analyzeFailures } from './failure-analysis.js';
 import { accept } from '../benchmark/scoring.js';
@@ -28,6 +28,18 @@ export async function runOptimizeLoop(
   const outputDir = resolvedManifest.optimizer.taskGeneration.outputDir;
   mkdirSync(outputDir, { recursive: true });
   console.log(`[optimize] Artifact output dir: ${outputDir}`);
+
+  // ── Local skill versioning ──────────────────────────────────────────────────
+  // Copy the source skill from the target repo into outputDir as skill-v0.md.
+  // All subsequent iterations mutate a local versioned copy — the target repo
+  // is never written to. Each accepted iteration produces skill-v{N}.md.
+  let currentBestSkillPath: string | undefined;
+  if (resolvedManifest.skillPath && existsSync(resolvedManifest.skillPath)) {
+    const v0Path = join(outputDir, 'skill-v0.md');
+    copyFileSync(resolvedManifest.skillPath, v0Path);
+    currentBestSkillPath = v0Path;
+    console.log(`[optimize] Skill baseline copied to ${v0Path}`);
+  }
 
   let generation: TaskGenerationResult | undefined;
   if (resolvedManifest.optimizer.taskGeneration.enabled) {
@@ -65,6 +77,7 @@ export async function runOptimizeLoop(
     outputDir,
     label: 'baseline',
     verdictPolicy,
+    skillOverride: currentBestSkillPath,
   });
   const baselineReport = baselineResult.report;
   let bestReport = baselineResult.report;
@@ -93,6 +106,14 @@ export async function runOptimizeLoop(
     }
     let candidate: MutationCandidate | null = null;
 
+    // Prepare a versioned local skill file for this iteration.
+    // The mutation writes here; the benchmark reads from here.
+    let localSkillPath: string | undefined;
+    if (currentBestSkillPath) {
+      localSkillPath = join(outputDir, `skill-v${index}.md`);
+      copyFileSync(currentBestSkillPath, localSkillPath);
+    }
+
     try {
       console.log('[optimize] Applying mutation...');
       candidate = await deps.mutation.apply({
@@ -101,6 +122,7 @@ export async function runOptimizeLoop(
         currentReport: bestReport,
         failureBuckets,
         reportPath: lastReportPath,
+        localSkillPath,
       });
       if (candidate.toolActivity && candidate.toolActivity.length > 0) {
         console.log('[optimize] Orchestrator tool activity:');
@@ -115,11 +137,22 @@ export async function runOptimizeLoop(
         }
       }
 
-      let changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
+      let changedFiles = await getChangedFiles(deps, resolvedManifest, candidate, localSkillPath);
       console.log(
         `[optimize] Changed files: ${changedFiles.length > 0 ? changedFiles.join(', ') : '(none)'}`,
       );
-      const scopeValidation = validateChangedFiles(changedFiles, resolvedManifest);
+      // When the mutation writes to a local skill file, the target repo must stay clean.
+      // The agent runs with cwd = targetRepo and can inadvertently write tracked files there.
+      // Restore the repo to the accepted checkpoint so any rogue writes are undone — only
+      // changes to the local skill file (outside the repo) are kept.
+      if (localSkillPath) {
+        await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
+      }
+      // When the mutation writes to a local skill file (not the target repo),
+      // skip target-repo scope validation — the local file is always in scope.
+      const scopeValidation = localSkillPath
+        ? null
+        : validateChangedFiles(changedFiles, resolvedManifest);
       console.log('[optimize] Running validation...');
       let validation = scopeValidation ?? await deps.validation.run(resolvedManifest.targetRepo);
 
@@ -145,9 +178,11 @@ export async function runOptimizeLoop(
         continue;
       }
 
-      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
+      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate, localSkillPath);
       iteration.changedFiles = changedFiles;
-      const postValidationScopeValidation = validateChangedFiles(changedFiles, resolvedManifest);
+      const postValidationScopeValidation = localSkillPath
+        ? null
+        : validateChangedFiles(changedFiles, resolvedManifest);
       if (postValidationScopeValidation) {
         console.log('[optimize] Validation introduced out-of-scope changes. Restoring checkpoint.');
         iteration.validation = postValidationScopeValidation;
@@ -191,18 +226,24 @@ export async function runOptimizeLoop(
           outputDir,
           label: `epoch-${index + 1}-baseline`,
           verdictPolicy,
+          skillOverride: localSkillPath,
         });
         iteration.accepted = true;
         iteration.scoreAfter = epochBaseline.report.summary.overallPassRate;
+        iteration.perModelAfter = epochBaseline.report.summary.perModel;
         iteration.delta = epochBaseline.report.summary.overallPassRate - bestReport.summary.overallPassRate;
         bestReport = epochBaseline.report;
         lastReportPath = epochBaseline.reportPath;
-        acceptedCheckpoint = await deps.repo.updateAcceptedCheckpoint(
-          resolvedManifest.targetRepo,
-          acceptedCheckpoint,
-          candidate,
-          changedFiles,
-        );
+        if (localSkillPath) {
+          currentBestSkillPath = localSkillPath;
+        } else {
+          acceptedCheckpoint = await deps.repo.updateAcceptedCheckpoint(
+            resolvedManifest.targetRepo,
+            acceptedCheckpoint,
+            candidate,
+            changedFiles,
+          );
+        }
         consecutiveStableIterations = 0;
         console.log(
           `[optimize] Started new epoch baseline at ${(bestReport.summary.overallPassRate * 100).toFixed(1)}% ` +
@@ -218,11 +259,14 @@ export async function runOptimizeLoop(
         outputDir,
         label: `iteration-${index}`,
         verdictPolicy,
+        skillOverride: localSkillPath,
       });
       const candidateReport = candidateResult.report;
-      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
+      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate, localSkillPath);
       iteration.changedFiles = changedFiles;
-      const postBenchmarkScopeValidation = validateChangedFiles(changedFiles, resolvedManifest);
+      const postBenchmarkScopeValidation = localSkillPath
+        ? null
+        : validateChangedFiles(changedFiles, resolvedManifest);
       if (postBenchmarkScopeValidation) {
         console.log('[optimize] Benchmark rerun introduced out-of-scope changes. Restoring checkpoint.');
         iteration.validation = postBenchmarkScopeValidation;
@@ -235,6 +279,7 @@ export async function runOptimizeLoop(
       const beforeReport = bestReport;
       const afterReport = candidateReport;
       iteration.scoreAfter = afterReport.summary.overallPassRate;
+      iteration.perModelAfter = afterReport.summary.perModel;
       iteration.delta = afterReport.summary.overallPassRate - beforeReport.summary.overallPassRate;
 
       const accepted = accept(beforeReport, afterReport, resolvedManifest.optimizer.models, {
@@ -252,12 +297,16 @@ export async function runOptimizeLoop(
         console.log(
           `[optimize] Accepted iteration ${index}: weighted average ${beforeAvg.toFixed(1)}% -> ${afterAvg.toFixed(1)}%.`,
         );
-        acceptedCheckpoint = await deps.repo.updateAcceptedCheckpoint(
-          resolvedManifest.targetRepo,
-          acceptedCheckpoint,
-          candidate,
-          changedFiles,
-        );
+        if (localSkillPath) {
+          currentBestSkillPath = localSkillPath;
+        } else {
+          acceptedCheckpoint = await deps.repo.updateAcceptedCheckpoint(
+            resolvedManifest.targetRepo,
+            acceptedCheckpoint,
+            candidate,
+            changedFiles,
+          );
+        }
         consecutiveStableIterations = 0;
       } else {
         const beforeAvg = (beforeReport.summary.weightedAverage ?? 0) * 100;
@@ -399,10 +448,9 @@ function toRelativeTargetPath(path: string, manifest: ResolvedOptimizeManifest):
 }
 
 function isAllowedPath(file: string, allowedPaths: string[], repoRoot?: string): boolean {
-  // Resolve relative changed file against the repo root so it can be compared
-  // with absolute allowedPaths entries (and vice versa).
-  const absoluteFile = repoRoot && !file.startsWith('/') ? `${repoRoot}/${file}` : file;
-  const normalizedFile = normalizeRelativePath(absoluteFile);
+  const normalizedFile = normalizeRelativePath(
+    repoRoot && isAbsolute(file) ? relative(repoRoot, file) : file,
+  );
   return allowedPaths.some((allowedPath) => {
     const normalizedAllowed = normalizeRelativePath(allowedPath);
     return normalizedFile === normalizedAllowed || normalizedFile.startsWith(`${normalizedAllowed}/`);
@@ -417,7 +465,14 @@ async function getChangedFiles(
   deps: OptimizeLoopDependencies,
   manifest: ResolvedOptimizeManifest,
   candidate: MutationCandidate,
+  localSkillPath?: string,
 ): Promise<string[]> {
+  // In local-skill mode the changed file lives outside the target repo, so git
+  // status will never list it. Return the skill path directly so logs and
+  // iteration metadata correctly reflect what the agent wrote.
+  if (localSkillPath) {
+    return [localSkillPath];
+  }
   const changedFiles = deps.repo.listChangedFiles
     ? deps.repo.listChangedFiles(manifest.targetRepo)
     : [...candidate.changedFiles];
@@ -443,6 +498,7 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
 
   return {
     benchmarkConfig: unresolved.benchmarkConfig,
+    skillPath: (unresolved as Partial<ResolvedOptimizeManifest>).skillPath,
     targetRepo: {
       ...unresolved.targetRepo,
       surfacePaths: unresolved.targetRepo.surfacePaths ?? [],

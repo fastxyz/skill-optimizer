@@ -1,4 +1,4 @@
-import type { BenchmarkReport, BenchmarkSurface, ModelConfig } from '../benchmark/types.js';
+import type { BenchmarkReport, BenchmarkSurface, ModelConfig, ModelSummary } from '../benchmark/types.js';
 
 export type FailureBucketKind = 'missing-tool' | 'bad-args' | 'hallucination' | 'error';
 export type StopReason = 'max-iterations' | 'stable';
@@ -48,6 +48,8 @@ export interface OptimizeManifest {
 
 export interface ResolvedOptimizeManifest {
   benchmarkConfig: string;
+  /** Absolute path to the source SKILL.md in the target repo, if it is a local file. */
+  skillPath?: string;
   targetRepo: {
     path: string;
     surface: BenchmarkSurface;
@@ -117,6 +119,8 @@ export interface OptimizeIteration {
   validation: ValidationResult;
   scoreBefore: number;
   scoreAfter?: number;
+  /** Per-model pass rates after this iteration's benchmark run (absent when no benchmark ran) */
+  perModelAfter?: Record<string, ModelSummary>;
   delta: number;
   failureBuckets: FailureBucket[];
 }
@@ -135,13 +139,19 @@ export interface MutationContext {
   currentReport: BenchmarkReport;
   failureBuckets: FailureBucket[];
   reportPath: string | null;
+  /**
+   * Absolute path to the local skill file for this iteration
+   * (e.g. `.skill-optimizer/skill-v1.md`). When present, the mutation
+   * executor must write its changes to this path instead of the target repo.
+   */
+  localSkillPath?: string;
 }
 
 export interface OptimizeLoopDependencies {
   benchmark: {
     run(
       configPath: string,
-      opts: { outputDir: string; label: string; verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number } },
+      opts: { outputDir: string; label: string; verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number }; skillOverride?: string },
     ): Promise<{ report: BenchmarkReport; reportPath: string }>;
   };
   repo: {

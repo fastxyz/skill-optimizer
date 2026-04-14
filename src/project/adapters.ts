@@ -43,8 +43,15 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
 
   const mutationModel = parseModelRef(optimize.model);
 
+  // Resolve the local skill path — only for file-system sources (not github:/https:)
+  const skillSource = project.target.skill?.source;
+  const skillPath = skillSource && !skillSource.startsWith('github:') && !skillSource.startsWith('http')
+    ? skillSource
+    : undefined;
+
   return {
     benchmarkConfig: project.configPath,
+    skillPath,
     targetRepo: {
       path: project.target.repoPath,
       surface: project.target.surface,

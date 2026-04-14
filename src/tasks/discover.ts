@@ -4,8 +4,8 @@ import { buildSurfaceSnapshot, loadProjectConfig } from '../project/index.js';
 
 import type { DiscoveredTaskSurface } from './types.js';
 
-export function discoverTaskSurface(configPath: string): DiscoveredTaskSurface {
-  const project = loadProjectConfig(configPath);
+export async function discoverTaskSurface(configPath: string): Promise<DiscoveredTaskSurface> {
+  const project = await loadProjectConfig(configPath);
   const skillPath = project.target.skill?.source;
   if (!skillPath) {
     throw new Error('Project config must define target.skill for task generation');

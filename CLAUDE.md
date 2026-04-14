@@ -67,6 +67,7 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 - `targetRepo.allowedPaths` is the optimizer safety boundary. Do not widen edits outside it during mutation.
 - `requireCleanGit` must remain effectively enforced for optimizer targets.
 - Optimizer-owned artifacts under the configured task-generation output dir must not be treated as target-repo mutations.
+- **The target repo's skill file is never modified.** The optimizer copies it to `.skill-optimizer/skill-v0.md` on start and creates versioned copies per accepted iteration. The mutation agent writes to these local copies; `skillOverride` makes the benchmark read from them.
 - Stable-surface optimize runs assume the callable surface is frozen for the duration of the run. If a change renames commands/tools/APIs, the surface must be rediscovered and the benchmark snapshot regenerated before further comparisons are meaningful.
 - Materialized mock repos must stay isolated from tracked templates.
 - Documentation examples should match the current CLI and config schema.
