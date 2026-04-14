@@ -73,7 +73,7 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
     const overwrite = await promptOverwrite(absOut);
     if (!overwrite) {
       console.log('\n  Aborted. Output file unchanged.');
-      process.exit(0);
+      return;
     }
   }
 

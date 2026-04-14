@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import { analyzeFailures } from './failure-analysis.js';
 import { accept } from '../benchmark/scoring.js';
@@ -137,7 +137,7 @@ export async function runOptimizeLoop(
         }
       }
 
-      let changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
+      let changedFiles = await getChangedFiles(deps, resolvedManifest, candidate, localSkillPath);
       console.log(
         `[optimize] Changed files: ${changedFiles.length > 0 ? changedFiles.join(', ') : '(none)'}`,
       );
@@ -178,7 +178,7 @@ export async function runOptimizeLoop(
         continue;
       }
 
-      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
+      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate, localSkillPath);
       iteration.changedFiles = changedFiles;
       const postValidationScopeValidation = localSkillPath
         ? null
@@ -262,7 +262,7 @@ export async function runOptimizeLoop(
         skillOverride: localSkillPath,
       });
       const candidateReport = candidateResult.report;
-      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate);
+      changedFiles = await getChangedFiles(deps, resolvedManifest, candidate, localSkillPath);
       iteration.changedFiles = changedFiles;
       const postBenchmarkScopeValidation = localSkillPath
         ? null
@@ -449,7 +449,7 @@ function toRelativeTargetPath(path: string, manifest: ResolvedOptimizeManifest):
 
 function isAllowedPath(file: string, allowedPaths: string[], repoRoot?: string): boolean {
   const normalizedFile = normalizeRelativePath(
-    repoRoot && file.startsWith('/') ? relative(repoRoot, file) : file,
+    repoRoot && isAbsolute(file) ? relative(repoRoot, file) : file,
   );
   return allowedPaths.some((allowedPath) => {
     const normalizedAllowed = normalizeRelativePath(allowedPath);
@@ -465,7 +465,14 @@ async function getChangedFiles(
   deps: OptimizeLoopDependencies,
   manifest: ResolvedOptimizeManifest,
   candidate: MutationCandidate,
+  localSkillPath?: string,
 ): Promise<string[]> {
+  // In local-skill mode the changed file lives outside the target repo, so git
+  // status will never list it. Return the skill path directly so logs and
+  // iteration metadata correctly reflect what the agent wrote.
+  if (localSkillPath) {
+    return [localSkillPath];
+  }
   const changedFiles = deps.repo.listChangedFiles
     ? deps.repo.listChangedFiles(manifest.targetRepo)
     : [...candidate.changedFiles];
