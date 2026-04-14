@@ -22,6 +22,7 @@ export interface Issue {
 export async function checkConfig(
   config: unknown,
   _configPath: string,
+  opts?: { skipDirtyGitCheck?: boolean },
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
 
@@ -334,19 +335,29 @@ export async function checkConfig(
   }
 
   // Check: dirty git (injection-safe: fixed arg array, no shell)
-  if (optimize !== undefined && optimize.requireCleanGit !== false && target.repoPath) {
+  // Skipped when called from within the optimizer benchmark loop — the loop manages
+  // git state itself via ensureReady (run once before the loop starts).
+  if (!opts?.skipDirtyGitCheck && optimize !== undefined && optimize.requireCleanGit !== false && target.repoPath) {
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     if (existsSync(absRepo)) {
       try {
-        const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: absRepo });
-        const dirtyTracked = stdout.split('\n').filter(l => l.trim() && !l.startsWith('??'));
-        if (dirtyTracked.length > 0) {
-          issues.push({
-            code: 'dirty-git', severity: 'error', field: 'target.repoPath',
-            message: `target repo has uncommitted changes (optimize.requireCleanGit is enabled)`,
-            hint: `Run: git stash  or commit your changes in ${absRepo}`,
-            fixable: false,
-          });
+        // Verify the git root is exactly target.repoPath, not a parent directory.
+        // If target.repoPath is a subdirectory of a larger repo (e.g. a mock template
+        // inside the tool's own repo), git status would reflect the parent's state —
+        // skip the check to avoid false positives.
+        const { stdout: rootOut } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: absRepo });
+        const gitRoot = rootOut.trim();
+        if (gitRoot === absRepo) {
+          const { stdout } = await execFileAsync('git', ['status', '--porcelain'], { cwd: absRepo });
+          const dirtyTracked = stdout.split('\n').filter(l => l.trim() && !l.startsWith('??'));
+          if (dirtyTracked.length > 0) {
+            issues.push({
+              code: 'dirty-git', severity: 'error', field: 'target.repoPath',
+              message: `target repo has uncommitted changes (optimize.requireCleanGit is enabled)`,
+              hint: `Run: git stash  or commit your changes in ${absRepo}`,
+              fixable: false,
+            });
+          }
         }
       } catch {
         // Not a git repo or git unavailable — skip silently
@@ -378,8 +389,8 @@ export async function checkConfig(
   return issues;
 }
 
-export async function validateProjectConfig(config: ProjectConfig, configPath: string): Promise<void> {
-  const issues = await checkConfig(config, configPath);
+export async function validateProjectConfig(config: ProjectConfig, configPath: string, opts?: { skipDirtyGitCheck?: boolean }): Promise<void> {
+  const issues = await checkConfig(config, configPath, opts);
   const errors = issues.filter((i) => i.severity === 'error');
   if (errors.length > 0) {
     throw new Error(errors.map((i) => `${i.field}: ${i.message}${i.hint ? ` — ${i.hint}` : ''}`).join('\n'));

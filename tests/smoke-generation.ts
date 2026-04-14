@@ -171,7 +171,7 @@ await test('generateCandidateTasks: enforces maxTasks cap after parsing', async 
   }
 });
 
-await test('generateCandidateTasks: rejects unsafe task ids', async () => {
+await test('generateCandidateTasks: sanitizes unsafe task ids instead of throwing', async () => {
   const fixture = makeFixture();
   try {
     const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
@@ -184,21 +184,17 @@ await test('generateCandidateTasks: rejects unsafe task ids', async () => {
         });
       },
     };
-
-    let threw = false;
-    try {
-      await generateCandidateTasks(surface, { maxTasks: 2, seed: 7 }, deps);
-    } catch (error: any) {
-      threw = true;
-      assert(error.message.includes('must match'), 'unsafe task id should be rejected');
-    }
-    assert(threw, 'unsafe task id should throw');
+    // Should not throw — sanitizes the id instead
+    const tasks = await generateCandidateTasks(surface, { maxTasks: 2, seed: 7 }, deps);
+    assert(tasks.length === 1, 'should return one task');
+    assert(!tasks[0].id.includes('/'), 'sanitized id must not contain path separators');
+    assert(tasks[0].id !== '..' && tasks[0].id !== '.', 'sanitized id must not be a dot-segment');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
 });
 
-await test('generateCandidateTasks: rejects dot-segment task ids', async () => {
+await test('generateCandidateTasks: sanitizes dot-segment task ids instead of throwing', async () => {
   const fixture = makeFixture();
   try {
     const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
@@ -211,15 +207,10 @@ await test('generateCandidateTasks: rejects dot-segment task ids', async () => {
         });
       },
     };
-
-    let threw = false;
-    try {
-      await generateCandidateTasks(surface, { maxTasks: 2, seed: 7 }, deps);
-    } catch (error: any) {
-      threw = true;
-      assert(error.message.includes('cannot be . or ..'), 'dot-segment task id should be rejected');
-    }
-    assert(threw, 'dot-segment task id should throw');
+    // Should not throw — falls back to index-based id
+    const tasks = await generateCandidateTasks(surface, { maxTasks: 2, seed: 7 }, deps);
+    assert(tasks.length === 1, 'should return one task');
+    assert(tasks[0].id !== '..', 'dot-segment id must be replaced');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }

@@ -108,19 +108,30 @@ function validateTask(task: unknown, index: number): GeneratedTask {
 
   const candidate = task as Record<string, unknown>;
 
-  const taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
+  const taskPrompt = resolveStringField(candidate, 'prompt', 'user_prompt', 'description', 'instruction', 'task', 'action', 'method');
+
+  // Resolve ID — fall back to deriving a slug from the prompt or action if omitted
+  let taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
   if (!taskId) {
-    const received = JSON.stringify(Object.keys(candidate));
-    throw new Error(`Task at index ${index} must include a non-empty string id (received keys: ${received})`);
+    const basis = taskPrompt ?? resolveStringField(candidate, 'action', 'method') ?? `task-${index}`;
+    taskId = basis
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 48)
+      + `-${index}`;
   }
 
-  const taskPrompt = resolveStringField(candidate, 'prompt', 'description', 'instruction', 'task');
   if (!taskPrompt) {
     const received = JSON.stringify(Object.keys(candidate));
     throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
   if (!isSafeTaskId(taskId)) {
-    throw new Error(`Task ${taskId} must match ${SAFE_TASK_ID.toString()} and cannot be . or ..`);
+    // Sanitize rather than throw — strip unsafe chars, then handle dot-only segments that
+    // survive character replacement unchanged (e.g. ".." → all chars allowed → still "..").
+    taskId = taskId.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-|-$/g, '');
+    if (taskId === '.' || taskId === '..') taskId = '';
+    taskId = taskId || `task-${index}`;
   }
 
   let rawExpectedActions = (

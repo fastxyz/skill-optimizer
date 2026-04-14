@@ -3,6 +3,7 @@ import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
 import { buildMutationContext } from '../feedback/mutation-context.js';
 import { createCodingOrchestratorSession } from '../../runtime/pi/index.js';
+import { SKILL_WRITING_GUIDE } from './skill-writing-guide.js';
 
 export class PiCodingMutationExecutor {
   async apply(context: MutationContext): Promise<MutationCandidate> {
@@ -59,8 +60,28 @@ function buildMutationPrompt(context: MutationContext): string {
       .map((bucket) => `- ${bucket.kind}: ${bucket.count} failures`)
       .join('\n');
 
+  const skillWritingSection = context.localSkillPath
+    ? [
+        '',
+        SKILL_WRITING_GUIDE,
+        '',
+      ].join('\n')
+    : '';
+
+  const skillPreamble = context.localSkillPath
+    ? [
+        `Improve the SKILL.md at: ${context.localSkillPath}`,
+        '',
+        'IMPORTANT: Read the file first, then make surgical edits.',
+        '- Do NOT rewrite or replace the file — patch only the sections that are weak or missing.',
+        '- Preserve every command/action that is already documented and passing.',
+        '- The skill must continue to cover ALL commands in the surface, not just the failing ones.',
+        '- Add or expand only the sections that address the benchmark failures below.',
+      ].join('\n')
+    : 'Improve this repository for LLM usability based on benchmark feedback.';
+
   return [
-    'Improve this repository for LLM usability based on benchmark feedback.',
+    skillPreamble,
     '',
     'Constraints:',
     '- The benchmark tool schema is frozen. Do not modify benchmark tool definitions, expected tool APIs, or benchmark task contracts.',
@@ -78,6 +99,7 @@ function buildMutationPrompt(context: MutationContext): string {
       : 'Fallback failure summary (use this only because no persisted report context is available):',
     reportContext ?? fallbackFailureSummary,
     '',
+    skillWritingSection,
     'Make the changes directly in the repo and stop when the changes are applied.',
     'In your final response, explain in 2-4 concise bullet points:',
     '- what you changed',
