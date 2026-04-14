@@ -101,6 +101,25 @@ function resolveStringField(obj: Record<string, unknown>, ...keys: string[]): st
   return null;
 }
 
+/**
+ * Last-resort prompt recovery: pick the longest non-empty string value in the object.
+ * Models routinely invent field names (name, command, task_description, …).
+ * Rather than maintaining an ever-growing alias list, we grab whatever string is there.
+ * Longest wins because action names tend to be short while natural-language prompts are longer.
+ */
+function pickLongestStringValue(obj: Record<string, unknown>): string | null {
+  let best: string | null = null;
+  for (const val of Object.values(obj)) {
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed && (!best || trimmed.length > best.length)) {
+        best = trimmed;
+      }
+    }
+  }
+  return best;
+}
+
 function validateTask(task: unknown, index: number): GeneratedTask {
   if (!task || typeof task !== 'object') {
     throw new Error(`Task at index ${index} must be an object`);
@@ -108,12 +127,16 @@ function validateTask(task: unknown, index: number): GeneratedTask {
 
   const candidate = task as Record<string, unknown>;
 
-  const taskPrompt = resolveStringField(candidate, 'prompt', 'user_prompt', 'description', 'instruction', 'task', 'action', 'method');
+  // Resolve prompt — try known aliases first, then fall back to any string in the object.
+  // Models frequently invent field names; we recover rather than crash.
+  const taskPrompt =
+    resolveStringField(candidate, 'prompt', 'user_prompt', 'description', 'instruction', 'task', 'action', 'method', 'name', 'command') ??
+    pickLongestStringValue(candidate);
 
   // Resolve ID — fall back to deriving a slug from the prompt or action if omitted
   let taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
   if (!taskId) {
-    const basis = taskPrompt ?? resolveStringField(candidate, 'action', 'method') ?? `task-${index}`;
+    const basis = taskPrompt ?? `task-${index}`;
     taskId = basis
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -123,6 +146,7 @@ function validateTask(task: unknown, index: number): GeneratedTask {
   }
 
   if (!taskPrompt) {
+    // Only reachable if the object has no string values at all.
     const received = JSON.stringify(Object.keys(candidate));
     throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
@@ -142,8 +166,10 @@ function validateTask(task: unknown, index: number): GeneratedTask {
 
   // Fallback: model returned a single action at task level (e.g. {action:"send", args:{...}})
   if (!rawExpectedActions) {
-    const actionName = typeof candidate['action'] === 'string' ? candidate['action'] :
-                       typeof candidate['method'] === 'string' ? candidate['method'] : null;
+    const actionName =
+      typeof candidate['action'] === 'string' ? candidate['action'] :
+      typeof candidate['method'] === 'string' ? candidate['method'] :
+      typeof candidate['command'] === 'string' ? candidate['command'] : null;
     if (actionName && actionName.trim()) {
       rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
     }
