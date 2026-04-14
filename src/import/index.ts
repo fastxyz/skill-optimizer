@@ -69,7 +69,7 @@ export async function importCommands(opts: ImportOptions): Promise<void> {
 
   console.log(`  Found ${commands.length} commands`);
 
-  if (existsSync(absOut)) {
+  if (existsSync(absOut) && !opts.force) {
     const overwrite = await promptOverwrite(absOut);
     if (!overwrite) {
       console.log('\n  Aborted. Output file unchanged.');

@@ -21,4 +21,6 @@ export interface ImportOptions {
   scrape: boolean;
   depth: number;
   cwd: string;
+  /** Skip the interactive overwrite prompt and always overwrite the output file. */
+  force?: boolean;
 }

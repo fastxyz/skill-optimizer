@@ -143,7 +143,7 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
           setTimeout(() => reject(new Error(`timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS),
         );
         await Promise.race([
-          importCommands({ from: answers.entryFile, out: commandsPath, scrape: false, depth: 2, cwd: answers.repoPath }),
+          importCommands({ from: answers.entryFile, out: commandsPath, scrape: false, depth: 2, cwd: answers.repoPath, force: true }),
           timeout,
         ]);
         commandsSource = 'extracted';
