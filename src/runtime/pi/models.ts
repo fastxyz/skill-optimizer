@@ -2,7 +2,7 @@ import type { Model } from '@mariozechner/pi-ai';
 import { getModel } from '@mariozechner/pi-ai';
 import { ModelRegistry } from '@mariozechner/pi-coding-agent';
 
-import { createPiAuthStorage } from './auth.js';
+import { createPiAuthStorage, resolveApiCredential } from './auth.js';
 import { parseModelRef } from '../../project/types.js';
 
 export interface ResolvedPiModelRequest {
@@ -17,7 +17,7 @@ export interface ResolvedPiModelRequest {
 
 export async function resolvePiModelByRef(
   modelRef: string,
-  options?: { apiKeyEnv?: string; apiKeyOverride?: string },
+  options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
   const { provider, model } = parseModelRef(modelRef);
   return resolvePiModel(provider, model, options);
@@ -45,10 +45,26 @@ function synthesizeOpenRouterModel(provider: string, modelName: string): Model<a
   };
 }
 
+function synthesizeOpenAICodexModel(provider: string, modelName: string): Model<any> | undefined {
+  if (provider !== 'openai-codex') return undefined;
+  return {
+    id: modelName,
+    name: modelName,
+    api: 'openai-codex-responses' as const,
+    provider: 'openai-codex' as const,
+    baseUrl: 'https://chatgpt.com/backend-api/codex',
+    reasoning: true,
+    input: ['text', 'image'] as ('text' | 'image')[],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 272000,
+    maxTokens: 32768,
+  };
+}
+
 export async function resolvePiModel(
   provider: string,
   modelName: string,
-  options?: { apiKeyEnv?: string; apiKeyOverride?: string },
+  options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
   // Guard: direct Anthropic provider + OpenRouter key = guaranteed 401.
   // Users who want Claude should use openrouter/anthropic/claude-* instead.
@@ -59,18 +75,29 @@ export async function resolvePiModel(
     );
   }
 
-  const authStorage = createPiAuthStorage({
+  const credential = resolveApiCredential({
     provider,
+    authMode: options?.authMode,
     apiKeyEnv: options?.apiKeyEnv,
     apiKeyOverride: options?.apiKeyOverride,
   });
+  const resolvedProvider = provider === 'openai' && credential.source === 'codex'
+    ? 'openai-codex'
+    : provider;
+  const authStorage = createPiAuthStorage({
+    provider: resolvedProvider,
+    authMode: options?.authMode,
+    apiKeyEnv: options?.apiKeyEnv,
+    apiKeyOverride: credential.apiKey,
+  });
   const modelRegistry = ModelRegistry.create(authStorage);
-  const registryModel = modelRegistry.find(provider, modelName);
+  const registryModel = modelRegistry.find(resolvedProvider, modelName);
   const resolvedModel = registryModel
-    ?? getModel(provider as never, modelName)
-    ?? synthesizeOpenRouterModel(provider, modelName);
+    ?? getModel(resolvedProvider as never, modelName)
+    ?? synthesizeOpenRouterModel(resolvedProvider, modelName)
+    ?? synthesizeOpenAICodexModel(resolvedProvider, modelName);
   if (!resolvedModel) {
-    throw new Error(`Could not resolve pi model ${provider}/${modelName}`);
+    throw new Error(`Could not resolve pi model ${resolvedProvider}/${modelName}`);
   }
 
   const auth = await modelRegistry.getApiKeyAndHeaders(resolvedModel);

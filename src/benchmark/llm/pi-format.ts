@@ -6,7 +6,9 @@ import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 import { resolvePiModelByRef } from '../../runtime/pi/index.js';
 
 interface PiCallParams {
+  authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
   apiKeyOverride?: string;
+  apiKeyEnv?: string;
   headers?: Record<string, string>;
   timeout: number;
   modelId: string;
@@ -27,7 +29,14 @@ interface ResolvedPiRequest {
 }
 
 type PiImplementationSet = {
-  resolve(modelId: string, apiKeyOverride?: string): Promise<ResolvedPiRequest>;
+  resolve(
+    modelId: string,
+    authOptions?: {
+      authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+      apiKeyEnv?: string;
+      apiKeyOverride?: string;
+    },
+  ): Promise<ResolvedPiRequest>;
   completeSimple(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
   complete(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
 };
@@ -40,7 +49,11 @@ export function __setPiImplementationsForTest(implementations: PiImplementationS
 
 export async function chatPi(params: PiCallParams): Promise<LLMResponse> {
   const impl = getPiImplementations();
-  const { model, auth } = await impl.resolve(params.modelId, params.apiKeyOverride);
+  const { model, auth } = await impl.resolve(params.modelId, {
+    authMode: params.authMode,
+    apiKeyEnv: params.apiKeyEnv,
+    apiKeyOverride: params.apiKeyOverride,
+  });
   const response = await impl.completeSimple(
     model,
     {
@@ -54,7 +67,11 @@ export async function chatPi(params: PiCallParams): Promise<LLMResponse> {
 
 export async function chatWithToolsPi(params: PiCallWithToolsParams): Promise<LLMResponse> {
   const impl = getPiImplementations();
-  const { model, auth } = await impl.resolve(params.modelId, params.apiKeyOverride);
+  const { model, auth } = await impl.resolve(params.modelId, {
+    authMode: params.authMode,
+    apiKeyEnv: params.apiKeyEnv,
+    apiKeyOverride: params.apiKeyOverride,
+  });
   const response = await impl.complete(
     model,
     {
@@ -74,7 +91,11 @@ interface PiAgentLoopParams extends PiCallWithToolsParams {
 
 export async function chatAgentLoopPi(params: PiAgentLoopParams): Promise<LLMResponse> {
   const impl = getPiImplementations();
-  const { model, auth } = await impl.resolve(params.modelId, params.apiKeyOverride);
+  const { model, auth } = await impl.resolve(params.modelId, {
+    authMode: params.authMode,
+    apiKeyEnv: params.apiKeyEnv,
+    apiKeyOverride: params.apiKeyOverride,
+  });
   const messages: Context['messages'] = [
     { role: 'user', content: params.user, timestamp: Date.now() },
   ];
@@ -146,8 +167,15 @@ function getPiImplementations(): PiImplementationSet {
   };
 }
 
-async function resolvePiRequest(modelId: string, apiKeyOverride?: string): Promise<ResolvedPiRequest> {
-  const resolved = await resolvePiModelByRef(modelId, { apiKeyOverride });
+async function resolvePiRequest(
+  modelId: string,
+  authOptions?: {
+    authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+    apiKeyEnv?: string;
+    apiKeyOverride?: string;
+  },
+): Promise<ResolvedPiRequest> {
+  const resolved = await resolvePiModelByRef(modelId, authOptions);
   return {
     model: resolved.model,
     auth: {

@@ -35,6 +35,7 @@ export interface OptimizeMutationConfig {
   provider: string;
   model: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  authMode?: 'env' | 'codex' | 'auto';
   apiKeyEnv?: string;
   reportContextMaxBytes?: number;
 }

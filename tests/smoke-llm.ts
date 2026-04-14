@@ -5,6 +5,7 @@
 
 import { createLLMClient } from '../src/benchmark/llm/index.js';
 import { __setPiImplementationsForTest } from '../src/benchmark/llm/pi-format.js';
+import { resolveApiKey } from '../src/runtime/pi/auth.js';
 import type { LLMConfig, McpToolDefinition } from '../src/benchmark/types.js';
 
 // ---------------------------------------------------------------------------
@@ -134,10 +135,11 @@ await test('createLLMClient: creates client for anthropic format', () => {
   assert(typeof client.chatWithTools === 'function', 'client.chatWithTools should be a function');
 });
 
-await test('createLLMClient: throws when apiKeyEnv is set but env var is missing', () => {
+await test('createLLMClient: throws when apiKeyEnv is set but env var is missing', async () => {
   let threw = false;
   try {
-    createLLMClient({ ...openaiConfig, apiKeyEnv: '__MISSING_ENV_VAR_XYZ__' });
+    const client = createLLMClient({ ...openaiConfig, apiKeyEnv: '__MISSING_ENV_VAR_XYZ__' });
+    await client.chat('gpt-5.4', 'sys', 'user');
   } catch (e: any) {
     threw = true;
     assert(
@@ -150,15 +152,19 @@ await test('createLLMClient: throws when apiKeyEnv is set but env var is missing
 
 await test('pi format: uses provider/model id and runtime auth override for text chat', async () => {
   let capturedModel: string | null = null;
+  let capturedAuthMode: string | undefined;
+  let capturedApiKeyEnv: string | undefined;
   let capturedApiKey: string | undefined;
 
   __setPiImplementationsForTest({
-    async resolve(modelId, apiKeyOverride) {
+    async resolve(modelId, authOptions) {
       capturedModel = modelId;
-      capturedApiKey = apiKeyOverride;
+      capturedAuthMode = authOptions?.authMode;
+      capturedApiKeyEnv = authOptions?.apiKeyEnv;
+      capturedApiKey = authOptions?.apiKeyOverride;
       return {
         model: { id: 'openai/gpt-5.4', provider: 'openrouter', api: 'openai-completions', name: 'GPT-5.4' } as any,
-        auth: { apiKey: apiKeyOverride, headers: { 'x-test-header': 'yes' } },
+        auth: { apiKey: 'test-key-12345', headers: { 'x-test-header': 'yes' } },
       };
     },
     async completeSimple(_model, context, options) {
@@ -186,7 +192,9 @@ await test('pi format: uses provider/model id and runtime auth override for text
   const result = await client.chat('openrouter/openai/gpt-5.4', 'sys', 'user');
 
   assertEqual(capturedModel, 'openrouter/openai/gpt-5.4', 'model id should be resolved through pi');
-  assertEqual(capturedApiKey, 'test-key-12345', 'api key override should be passed into pi resolution');
+  assertEqual(capturedAuthMode, undefined, 'default auth mode should be passed through as undefined');
+  assertEqual(capturedApiKeyEnv, '__TEST_API_KEY__', 'api key env should be forwarded to pi resolution');
+  assertEqual(capturedApiKey, undefined, 'pi resolution should now read the configured env var itself');
   assertEqual(result.content, 'hello from pi', 'pi text response should be surfaced');
 
   __setPiImplementationsForTest(null);
@@ -229,6 +237,81 @@ await test('pi format: converts tool calls for MCP chat', async () => {
   assertEqual((result.toolCalls?.[0]?.arguments as any).city, 'NYC', 'pi tool call args should be surfaced');
 
   __setPiImplementationsForTest(null);
+});
+
+await test('resolveApiKey: codex auth reads browser-login access token from ~/.codex/auth.json', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-auth-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify({ exp: futureExp })).toString('base64url'),
+    'sig',
+  ].join('.');
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: jwt } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+
+  try {
+    const result = resolveApiKey({ provider: 'openai', authMode: 'codex' });
+    assertEqual(result, jwt, 'browser-login access token should be returned');
+  } finally {
+    process.env.HOME = originalHome;
+  }
+});
+
+await test('openai format: codex auth bridges through pi with openai provider refs', async () => {
+  let capturedModel: string | null = null;
+
+  __setPiImplementationsForTest({
+    async resolve(modelId) {
+      capturedModel = modelId;
+      return {
+        model: { id: 'gpt-5.4', provider: 'openai-codex', api: 'openai-codex-responses', name: 'GPT-5.4' } as any,
+        auth: { apiKey: 'codex-access-token', headers: {} },
+      };
+    },
+    async completeSimple(_model, context, options) {
+      assertEqual(context.systemPrompt, 'sys', 'system prompt passed through');
+      assertEqual((context.messages[0] as any).content, 'user', 'user content passed through');
+      assertEqual(options?.apiKey, 'codex-access-token', 'codex token should flow through pi');
+      return {
+        role: 'assistant',
+        api: 'openai-codex-responses',
+        provider: 'openai-codex',
+        model: 'gpt-5.4',
+        stopReason: 'stop',
+        timestamp: Date.now(),
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [{ type: 'text', text: 'hello from codex auth' }],
+      } as any;
+    },
+    async complete() {
+      throw new Error('unexpected complete() call');
+    },
+  });
+
+  try {
+    const client = createLLMClient({
+      format: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      authMode: 'codex',
+      models: [],
+    });
+    const result = await client.chat('gpt-5.4', 'sys', 'user');
+    assertEqual(capturedModel, 'openai/gpt-5.4', 'openai-format codex auth should bridge to pi using provider/model form');
+    assertEqual(result.content, 'hello from codex auth', 'codex-auth bridged response should be returned');
+  } finally {
+    __setPiImplementationsForTest(null);
+  }
 });
 
 await test('pi format: agent loop feeds tool results back with original tool call ids', async () => {

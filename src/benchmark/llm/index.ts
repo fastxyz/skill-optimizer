@@ -2,6 +2,7 @@ import type { LLMConfig, LLMResponse, McpToolDefinition, ToolExecutor } from '..
 import { chatOpenAI, chatWithToolsOpenAI, chatAgentLoopOpenAI } from './openai-format.js';
 import { chatAnthropic, chatWithToolsAnthropic, chatAgentLoopAnthropic } from './anthropic-format.js';
 import { chatPi, chatWithToolsPi, chatAgentLoopPi } from './pi-format.js';
+import { requireConfiguredApiKey, resolveApiCredential } from '../../runtime/pi/index.js';
 
 export interface LLMClient {
   /** Regular chat — LLM returns text output (SDK/CLI surfaces) */
@@ -36,13 +37,25 @@ function stripProviderPrefix(modelId: string): string {
 export function createLLMClient(config: LLMConfig): LLMClient {
   const baseUrl = config.baseUrl?.replace(/\/+$/, ''); // strip trailing slash
   const timeout = config.timeout ?? 240_000;
-  const apiKey = config.apiKeyEnv ? process.env[config.apiKeyEnv] : undefined;
-
-  if (config.apiKeyEnv && !apiKey) {
-    throw new Error(`Environment variable ${config.apiKeyEnv} is not set`);
-  }
-
   const extraHeaders = config.headers ?? {};
+  const resolvedOpenAICredential = config.format === 'openai'
+    ? resolveApiCredential({
+      provider: 'openai',
+      authMode: config.authMode,
+      apiKeyEnv: config.apiKeyEnv,
+    })
+    : undefined;
+  const useCodexBridgeForOpenAI = config.format === 'openai' && resolvedOpenAICredential?.source === 'codex';
+  const resolveDirectApiKey = (provider: 'openai' | 'anthropic'): string | undefined =>
+    provider === 'openai' && resolvedOpenAICredential?.apiKey
+      ? resolvedOpenAICredential.apiKey
+      : requireConfiguredApiKey({
+        provider,
+        authMode: config.authMode,
+        apiKeyEnv: config.apiKeyEnv,
+      });
+  const toOpenAIProviderModelRef = (modelId: string): string =>
+    modelId.includes('/') ? modelId : `openai/${modelId}`;
 
   // When format is 'anthropic' or 'openai', we're talking directly to a provider
   // API that doesn't understand prefixed model IDs like "anthropic/claude-sonnet-4-6".
@@ -53,32 +66,153 @@ export function createLLMClient(config: LLMConfig): LLMClient {
     async chat(modelId, system, user) {
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
-        return chatPi({ timeout, modelId, system, user, apiKeyOverride: apiKey, headers: config.headers });
+        return chatPi({
+          timeout,
+          modelId,
+          system,
+          user,
+          authMode: config.authMode,
+          apiKeyEnv: config.apiKeyEnv,
+          headers: config.headers,
+        });
+      }
+      if (useCodexBridgeForOpenAI) {
+        return chatPi({
+          timeout,
+          modelId: toOpenAIProviderModelRef(modelId),
+          system,
+          user,
+          authMode: config.authMode,
+          apiKeyEnv: config.apiKeyEnv,
+          headers: config.headers,
+        });
       }
       if (config.format === 'anthropic') {
-        return chatAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user });
+        return chatAnthropic({
+          baseUrl: baseUrl!,
+          apiKey: resolveDirectApiKey('anthropic'),
+          timeout,
+          extraHeaders,
+          modelId: resolvedModelId,
+          system,
+          user,
+        });
       }
-      return chatOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user });
+      return chatOpenAI({
+        baseUrl: baseUrl!,
+        apiKey: resolveDirectApiKey('openai'),
+        timeout,
+        extraHeaders,
+        modelId: resolvedModelId,
+        system,
+        user,
+      });
     },
     async chatWithTools(modelId, system, user, tools) {
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
-        return chatWithToolsPi({ timeout, modelId, system, user, tools, apiKeyOverride: apiKey, headers: config.headers });
+        return chatWithToolsPi({
+          timeout,
+          modelId,
+          system,
+          user,
+          tools,
+          authMode: config.authMode,
+          apiKeyEnv: config.apiKeyEnv,
+          headers: config.headers,
+        });
+      }
+      if (useCodexBridgeForOpenAI) {
+        return chatWithToolsPi({
+          timeout,
+          modelId: toOpenAIProviderModelRef(modelId),
+          system,
+          user,
+          tools,
+          authMode: config.authMode,
+          apiKeyEnv: config.apiKeyEnv,
+          headers: config.headers,
+        });
       }
       if (config.format === 'anthropic') {
-        return chatWithToolsAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools });
+        return chatWithToolsAnthropic({
+          baseUrl: baseUrl!,
+          apiKey: resolveDirectApiKey('anthropic'),
+          timeout,
+          extraHeaders,
+          modelId: resolvedModelId,
+          system,
+          user,
+          tools,
+        });
       }
-      return chatWithToolsOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools });
+      return chatWithToolsOpenAI({
+        baseUrl: baseUrl!,
+        apiKey: resolveDirectApiKey('openai'),
+        timeout,
+        extraHeaders,
+        modelId: resolvedModelId,
+        system,
+        user,
+        tools,
+      });
     },
     async chatAgentLoop(modelId, system, user, tools, executor, maxTurns = 5) {
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
-        return chatAgentLoopPi({ timeout, modelId, system, user, tools, executor, maxTurns, apiKeyOverride: apiKey, headers: config.headers });
+        return chatAgentLoopPi({
+          timeout,
+          modelId,
+          system,
+          user,
+          tools,
+          executor,
+          maxTurns,
+          authMode: config.authMode,
+          apiKeyEnv: config.apiKeyEnv,
+          headers: config.headers,
+        });
+      }
+      if (useCodexBridgeForOpenAI) {
+        return chatAgentLoopPi({
+          timeout,
+          modelId: toOpenAIProviderModelRef(modelId),
+          system,
+          user,
+          tools,
+          executor,
+          maxTurns,
+          authMode: config.authMode,
+          apiKeyEnv: config.apiKeyEnv,
+          headers: config.headers,
+        });
       }
       if (config.format === 'anthropic') {
-        return chatAgentLoopAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools, executor, maxTurns });
+        return chatAgentLoopAnthropic({
+          baseUrl: baseUrl!,
+          apiKey: resolveDirectApiKey('anthropic'),
+          timeout,
+          extraHeaders,
+          modelId: resolvedModelId,
+          system,
+          user,
+          tools,
+          executor,
+          maxTurns,
+        });
       }
-      return chatAgentLoopOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools, executor, maxTurns });
+      return chatAgentLoopOpenAI({
+        baseUrl: baseUrl!,
+        apiKey: resolveDirectApiKey('openai'),
+        timeout,
+        extraHeaders,
+        modelId: resolvedModelId,
+        system,
+        user,
+        tools,
+        executor,
+        maxTurns,
+      });
     },
   };
 }

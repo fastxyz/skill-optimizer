@@ -1,6 +1,7 @@
 import type { ResolvedProjectConfig } from '../project/types.js';
 import type { Issue } from '../project/validate.js';
 import { discoverActionsOnly, resolveScope } from '../tasks/index.js';
+import { requireConfiguredApiKey } from '../runtime/pi/index.js';
 
 /**
  * Tier-2: discover actions and verify scope + maxTasks.
@@ -63,8 +64,6 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
  */
 export async function checkModelReachability(project: ResolvedProjectConfig): Promise<Issue[]> {
   const issues: Issue[] = [];
-  const apiKey = process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'];
-  if (!apiKey) return issues; // already reported by checkConfig
 
   // Only PI format uses OpenRouter; skip reachability for other formats
   if (project.benchmark.format && project.benchmark.format !== 'pi') {
@@ -74,6 +73,29 @@ export async function checkModelReachability(project: ResolvedProjectConfig): Pr
       fixable: false,
     });
     return issues;
+  }
+
+  const provider = project.benchmark.models.length > 0
+    ? project.benchmark.models[0]!.id.split('/')[0]!
+    : 'openrouter';
+  if (provider !== 'openrouter') {
+    issues.push({
+      code: 'reachability-skipped', severity: 'info', field: 'benchmark.models',
+      message: 'Skipping reachability check (--check-models currently probes OpenRouter models only)',
+      fixable: false,
+    });
+    return issues;
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = requireConfiguredApiKey({
+      provider,
+      authMode: project.benchmark.authMode,
+      apiKeyEnv: project.benchmark.apiKeyEnv,
+    });
+  } catch {
+    return issues; // already reported by checkConfig
   }
 
   for (let i = 0; i < project.benchmark.models.length; i++) {

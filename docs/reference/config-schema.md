@@ -23,6 +23,7 @@ Paths in the config are relative to the config file location.
 | `target.scope.include` | `string[]` | — | Glob patterns for actions to include (default ["*"]) |
 | `target.scope.exclude` | `string[]` | — | Glob patterns for actions to exclude (default []) |
 | `benchmark.format` | `"pi" | "openai" | "anthropic"` | — | LLM transport format: pi, openai, or anthropic |
+| `benchmark.authMode` | `"env" | "codex" | "auto"` | — | How to resolve credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback |
 | `benchmark.apiKeyEnv` | `string` | — | Env var name for the API key (default OPENROUTER_API_KEY) |
 | `benchmark.timeout` | `integer` | — | Milliseconds per model call (default 240000) |
 | `benchmark.models` | `object[]` | — | Models to benchmark — at least one required |
@@ -34,6 +35,7 @@ Paths in the config are relative to the config file location.
 | `benchmark.verdict.perModelFloor` | `number` | — | Minimum per-model pass fraction for PASS verdict (default 0.6) |
 | `benchmark.verdict.targetWeightedAverage` | `number` | — | Minimum weighted average across all models for PASS (default 0.7) |
 | `optimize.model` | `string` | — | Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4-6 |
+| `optimize.authMode` | `"env" | "codex" | "auto"` | — | How to resolve optimizer credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback |
 | `optimize.apiKeyEnv` | `string` | — | Env var for the optimizer API key |
 | `optimize.thinkingLevel` | `"off" | "minimal" | "low" | "medium" | "high" | "xhigh"` | — | Reasoning depth for mutation calls (default "medium") |
 | `optimize.allowedPaths` | `string[]` | — | Paths the optimizer may edit — safety boundary |

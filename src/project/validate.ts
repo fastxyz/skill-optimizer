@@ -4,7 +4,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import type { ProjectConfig } from './types.js';
-import { isSdkLanguage } from './types.js';
+import { isSdkLanguage, parseModelRef } from './types.js';
+import { resolveApiKey } from '../runtime/pi/auth.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -139,6 +140,24 @@ export async function checkConfig(
         err('invalid-model-weight', `benchmark.models[${model.id}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
       }
     }
+
+    if (benchmark.authMode === 'codex') {
+      for (const model of benchmark.models) {
+        try {
+          const { provider } = parseModelRef(model.id);
+          if (provider !== 'openai') {
+            err(
+              'codex-auth-provider-mismatch',
+              `benchmark.models[${model.id}].id`,
+              `benchmark.authMode="codex" only supports openai/* models, but found "${model.id}"`,
+              'Use openai/* model IDs with codex auth, or switch benchmark.authMode to "env" / "auto"',
+            );
+          }
+        } catch {
+          // model-id format issues are reported separately
+        }
+      }
+    }
   }
 
   if (benchmark.verdict !== undefined) {
@@ -203,6 +222,27 @@ export async function checkConfig(
 
     if (optimize.requireCleanGit === false) {
       err('require-clean-git-disabled', 'optimize.requireCleanGit', '"optimize.requireCleanGit" must remain true in v1');
+    }
+
+    const effectiveOptimizeAuthMode = optimize.authMode ?? benchmark.authMode;
+    if (effectiveOptimizeAuthMode === 'codex') {
+      const optimizeModelRef = optimize.model
+        ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
+      if (typeof optimizeModelRef === 'string') {
+        try {
+          const { provider } = parseModelRef(optimizeModelRef);
+          if (provider !== 'openai') {
+            err(
+              'codex-auth-provider-mismatch',
+              'optimize.model',
+              `optimize.authMode="codex" only supports openai/* models, but found "${optimizeModelRef}"`,
+              'Use an openai/* optimize.model with codex auth, or switch optimize.authMode to "env" / "auto"',
+            );
+          }
+        } catch {
+          // model-id format issues are reported separately
+        }
+      }
     }
   }
 
@@ -295,7 +335,7 @@ export async function checkConfig(
         });
       }
 
-      if (/\d+\.\d+/.test(model.id)) {
+      if (model.id.startsWith('openrouter/') && /\d+\.\d+/.test(model.id)) {
         const corrected = model.id.replace(/(\d+)\.(\d+)/g, '$1-$2');
         issues.push({
           code: 'model-id-bad-format', severity: 'warning', field: `benchmark.models[${i}].id`,
@@ -323,13 +363,38 @@ export async function checkConfig(
     }
   }
 
-  // Check: API key env var
-  const apiKeyEnv = benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY';
-  if (!process.env[apiKeyEnv]) {
+  // Check: API key env var / Codex auth
+  const authMode = benchmark.authMode ?? 'env';
+  const benchmarkProvider = benchmark.format === 'openai'
+    ? 'openai'
+    : benchmark.format === 'anthropic'
+      ? 'anthropic'
+      : Array.isArray(benchmark.models) && benchmark.models.length > 0
+        ? String(benchmark.models[0]?.id ?? '').split('/')[0] || 'openrouter'
+        : 'openrouter';
+  const apiKey = resolveApiKey({
+    provider: benchmarkProvider,
+    authMode,
+    apiKeyEnv: benchmark.apiKeyEnv,
+  });
+  if (!apiKey) {
+    const defaultEnvName = benchmark.apiKeyEnv
+      ?? (benchmarkProvider === 'openai'
+        ? 'OPENAI_API_KEY'
+        : benchmarkProvider === 'anthropic'
+          ? 'ANTHROPIC_API_KEY'
+          : 'OPENROUTER_API_KEY');
+    const hint = authMode === 'codex'
+      ? 'Sign in with Codex so ~/.codex/auth.json contains a browser-login access token or OPENAI_API_KEY, or switch benchmark.authMode to "env"'
+      : authMode === 'auto' && benchmarkProvider === 'openai'
+        ? `Run: export ${defaultEnvName}=... or sign in with Codex`
+        : `Run: export ${defaultEnvName}=...`;
     issues.push({
       code: 'api-key-not-set', severity: 'warning', field: 'benchmark.apiKeyEnv',
-      message: `env var "${apiKeyEnv}" is not set`,
-      hint: `Run: export ${apiKeyEnv}=sk-or-...`,
+      message: authMode === 'codex'
+        ? 'Codex auth is enabled but no usable browser-login access token or OPENAI_API_KEY was found in ~/.codex/auth.json'
+        : `No API key was found for authMode "${authMode}"`,
+      hint,
       fixable: false,
     });
   }

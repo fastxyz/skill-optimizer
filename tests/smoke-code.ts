@@ -751,6 +751,22 @@ await test('checkConfig: model ID with dot version → fixable warning', async (
   assert(warn!.hint?.includes('4-6'), `hint should show hyphen version, got: ${warn!.hint}`);
 });
 
+await test('checkConfig: direct openai model IDs do not get OpenRouter dot-version warning', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      taskGeneration: { enabled: true, maxTasks: 5 },
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const warn = issues.find(i => i.code === 'model-id-bad-format');
+  assert(warn === undefined, 'direct openai model IDs should not be warned as OpenRouter dot versions');
+});
+
 await test('checkConfig: deprecated benchmark.tasks field → fixable warning', async () => {
   const { checkConfig } = await import('../src/project/validate.js');
   const config = {
@@ -768,6 +784,71 @@ await test('checkConfig: deprecated benchmark.tasks field → fixable warning', 
   assert(warn !== undefined, 'expected deprecated-tasks-field issue');
   assert(warn!.severity === 'warning', 'should be warning');
   assert(warn!.fixable === true, 'deprecated-tasks-field should be fixable');
+});
+
+await test('checkConfig: codex auth rejects non-openai benchmark models', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      authMode: 'codex' as const,
+      models: [
+        { id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const },
+        { id: 'openrouter/openai/gpt-5.4', name: 'OpenRouter GPT-5.4', tier: 'flagship' as const },
+      ],
+      tasks: './tasks.json',
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'codex-auth-provider-mismatch' && i.field.includes('benchmark.models'));
+  assert(err !== undefined, 'expected codex-auth-provider-mismatch for benchmark.models');
+  assert(err!.severity === 'error', 'benchmark model/provider mismatch should be an error');
+});
+
+await test('checkConfig: codex auth rejects non-openai optimize model', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      tasks: './tasks.json',
+    },
+    optimize: {
+      authMode: 'codex' as const,
+      model: 'openrouter/anthropic/claude-sonnet-4-6',
+      allowedPaths: ['SKILL.md'],
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'codex-auth-provider-mismatch' && i.field === 'optimize.model');
+  assert(err !== undefined, 'expected codex-auth-provider-mismatch for optimize.model');
+  assert(err!.severity === 'error', 'optimize model/provider mismatch should be an error');
+});
+
+await test('checkConfig: inherited codex auth rejects non-openai optimize model', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      authMode: 'codex' as const,
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      tasks: './tasks.json',
+    },
+    optimize: {
+      model: 'openrouter/anthropic/claude-sonnet-4-6',
+      allowedPaths: ['SKILL.md'],
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'codex-auth-provider-mismatch' && i.field === 'optimize.model');
+  assert(err !== undefined, 'expected inherited codex-auth-provider-mismatch for optimize.model');
+  assert(err!.severity === 'error', 'inherited optimize model/provider mismatch should be an error');
 });
 
 await test('applyFixes: adds openrouter/ prefix to model IDs', async () => {

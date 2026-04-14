@@ -63,6 +63,7 @@ const VerdictConfigSchema = z.object({
 
 const BenchmarkConfigSchema = z.object({
   format: z.enum(['pi', 'openai', 'anthropic']).optional().describe('LLM transport format: pi, openai, or anthropic'),
+  authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
   apiKeyEnv: z.string().optional().describe('Env var name for the API key (default OPENROUTER_API_KEY)'),
   timeout: z.number().int().positive().optional().describe('Milliseconds per model call (default 240000)'),
   models: z.array(ModelConfigSchema).describe('Models to benchmark — at least one required'),
@@ -75,6 +76,7 @@ const BenchmarkConfigSchema = z.object({
 
 const OptimizeConfigSchema = z.object({
   model: z.string().optional().describe('Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4-6'),
+  authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve optimizer credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
   apiKeyEnv: z.string().optional().describe('Env var for the optimizer API key'),
   thinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional()
     .describe('Reasoning depth for mutation calls (default "medium")'),
