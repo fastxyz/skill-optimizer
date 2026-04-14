@@ -16,16 +16,18 @@ export interface LLMClient {
 }
 
 /**
- * Strip the provider prefix (e.g. "anthropic/", "openai/") from a model ID
- * when talking directly to a provider API rather than through a router.
+ * Strip the provider prefix from a model ID when talking directly to a provider API.
  *
- * The config validation requires prefixed IDs like "anthropic/claude-sonnet-4-6",
- * but the native Anthropic/OpenAI APIs expect just "claude-sonnet-4-6" / "gpt-4o".
+ * Only strips "anthropic/" and "openai/" prefixes — the prefixes that belong to
+ * direct-API configs. "openrouter/" prefixes are intentionally left intact: they
+ * signal that the ID belongs to format:'pi' (OpenRouter), so encountering one here
+ * means the config is misconfigured and we want a fast, visible API error rather
+ * than silently misrouting the request.
  */
 function stripProviderPrefix(modelId: string): string {
-  const slashIndex = modelId.indexOf('/');
-  if (slashIndex === -1) return modelId;
-  return modelId.slice(slashIndex + 1);
+  if (modelId.startsWith('anthropic/')) return modelId.slice('anthropic/'.length);
+  if (modelId.startsWith('openai/')) return modelId.slice('openai/'.length);
+  return modelId;
 }
 
 /**

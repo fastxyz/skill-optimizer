@@ -714,6 +714,33 @@ await test('openai format: strips provider prefix from model ID', async () => {
   );
 });
 
+await test('anthropic format: leaves openrouter/-prefixed model ID unchanged', async () => {
+  // openrouter/ IDs belong to format:'pi'. If one appears with format:'anthropic',
+  // the config is misconfigured — we pass it through unchanged so the Anthropic API
+  // returns a fast, visible error rather than silently misrouting the request.
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [{ type: 'text', text: 'ok' }],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  await client.chat('openrouter/anthropic/claude-sonnet-4-6', 'system', 'user');
+
+  assert(capturedBody !== null, 'fetch should have been called');
+  assertEqual(
+    capturedBody.model,
+    'openrouter/anthropic/claude-sonnet-4-6',
+    'openrouter/ prefix should be left intact — not silently stripped',
+  );
+});
+
 // NOTE: pi format prefix preservation is already covered by existing
 // "pi format: uses provider/model id" tests above. The prefix stripping
 // only applies to anthropic and openai direct formats.
