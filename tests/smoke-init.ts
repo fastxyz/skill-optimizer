@@ -75,8 +75,8 @@ assert.strictEqual(typeof _a.surface, 'string');
       maxTasks: 10,
       maxIterations: 3,
     }, dir);
-    const configPath = join(dir, 'skill-optimizer.json');
-    assert.ok(existsSync(configPath), 'sdk scaffold should create skill-optimizer.json');
+    const configPath = join(dir, '.skill-optimizer', 'skill-optimizer.json');
+    assert.ok(existsSync(configPath), 'sdk scaffold should create .skill-optimizer/skill-optimizer.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
       target: { surface: string; repoPath: string };
       benchmark: { models: Array<{ id: string }>; taskGeneration: { maxTasks: number } };
@@ -102,9 +102,9 @@ assert.strictEqual(typeof _a.surface, 'string');
       maxTasks: 15,
       maxIterations: 2,
     }, dir);
-    const configPath = join(dir, 'skill-optimizer.json');
+    const configPath = join(dir, '.skill-optimizer', 'skill-optimizer.json');
     const commandsPath = join(dir, '.skill-optimizer', 'cli-commands.json');
-    assert.ok(existsSync(configPath), 'cli scaffold should create skill-optimizer.json');
+    assert.ok(existsSync(configPath), 'cli scaffold should create .skill-optimizer/skill-optimizer.json');
     assert.ok(existsSync(commandsPath), 'cli scaffold should create .skill-optimizer/cli-commands.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as {
       target: { surface: string; cli?: { commands?: string } };
@@ -162,8 +162,8 @@ assert.strictEqual(typeof _a.surface, 'string');
   try {
     const answers = buildDefaultAnswers('sdk', dir);
     await scaffoldInit(answers, dir);
-    const configPath = join(dir, 'skill-optimizer.json');
-    assert.ok(existsSync(configPath), '--yes sdk should create skill-optimizer.json');
+    const configPath = join(dir, '.skill-optimizer', 'skill-optimizer.json');
+    assert.ok(existsSync(configPath), '--yes sdk should create .skill-optimizer/skill-optimizer.json');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as { target: { surface: string }; optimize: { maxIterations: number }; benchmark: { taskGeneration: { maxTasks: number } } };
     assert.strictEqual(config.target.surface, 'sdk');
     assert.strictEqual(config.optimize.maxIterations, 5);
@@ -335,7 +335,7 @@ assert.strictEqual(typeof _a.surface, 'string');
       ...detectedToPreseed(detected),
     };
     await scaffoldInit(answers, dir);
-    const configPath = join(dir, 'skill-optimizer.json');
+    const configPath = join(dir, '.skill-optimizer', 'skill-optimizer.json');
     assert.ok(existsSync(configPath), '--auto --yes should scaffold config');
     const config = JSON.parse(readFileSync(configPath, 'utf-8')) as { target: { surface: string } };
     assert.strictEqual(config.target.surface, 'mcp');

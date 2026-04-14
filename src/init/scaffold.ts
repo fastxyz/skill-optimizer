@@ -45,24 +45,6 @@ function resolveModel(id: string): { id: string; name: string; tier: 'flagship' 
   return { id, name, tier: 'mid' };
 }
 
-// Preferred optimize models in priority order — prefer stronger reasoning models
-const OPTIMIZE_MODEL_PREFERENCE = [
-  'openrouter/anthropic/claude-opus-4.6',
-  'openrouter/openai/gpt-5.4',
-  'openrouter/anthropic/claude-sonnet-4.6',
-  'openrouter/google/gemini-3.1-pro-preview',
-  'openrouter/x-ai/grok-4.1-fast',
-  'openrouter/deepseek/deepseek-v3.2',
-  'openrouter/moonshotai/kimi-k2.5',
-  'openrouter/minimax/minimax-m2.7',
-];
-
-function pickOptimizeModel(models: string[]): string {
-  for (const preferred of OPTIMIZE_MODEL_PREFERENCE) {
-    if (models.includes(preferred)) return preferred;
-  }
-  return models[0]!;
-}
 
 export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
@@ -84,14 +66,14 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
     apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
-    taskGeneration: { enabled: true, maxTasks, outputDir: './.skill-optimizer' },
+    taskGeneration: { enabled: true, maxTasks, outputDir: '.' },
     models: models.map(resolveModel),
     output: { dir: '../benchmark-results' },
     verdict: { perModelFloor: Math.max(0.5, targetPassRate - 0.2), targetWeightedAverage: targetPassRate },
   };
 
   const commonOptimize = {
-    model: pickOptimizeModel(models),
+    model: 'openrouter/anthropic/claude-sonnet-4-6',
     apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: [skillAllowedPath],
     validation: [],
@@ -127,7 +109,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
         repoPath: relRepo,
         skill: skillConfigPath,
         discovery: { mode: 'auto', sources: [entryConfigPath] },
-        cli: { commands: './.skill-optimizer/cli-commands.json' },
+        cli: { commands: './cli-commands.json' },
       },
       benchmark: commonBenchmark,
       optimize: commonOptimize,
@@ -142,7 +124,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
       repoPath: relRepo,
       skill: skillConfigPath,
       discovery: { mode: 'auto', sources: [entryConfigPath] },
-      mcp: { tools: './.skill-optimizer/tools.json' },
+      mcp: { tools: './tools.json' },
     },
     benchmark: commonBenchmark,
     optimize: commonOptimize,
@@ -153,9 +135,9 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
   const generatedDir = resolve(cwd, '.skill-optimizer');
   mkdirSync(generatedDir, { recursive: true });
 
-  const configPath = resolve(cwd, 'skill-optimizer.json');
+  const configPath = resolve(generatedDir, 'skill-optimizer.json');
   const configExisted = existsSync(configPath);
-  writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, cwd), null, 2) + '\n', 'utf-8');
+  writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, generatedDir), null, 2) + '\n', 'utf-8');
   console.log(`[init] ${configExisted ? 'Updated' : 'Created'} ${configPath}`);
 
   // 'extracted' = auto-extracted from source, 'template' = placeholder written, undefined = n/a
@@ -287,7 +269,7 @@ function printNextSteps(answers: WizardAnswers, configPath: string, commandsSour
     steps.push(`Create ${skillAbsPath}\n     Explain your surface to the model: what it does, key concepts, usage examples`);
   }
 
-  steps.push('Run: skill-optimizer optimize --config ./skill-optimizer.json');
+  steps.push('Run: skill-optimizer optimize --config ./.skill-optimizer/skill-optimizer.json');
 
   if (steps.length > 0) {
     console.log('\n  Next steps:');

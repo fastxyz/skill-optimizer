@@ -5,7 +5,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
   const generatedDir = resolve(targetDir, '.skill-optimizer');
   mkdirSync(generatedDir, { recursive: true });
 
-  const configPath = resolve(targetDir, 'skill-optimizer.json');
+  const configPath = resolve(generatedDir, 'skill-optimizer.json');
 
   if (existsSync(configPath)) {
     console.log(`[init] Skipping ${configPath} (already exists)`);
@@ -105,7 +105,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
 
   console.log('       benchmark.models → update with real OpenRouter model IDs');
   console.log('  2. Create SKILL.md — explain your surface to the model');
-  console.log('  3. Run: skill-optimizer optimize --config ./skill-optimizer.json');
+  console.log('  3. Run: skill-optimizer optimize --config ./.skill-optimizer/skill-optimizer.json');
 }
 
 function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
@@ -116,14 +116,14 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
     taskGeneration: {
       enabled: true,
       maxTasks: 20,
-      outputDir: './.skill-optimizer',
+      outputDir: '.',
     },
     models: [
       { id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' },
       { id: 'openrouter/google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', tier: 'mid' },
     ],
     output: {
-      dir: './benchmark-results',
+      dir: '../benchmark-results',
     },
     verdict: {
       perModelFloor: 0.6,
@@ -144,11 +144,11 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       name: 'my-sdk',
       target: {
         surface: 'sdk',
-        repoPath: '.',
-        skill: './SKILL.md',
+        repoPath: '..',
+        skill: '../SKILL.md',
         discovery: {
           mode: 'auto',
-          sources: ['./src/index.ts'],
+          sources: ['../src/index.ts'],
         },
       },
       benchmark: commonBenchmark,
@@ -161,14 +161,14 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       name: 'my-cli',
       target: {
         surface: 'cli',
-        repoPath: '.',
-        skill: './SKILL.md',
+        repoPath: '..',
+        skill: '../SKILL.md',
         discovery: {
           mode: 'auto',
-          sources: ['./src/cli.ts'],
+          sources: ['../src/cli.ts'],
         },
         cli: {
-          commands: './.skill-optimizer/cli-commands.json',
+          commands: './cli-commands.json',
         },
       },
       benchmark: commonBenchmark,
@@ -181,14 +181,14 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
     name: 'my-mcp',
     target: {
       surface: 'mcp',
-      repoPath: '.',
-      skill: './SKILL.md',
+      repoPath: '..',
+      skill: '../SKILL.md',
       discovery: {
         mode: 'auto',
-        sources: ['./src/server.ts'],
+        sources: ['../src/server.ts'],
       },
       mcp: {
-        tools: './.skill-optimizer/tools.json',
+        tools: './tools.json',
       },
     },
     benchmark: commonBenchmark,
