@@ -1,12 +1,13 @@
-name: CI
+name: Build & Test
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, development, staging]
 
 jobs:
-  build-test:
+  build-and-test:
+    name: "Build & Test (node ${{ matrix.node }})"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
