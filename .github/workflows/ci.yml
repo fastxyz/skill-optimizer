@@ -6,7 +6,7 @@ on:
     branches: [main, development, staging]
 
 jobs:
-  build-and-test:
+  build-test:
     name: "Build & Test (node ${{ matrix.node }})"
     runs-on: ubuntu-latest
     strategy:
