@@ -130,41 +130,36 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
   writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, configDir), null, 2) + '\n', 'utf-8');
   console.log(`[init] ${configExisted ? 'Updated' : 'Created'} ${configPath}`);
 
+  // 'extracted' = auto-extracted from source, 'template' = placeholder written, undefined = n/a
+  let commandsSource: 'extracted' | 'template' | undefined;
+
   if (answers.surface === 'cli') {
     const commandsPath = resolve(generatedDir, 'cli-commands.json');
-    if (existsSync(commandsPath) && !answers.entryFile) {
-      // Only skip auto-extraction if no entry file was specified — otherwise re-extract
-      console.log(`[init] Skipping ${commandsPath} (already exists — run import-commands to refresh)`);
-    } else if (answers.entryFile) {
+    if (answers.entryFile) {
       console.log(`[init] Running import-commands from ${answers.entryFile}...`);
       try {
-        await importCommands({
-          from: answers.entryFile,
-          out: commandsPath,
-          scrape: false,
-          depth: 2,
-          cwd: answers.repoPath,
-        });
+        await importCommands({ from: answers.entryFile, out: commandsPath, scrape: false, depth: 2, cwd: answers.repoPath });
+        commandsSource = 'extracted';
       } catch (err) {
         console.warn(`[init] Warning: import-commands failed: ${err instanceof Error ? err.message : err}`);
-        console.warn(`[init] Writing template cli-commands.json instead.`);
         writeCliTemplate(commandsPath);
+        commandsSource = 'template';
       }
-    } else {
+    } else if (!existsSync(commandsPath)) {
       writeCliTemplate(commandsPath);
+      commandsSource = 'template';
     }
+    // If it already exists and no entry file was given, leave it untouched (commandsSource stays undefined)
   }
 
   if (answers.surface === 'mcp') {
     const toolsPath = resolve(generatedDir, 'tools.json');
-    if (existsSync(toolsPath)) {
-      console.log(`[init] Skipping ${toolsPath} (already exists — edit to update your tools)`);
-    } else {
+    if (!existsSync(toolsPath)) {
       writeMcpTemplate(toolsPath);
     }
   }
 
-  printNextSteps(answers, configPath);
+  printNextSteps(answers, configPath, commandsSource);
 }
 
 function writeCliTemplate(commandsPath: string): void {
@@ -218,7 +213,7 @@ function writeMcpTemplate(toolsPath: string): void {
   console.log(`[init] Created ${toolsPath} (template — edit with your real tools)`);
 }
 
-function printNextSteps(answers: WizardAnswers, configPath: string): void {
+function printNextSteps(answers: WizardAnswers, configPath: string, commandsSource: 'extracted' | 'template' | undefined): void {
   const skillAbsPath = answers.skillPath
     ? (isAbsolute(answers.skillPath) ? answers.skillPath : resolve(answers.repoPath, answers.skillPath))
     : resolve(answers.repoPath, 'SKILL.md');
@@ -233,22 +228,32 @@ function printNextSteps(answers: WizardAnswers, configPath: string): void {
   console.log(`  Iterations: up to ${answers.maxIterations}`);
   console.log(`  Config:     ${configPath}`);
 
-  console.log('\n  Next steps:');
-  let step = 1;
-  if (answers.surface === 'sdk') {
-    console.log(`  ${step++}. Review target.discovery.sources in the config — points to your SDK entry file`);
-  } else if (answers.surface === 'cli') {
-    if (answers.entryFile) {
-      console.log(`  ${step++}. Review skill-optimizer/.skill-optimizer/cli-commands.json — auto-extracted from your CLI`);
+  // Only show a manifest step if user action is actually required
+  const needsManifestEdit =
+    (answers.surface === 'cli' && commandsSource === 'template') ||
+    answers.surface === 'mcp';
+
+  const steps: string[] = [];
+
+  if (needsManifestEdit) {
+    if (answers.surface === 'cli') {
+      steps.push(
+        'Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace the template with your real commands\n' +
+        '     (or rerun with an entry file: skill-optimizer import-commands --from <entry-file>)',
+      );
     } else {
-      console.log(`  ${step++}. Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace template with real commands`);
-      console.log('     Or run: skill-optimizer import-commands --from <entry-file>');
+      steps.push('Edit skill-optimizer/.skill-optimizer/tools.json — replace the template with your real MCP tools');
     }
-  } else {
-    console.log(`  ${step++}. Edit skill-optimizer/.skill-optimizer/tools.json — replace template with your real MCP tools`);
   }
+
   if (skillMissing) {
-    console.log(`  ${step++}. Create ${skillAbsPath} — explain your surface to the model (what it does, key concepts, usage examples)`);
+    steps.push(`Create ${skillAbsPath}\n     Explain your surface to the model: what it does, key concepts, usage examples`);
   }
-  console.log(`  ${step}. Run: skill-optimizer run --config ./skill-optimizer/skill-optimizer.json`);
+
+  steps.push('Run: skill-optimizer run --config ./skill-optimizer/skill-optimizer.json');
+
+  if (steps.length > 0) {
+    console.log('\n  Next steps:');
+    steps.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
+  }
 }
