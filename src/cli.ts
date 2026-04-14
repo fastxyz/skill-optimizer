@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { existsSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { config as loadDotenv } from 'dotenv';
 
-loadDotenv({ override: true });
+loadDotenv({ override: true, quiet: true });
 
 import type { Tier } from './benchmark/types.js';
 import type { ResolvedProjectConfig } from './project/types.js';
@@ -13,13 +13,34 @@ import { runBenchmark } from './benchmark/runner.js';
 import { loadReport, compareReports, printComparison } from './benchmark/compare.js';
 import { printSummary, generateMarkdown } from './benchmark/reporter.js';
 import { printCoverage } from './benchmark/coverage.js';
-import { initBenchmark } from './benchmark/init.js';
 import { printOptimizeSummary, runOptimizeFromConfig } from './optimizer/main.js';
 import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, parseModelRef } from './project/index.js';
+import { runDoctor } from './doctor/index.js';
 import { createDefaultPiTaskGenerator, generateTasksForProject, createDefaultPiCritic, discoverActionsOnly, resolveScope } from './tasks/index.js';
 import type { Recommendation } from './verdict/recommendations.js';
 import { generateRecommendations } from './verdict/recommendations.js';
 import { renderVerdictConsole, renderVerdictMarkdown } from './verdict/render.js';
+import { importCommands } from './import/index.js';
+import { scaffoldInit } from './init/scaffold.js';
+import { buildDefaultAnswers, readAnswersFile } from './init/answers.js';
+import type { WizardAnswers } from './init/answers.js';
+import { runWizard } from './init/wizard.js';
+import { detectProject, detectedToPreseed, printDetectionSummary } from './init/detect-project.js';
+import { ERRORS, SkillOptimizerError, printError } from './errors.js';
+
+// ── Error handling ────────────────────────────────────────────────────────────
+
+/** Print an error and exit. SkillOptimizerErrors render their fix list; others
+ * are wrapped in E_UNEXPECTED and include the stack trace. */
+function fatalError(err: unknown): never {
+  if (err instanceof SkillOptimizerError) {
+    printError(err);
+  } else {
+    printError(new SkillOptimizerError(ERRORS.E_UNEXPECTED, err instanceof Error ? err.message : String(err)));
+    if (err instanceof Error && err.stack) console.error(err.stack);
+  }
+  process.exit(1);
+}
 
 // ── Arg parsing helpers ───────────────────────────────────────────────────────
 
@@ -44,17 +65,28 @@ function hasFlag(args: string[], flag: string): boolean {
 const BOOLEAN_FLAGS = new Set([
   '--help',
   '-h',
+  '--auto',
   '--dry-run',
+  '--force',
   '--no-cache',
   '--skip-generation',
+  '--check-models',
+  '--fix',
+  '--static',
+  '--scrape',
+  '--yes',
 ]);
 
 const VALUE_FLAGS = new Set([
+  '--answers',
   '--baseline',
   '--config',
   '--current',
+  '--depth',
+  '--from',
   '--max-iterations',
   '--model',
+  '--out',
   '--task',
   '--tier',
 ]);
@@ -94,7 +126,12 @@ function printUsage(): void {
 Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
 
 Usage:
-  skill-optimizer init <sdk|cli|mcp>            Scaffold config for the given surface type
+  skill-optimizer init [sdk|cli|mcp]            Interactive wizard — scaffold config for the given surface
+  skill-optimizer init [surface] --yes          Accept all defaults non-interactively
+  skill-optimizer init --answers <file.json>    Load wizard answers from a JSON file (CI mode)
+  skill-optimizer init --auto                   Auto-detect surface from CWD and pre-fill wizard
+  skill-optimizer import-commands [options]     Extract CLI commands from source or binary
+  skill-optimizer doctor [options]              Validate config pre-flight
   skill-optimizer generate-tasks [options]      Generate and freeze tasks from discovered surface
   skill-optimizer benchmark [options]           Run the benchmark
   skill-optimizer run [options]                 Run the benchmark
@@ -104,6 +141,12 @@ Usage:
 Global options:
   --dry-run                                     Discover + scope preview only; no LLM calls, no side effects
   --config <path>                               Config file (overrides per-command default)
+
+Doctor options:
+  --config <path>                               Config file (default: skill-optimizer.json)
+  --static                                      Run tier-1 structural checks only (no discovery)
+  --check-models                                Also ping each model for reachability (tier 3)
+  --fix                                         Apply auto-fixable issues and write config to disk
 
 Run options:
   --config <path>                               Config file (default: skill-optimizer.json)
@@ -120,6 +163,13 @@ Optimize options:
 Generate-tasks options:
   --config <path>                               Config file (default: skill-optimizer.json)
 
+Import-commands options:
+  --from <path>                                 Entry file or binary name (required)
+  --out <path>                                  Output path (default: .skill-optimizer/cli-commands.json)
+  --scrape                                      Force --help scraping regardless of file type
+  --depth <n>                                   Max subcommand depth for --help scraping (default: 2)
+  --force                                       Overwrite output file without prompting
+
 Compare options:
   --baseline <path>                             Path to baseline report.json
   --current <path>                              Path to current report.json
@@ -128,6 +178,12 @@ Examples:
   skill-optimizer init cli
   skill-optimizer init sdk
   skill-optimizer init mcp
+  skill-optimizer import-commands --from ./src/cli.ts
+  skill-optimizer import-commands --from fast-cli --scrape
+  skill-optimizer doctor --config ./skill-optimizer.json
+  skill-optimizer doctor --static
+  skill-optimizer doctor --check-models
+  skill-optimizer doctor --fix
   skill-optimizer --dry-run --config ./skill-optimizer.json
   skill-optimizer benchmark --config ./skill-optimizer.json
   skill-optimizer run
@@ -145,7 +201,7 @@ Examples:
 // ── Dry-run ───────────────────────────────────────────────────────────────────
 
 async function runDryRun(configPath: string): Promise<void> {
-  const project = loadProjectConfig(configPath);
+  const project = await loadProjectConfig(configPath);
   const discovered = discoverActionsOnly(project);
   const { inScope, outOfScope } = resolveScope(discovered, project.target.scope);
 
@@ -194,17 +250,90 @@ async function main(): Promise<void> {
 
   // ── Init mode ────────────────────────────────────────────────────────────────
   if (command === 'init') {
-    const surface = pos[1];
-    if (!surface || !['sdk', 'cli', 'mcp'].includes(surface)) {
-      console.error('Usage: skill-optimizer init <surface>');
-      console.error('');
-      console.error('  sdk  — TypeScript / Python / Rust library');
-      console.error('  cli  — command-line tool with subcommands');
-      console.error('  mcp  — MCP server with tools');
+    const surfaceArg = pos[1] as 'sdk' | 'cli' | 'mcp' | undefined;
+    if (surfaceArg && !['sdk', 'cli', 'mcp'].includes(surfaceArg)) {
+      console.error(`ERROR: Unknown surface '${surfaceArg}'. Must be: sdk | cli | mcp`);
       process.exit(1);
     }
-    initBenchmark(process.cwd(), surface as 'sdk' | 'cli' | 'mcp');
+    const answersFlag = getFlag(args, '--answers');
+    const useDefaults = hasFlag(args, '--yes');
+    const useAuto = hasFlag(args, '--auto');
+
+    if (useAuto) {
+      let detected;
+      try {
+        detected = detectProject(process.cwd());
+      } catch (err) {
+        fatalError(err);
+      }
+      printDetectionSummary(detected);
+      if (surfaceArg && surfaceArg !== detected.surface) {
+        console.log(`Note: explicit surface '${surfaceArg}' overridden by auto-detected '${detected.surface}'.`);
+      }
+      if (useDefaults) {
+        if (detected.confidence !== 'high') {
+          printError(new SkillOptimizerError(ERRORS.E_INIT_AUTO_LOW_CONFIDENCE,
+            `detected confidence is ${detected.confidence}`));
+          process.exit(1);
+        }
+        const answers: WizardAnswers = {
+          ...buildDefaultAnswers(detected.surface, detected.repoPath),
+          ...detectedToPreseed(detected),
+        };
+        await scaffoldInit(answers, process.cwd());
+      } else {
+        await runWizard(process.cwd(), detectedToPreseed(detected));
+      }
+      process.exit(0);
+    }
+
+    if (answersFlag) {
+      const answers = readAnswersFile(resolve(process.cwd(), answersFlag));
+      await scaffoldInit(answers, process.cwd());
+    } else if (useDefaults) {
+      const answers = buildDefaultAnswers(surfaceArg ?? 'sdk', process.cwd());
+      await scaffoldInit(answers, process.cwd());
+    } else {
+      await runWizard(process.cwd(), surfaceArg ? { surface: surfaceArg } : undefined);
+    }
     process.exit(0);
+  }
+
+  // ── Import-commands mode ─────────────────────────────────────────────────────
+  if (command === 'import-commands') {
+    const fromFlag = getFlag(args, '--from');
+    if (!fromFlag) {
+      console.error('ERROR: --from <path> is required for import-commands.');
+      console.error('  Example: skill-optimizer import-commands --from ./src/cli.ts');
+      process.exit(1);
+    }
+    const outFlag = getFlag(args, '--out') ?? '.skill-optimizer/cli-commands.json';
+    const depthRaw = getFlag(args, '--depth');
+    try {
+      await importCommands({
+        from: fromFlag,
+        out: outFlag,
+        scrape: hasFlag(args, '--scrape'),
+        depth: depthRaw ? parseInt(depthRaw, 10) : 2,
+        cwd: process.cwd(),
+        force: hasFlag(args, '--force'),
+      });
+    } catch (err) {
+      console.error(`\n  ERROR: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  // ── Doctor mode ──────────────────────────────────────────────────────────────
+  if (command === 'doctor') {
+    const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
+    const exitCode = await runDoctor(configPath, {
+      staticOnly: hasFlag(args, '--static'),
+      checkModels: hasFlag(args, '--check-models'),
+      fix: hasFlag(args, '--fix'),
+    });
+    process.exit(exitCode);
   }
 
   // ── Compare mode ────────────────────────────────────────────────────────────
@@ -280,11 +409,7 @@ async function main(): Promise<void> {
       }
       process.exit(bestReport.verdict?.result === 'FAIL' ? 1 : 0);
     } catch (err) {
-      console.error(`\nFATAL: Optimize failed: ${err instanceof Error ? err.message : err}`);
-      if (err instanceof Error && err.stack) {
-        console.error(err.stack);
-      }
-      process.exit(1);
+      fatalError(err);
     }
   }
 
@@ -292,7 +417,7 @@ async function main(): Promise<void> {
   if (command === 'generate-tasks') {
     const configPath = getFlag(args, '--config') ?? DEFAULT_PROJECT_CONFIG_NAME;
     try {
-      const project = loadProjectConfig(configPath);
+      const project = await loadProjectConfig(configPath);
       if (!project.benchmark.taskGeneration.enabled) {
         throw new Error('benchmark.taskGeneration.enabled must be true to use generate-tasks');
       }
@@ -350,7 +475,7 @@ async function main(): Promise<void> {
   let project: ResolvedProjectConfig | undefined;
   let generatedCoverage: import('./benchmark/types.js').CoverageReport | undefined;
   try {
-    project = loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
+    project = await loadProjectConfig(options.configPath ?? DEFAULT_PROJECT_CONFIG_NAME);
     if (!existsSync(project.target.repoPath) || !statSync(project.target.repoPath).isDirectory()) {
       throw new Error(
         `target.repoPath does not exist or is not a directory: ${project.target.repoPath}. ` +
@@ -385,11 +510,7 @@ async function main(): Promise<void> {
       generatedCoverage = generation.coverage;
     }
   } catch (err) {
-    console.error(`\nFATAL: Benchmark setup failed: ${err instanceof Error ? err.message : err}`);
-    if (err instanceof Error && err.stack) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    fatalError(err);
   }
 
   let report;
@@ -400,11 +521,7 @@ async function main(): Promise<void> {
       scopeCoverage: generatedCoverage,
     });
   } catch (err) {
-    console.error(`\nFATAL: Benchmark failed: ${err instanceof Error ? err.message : err}`);
-    if (err instanceof Error && err.stack) {
-      console.error(err.stack);
-    }
-    process.exit(1);
+    fatalError(err);
   }
 
   // Print console summary
@@ -467,7 +584,12 @@ async function main(): Promise<void> {
 
 function isExecutedDirectly(): boolean {
   const entry = process.argv[1];
-  return Boolean(entry) && import.meta.url === pathToFileURL(entry).href;
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return false;
+  }
 }
 
 if (isExecutedDirectly()) {

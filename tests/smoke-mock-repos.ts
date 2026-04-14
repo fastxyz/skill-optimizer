@@ -53,7 +53,7 @@ for (const name of listMockRepoTemplates()) {
       assert(existsSync(join(materializedPath, '.git')), 'materialized mock repo should be git-initialized');
       assert(existsSync(projectConfigPath), 'unified project config should exist');
 
-      const { config: benchmarkConfig } = loadConfig(projectConfigPath);
+      const { config: benchmarkConfig } = await loadConfig(projectConfigPath);
 
       if (name === 'mcp-tracker-demo') {
         assertEqual(benchmarkConfig.surface, 'mcp', 'tracker demo should materialize an MCP benchmark');
@@ -72,7 +72,7 @@ for (const name of listMockRepoTemplates()) {
         );
         assert(existsSync(join(materializedPath, 'SKILL.md')), 'tracker demo should include SKILL.md');
         assert(existsSync(join(materializedPath, 'tools.json')), 'tracker demo should include tools.json');
-        const optimizeManifest = loadOptimizeManifest(projectConfigPath);
+        const optimizeManifest = await loadOptimizeManifest(projectConfigPath);
         assertEqual(optimizeManifest.targetRepo.path, materializedPath, 'optimize target should point at the materialized repo');
 
         const validation = await createValidationRunner().run(optimizeManifest.targetRepo);

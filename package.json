@@ -1,6 +1,6 @@
 {
   "name": "skill-optimizer",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Benchmark and optimizer for evaluating SDK, CLI, and MCP guidance with static action matching.",
   "license": "MIT",
   "author": "Pi2 Labs",
@@ -23,6 +23,12 @@
     "evaluation"
   ],
   "type": "module",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "bin": {
     "skill-optimizer": "./dist/cli.js"
   },
@@ -39,17 +45,21 @@
     "dev": "tsx src/cli.ts",
     "optimize": "tsx src/cli.ts optimize",
     "materialize:mock": "tsx src/optimizer/materialize-mock-repo.ts",
-    "build": "tsc",
+    "gen-docs": "tsx scripts/gen-docs.ts",
+    "build": "tsc && npm run gen-docs && chmod +x dist/cli.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts && tsx tests/smoke-scoring.ts && tsx tests/smoke-scope.ts && tsx tests/smoke-coverage.ts && tsx tests/smoke-feedback.ts && tsx tests/smoke-verdict.ts && tsx tests/smoke-dry-run.ts && tsx tests/smoke-errors.ts && tsx tests/smoke-e2e.ts"
+    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts && tsx tests/smoke-scoring.ts && tsx tests/smoke-scope.ts && tsx tests/smoke-coverage.ts && tsx tests/smoke-feedback.ts && tsx tests/smoke-verdict.ts && tsx tests/smoke-dry-run.ts && tsx tests/smoke-errors.ts && tsx tests/smoke-e2e.ts && tsx tests/smoke-import.ts && tsx tests/smoke-init.ts && tsx tests/smoke-gen-docs.ts"
   },
   "dependencies": {
+    "@clack/prompts": "^1.2.0",
     "@mariozechner/pi-agent-core": "^0.66.1",
     "@mariozechner/pi-ai": "^0.66.1",
     "@mariozechner/pi-coding-agent": "^0.66.1",
     "dotenv": "^17.4.1",
     "tree-sitter-wasms": "^0.1.13",
-    "web-tree-sitter": "^0.24.7"
+    "web-tree-sitter": "^0.24.7",
+    "zod": "^4.3.6",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@types/node": "^22.12.0",

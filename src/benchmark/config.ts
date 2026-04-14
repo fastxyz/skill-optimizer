@@ -21,8 +21,13 @@ function isSafeTaskId(taskId: string): boolean {
  * Load benchmark config from the given path or search for benchmark.config.json
  * in the current working directory.
  */
-export function loadConfig(configPath?: string): { config: BenchmarkConfig; configDir: string } {
-  const project = loadProjectConfig(configPath ?? DEFAULT_CONFIG_NAME);
+export async function loadConfig(configPath?: string): Promise<{ config: BenchmarkConfig; configDir: string }> {
+  // Skip the dirty-git check here — it runs on every benchmark invocation (baseline,
+  // each iteration) which causes false failures when the mutation agent operates in
+  // the target repo between iterations. The optimizer manages git state via ensureReady
+  // (run once before the loop); the standalone `run` command validates via its own
+  // loadProjectConfig call in cli.ts before generating tasks.
+  const project = await loadProjectConfig(configPath ?? DEFAULT_CONFIG_NAME, { skipDirtyGitCheck: true });
   return {
     config: toBenchmarkConfig(project),
     configDir: project.configDir,

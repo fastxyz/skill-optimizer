@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import ts from 'typescript';
 
 import type { CliDiscoverySnapshot, DiscoveryOptions, DiscoveredAction, DiscoveredActionArg } from './types.js';
+import { discoverOptiqueActionsFromFile } from './optique.js';
 
 type LiteralPrimitive = string | number | boolean | null;
 interface LiteralObject {
@@ -38,6 +39,11 @@ function discoverCliActionsFromSourceFile(filePath: string): DiscoveredAction[] 
     sourceCode = readFileSync(filePath, 'utf-8');
   } catch (error) {
     throw new Error(`Failed to read CLI discovery source file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // Fast path: optique combinator CLI — literal extractor can't handle function calls
+  if (/@optique\/core/.test(sourceCode)) {
+    return discoverOptiqueActionsFromFile(filePath);
   }
 
   const sourceFile = ts.createSourceFile(filePath, sourceCode, ts.ScriptTarget.Latest, false);

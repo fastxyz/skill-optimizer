@@ -34,14 +34,16 @@ export async function generateTasksForProject(
   },
 ): Promise<GenerateTasksForProjectResult> {
   console.log('[optimize] Discovering surface for task generation...');
-  const surface = discoverTaskSurface(params.configPath);
+  const surface = await discoverTaskSurface(params.configPath);
   console.log(`[optimize] Loaded ${surface.snapshot.surface} surface with ${surface.snapshot.actions.length} actions.`);
 
   // Apply scope filter
   const { inScope, outOfScope } = resolveScope(surface.snapshot.actions, surface.project.target.scope);
   if (inScope.length === 0) {
-    throw new Error(
-      `target.scope produced zero in-scope actions. Adjust target.scope.include/exclude in ${params.configPath}.`,
+    console.warn(
+      `[warn] Discovery found 0 in-scope actions for surface "${surface.snapshot.surface}".` +
+      ` If using CLI surface, add target.cli.commands in your config.` +
+      ` Run 'npx skill-optimizer doctor' for a full diagnosis.`
     );
   }
   console.log(`[optimize] Scope filter: ${inScope.length} in scope, ${outOfScope.length} out of scope.`);

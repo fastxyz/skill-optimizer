@@ -4,25 +4,82 @@ Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can 
 
 skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
+**Requirements:** Node.js 20+, an [OpenRouter](https://openrouter.ai) API key.
+
+## Installation
+
+```bash
+git clone https://github.com/fastxyz/skill-optimizer
+cd skill-optimizer
+npm install
+npm run build
+npm link        # makes `skill-optimizer` available globally
+```
+
 ## Quickstart
 
 ```bash
-git clone https://github.com/bucurdavid/skill-optimizer
-cd skill-optimizer
-npm install
 export OPENROUTER_API_KEY=sk-or-...
-
-# Scaffold config for your surface type (sdk | cli | mcp)
-npx tsx src/cli.ts init cli
 ```
 
-`init cli` creates a `skill-optimizer/` directory with:
-- `skill-optimizer.json` — the main config (task generation enabled by default)
-- `cli-commands.json` — command manifest template (used as fallback if code-first discovery finds nothing)
+**Step 1 — Scaffold config** (run from your project root):
 
-`init sdk` creates `skill-optimizer.json` only. `init mcp` creates `skill-optimizer.json` + `tools.json`.
+```bash
+npx skill-optimizer init cli       # or: init sdk, init mcp
+```
 
-Open `skill-optimizer/skill-optimizer.json` and fill in these fields:
+The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `skill-optimizer/` directory:
+- `skill-optimizer.json` — the main config (commit this)
+- `.skill-optimizer/cli-commands.json` — CLI surface manifest (template to edit, or auto-extracted)
+- `.skill-optimizer/tools.json` — MCP surface manifest (template to edit)
+
+**Step 2 — (CLI/MCP only) Extract your surface** if code-first discovery yields nothing:
+
+```bash
+npx skill-optimizer import-commands --from ./src/cli.ts
+# or for a compiled binary:
+npx skill-optimizer import-commands --from my-cli --scrape
+```
+
+**Step 3 — Run a benchmark:**
+
+```bash
+npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json
+```
+
+**Step 4 — Run the optimizer** (iteratively improves your `SKILL.md`):
+
+```bash
+npx skill-optimizer optimize --config ./skill-optimizer/skill-optimizer.json
+```
+
+The optimizer never modifies your original `SKILL.md` — it works from versioned local copies in `.skill-optimizer/` and prints a progress table at the end showing per-model improvement.
+
+---
+
+**Non-interactive / CI mode:**
+
+```bash
+# Accept all wizard defaults without prompts
+npx skill-optimizer init cli --yes
+
+# Load answers from a JSON file
+npx skill-optimizer init --answers answers.json
+```
+
+`answers.json` format:
+```json
+{
+  "surface": "cli",
+  "repoPath": "/absolute/path/to/your-repo",
+  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
+  "maxTasks": 20,
+  "maxIterations": 5,
+  "entryFile": "src/cli.ts"
+}
+```
+
+**Key config fields** in `skill-optimizer/skill-optimizer.json`:
 
 | Field | What it does | Set it to |
 |-------|-------------|-----------|
@@ -31,16 +88,6 @@ Open `skill-optimizer/skill-optimizer.json` and fill in these fields:
 | `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
 | `benchmark.models` | Models to benchmark | Valid [OpenRouter](https://openrouter.ai/models) model IDs |
 
-For CLI and MCP surfaces: if code-first discovery yields nothing, edit the companion manifest (`cli-commands.json` or `tools.json`) with your real commands/tools — the config already points to it as a fallback.
-
-Tasks are generated automatically from your discovered surface — you don't need to write them manually.
-
-Then run the benchmark:
-
-```bash
-npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json
-```
-
 ## How it works
 
 1. **Discover** callable surface (SDK methods / CLI commands / MCP tools) via tree-sitter or a manifest.
@@ -48,102 +95,15 @@ npx tsx src/cli.ts run --config ./skill-optimizer/skill-optimizer.json
 3. **Generate tasks** — one prompt per in-scope action, coverage-guaranteed.
 4. **Benchmark** — every configured model attempts every task; static evaluator checks action calls + args.
 5. **Verdict** — PASS/FAIL against two gates (per-model floor, weighted average).
-6. **Optimize** — mutate `SKILL.md` / docs inside `allowedPaths`, re-benchmark, accept only if both gates hold, rollback if not.
+6. **Optimize** — create a local versioned copy of your `SKILL.md` (`skill-v{N}.md` in `.skill-optimizer/`), mutate it, re-benchmark, accept only if both gates hold, rollback if not. The target repo's original skill file is never modified.
 7. **Recommendations** — on FAIL, one critic call summarizes what to improve manually.
+8. **Progress table** — after the optimizer finishes, a per-model table shows Baseline → each iteration → Final → Δ so you can see exactly where each model improved.
 
 ## Configuration reference
 
-All configuration lives in a single `skill-optimizer.json` file.
+See [docs/reference/config-schema.md](docs/reference/config-schema.md) for the full generated config reference — auto-updated at every build.
 
-### `target` fields
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `surface` | `"sdk" \| "cli" \| "mcp"` | required | Type of callable surface |
-| `repoPath` | `string` | `.` | Path to the target repo |
-| `skill` | `string \| { source: string; cache?: boolean }` | — | Path to SKILL.md |
-| `discovery.mode` | `"auto" \| "manifest"` | `"auto"` | How to discover actions |
-| `discovery.sources` | `string[]` | — | Source files for tree-sitter discovery |
-| `discovery.language` | `"typescript" \| "python" \| "rust"` | — | Language for code-first discovery |
-| `discovery.fallbackManifest` | `string` | — | Path to manifest JSON when code-first discovery is incomplete |
-| `sdk.language` | `"typescript" \| "python" \| "rust"` | — | SDK language |
-| `sdk.entrypoints` | `string[]` | — | SDK entry files |
-| `cli.commands` | `string` | — | Path to CLI commands manifest JSON |
-| `mcp.tools` | `string` | — | Path to MCP tools manifest JSON |
-
-### `benchmark` fields
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `format` | `"pi"` | `"pi"` | LLM transport format |
-| `apiKeyEnv` | `string` | `OPENROUTER_API_KEY` | Env var name for the API key |
-| `timeout` | `number` | `240000` | Ms per model call |
-| `models` | `Array<{ id: string; name: string; tier: "flagship"\|"mid"\|"low"; weight?: number }>` | required | Models to benchmark |
-| `taskGeneration.enabled` | `boolean` | `false` | Whether to generate tasks automatically |
-| `taskGeneration.maxTasks` | `number` | `10` | Max tasks to generate (must be >= scope size) |
-| `taskGeneration.seed` | `number` | `1` | RNG seed for reproducible generation |
-| `output.dir` | `string` | `benchmark-results/` | Where reports are saved |
-| `verdict.perModelFloor` | `number` | `0.6` | Minimum per-model pass fraction for a PASS verdict |
-| `verdict.targetWeightedAverage` | `number` | `0.7` | Minimum weighted average across all models for a PASS verdict |
-
-### `optimize` fields (all optional)
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `model` | `string` | — | Model for mutation (e.g. `openrouter/anthropic/claude-sonnet-4-6`) |
-| `apiKeyEnv` | `string` | — | Env var for the optimizer's API key |
-| `thinkingLevel` | `"off"\|"minimal"\|"low"\|"medium"\|"high"\|"xhigh"` | `"medium"` | Reasoning depth for mutation calls |
-| `allowedPaths` | `string[]` | — | Paths the optimizer may edit (safety boundary) |
-| `validation` | `string[]` | — | Shell commands to run to validate each mutation |
-| `requireCleanGit` | `boolean` | `true` | Require clean git state before starting |
-| `maxIterations` | `number` | `5` | Maximum optimization iterations |
-| `minImprovement` | `number` | `0.02` | Minimum weighted-average gain per accepted iteration |
-| `reportContextMaxBytes` | `number` | `16000` | Byte budget for mutation context |
-
-### Annotated example config
-
-```json
-{
-  "name": "my-mcp-project",
-  "target": {
-    "surface": "mcp",
-    "repoPath": ".",
-    "skill": "./SKILL.md",
-    "discovery": {
-      "mode": "auto",
-      "sources": ["./src/server.ts"]
-    }
-  },
-  "benchmark": {
-    "format": "pi",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship", "weight": 2 },
-      { "id": "openrouter/openai/gpt-4o-mini",          "name": "GPT-4o mini",   "tier": "mid",      "weight": 1 }
-    ],
-    "taskGeneration": {
-      "enabled": true,
-      "maxTasks": 20,
-      "seed": 1
-    },
-    "output": { "dir": "./benchmark-results" },
-    "verdict": {
-      "perModelFloor": 0.6,
-      "targetWeightedAverage": 0.7
-    }
-  },
-  "optimize": {
-    "model": "openrouter/anthropic/claude-sonnet-4-6",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
-    "thinkingLevel": "medium",
-    "allowedPaths": ["SKILL.md"],
-    "requireCleanGit": true,
-    "maxIterations": 5,
-    "minImprovement": 0.02,
-    "reportContextMaxBytes": 16000
-  }
-}
-```
+See [docs/reference/errors.md](docs/reference/errors.md) for all error codes, descriptions, and fix instructions.
 
 ## Interpreting the verdict
 
@@ -199,9 +159,9 @@ The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent` — a
 export OPENROUTER_API_KEY=sk-or-...
 ```
 
-**Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running.
+**Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 
-**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx tsx src/cli.ts --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
+**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx skill-optimizer --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
 
 **Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
 

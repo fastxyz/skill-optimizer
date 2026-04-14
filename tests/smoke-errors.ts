@@ -89,7 +89,7 @@ function testEmptyScope() {
       skill: resolve(REPO_ROOT, 'mock-repos/mcp-tracker-demo/SKILL.md'),
     },
     benchmark: {
-      models: [{ id: 'x/y', name: 'Y', tier: 'mid' }],
+      models: [{ id: 'openrouter/test/mock', name: 'Mock', tier: 'mid' }],
       taskGeneration: { enabled: true, maxTasks: 5 },
     },
   });
@@ -113,7 +113,7 @@ function testMaxTasksTooSmall() {
       skill: resolve(REPO_ROOT, 'mock-repos/mcp-tracker-demo/SKILL.md'),
     },
     benchmark: {
-      models: [{ id: 'x/y', name: 'Y', tier: 'mid' }],
+      models: [{ id: 'openrouter/test/mock', name: 'Mock', tier: 'mid' }],
       taskGeneration: { enabled: true, maxTasks: 1 },
     },
   });
@@ -136,7 +136,7 @@ function testRepoPathMissing() {
       mcp: { tools: resolve(REPO_ROOT, 'mock-repos/mcp-tracker-demo/tools.json') },
     },
     benchmark: {
-      models: [{ id: 'x/y', name: 'Y', tier: 'mid' }],
+      models: [{ id: 'openrouter/test/mock', name: 'Mock', tier: 'mid' }],
       tasks: resolve(REPO_ROOT, 'mock-repos/mcp-tracker-demo/tasks.json'),
     },
   });
