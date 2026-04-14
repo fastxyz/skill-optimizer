@@ -138,10 +138,18 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
     if (answers.entryFile) {
       console.log(`[init] Running import-commands from ${answers.entryFile}...`);
       try {
-        await importCommands({ from: answers.entryFile, out: commandsPath, scrape: false, depth: 2, cwd: answers.repoPath });
+        const TIMEOUT_MS = 20_000;
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`timed out after ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS),
+        );
+        await Promise.race([
+          importCommands({ from: answers.entryFile, out: commandsPath, scrape: false, depth: 2, cwd: answers.repoPath }),
+          timeout,
+        ]);
         commandsSource = 'extracted';
       } catch (err) {
         console.warn(`[init] Warning: import-commands failed: ${err instanceof Error ? err.message : err}`);
+        console.warn('[init] Writing template cli-commands.json instead — edit it with your real commands.');
         writeCliTemplate(commandsPath);
         commandsSource = 'template';
       }

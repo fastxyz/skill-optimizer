@@ -121,11 +121,17 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   let entryFile: string | undefined;
   if (surface === 'cli' || surface === 'mcp') {
     const message = surface === 'cli'
-      ? 'Path to CLI entry file or binary (relative to repo, leave blank to skip):'
-      : 'Path to MCP server entry file (relative to repo, leave blank to skip):';
-    const placeholder = surface === 'cli' ? 'src/cli.ts' : 'src/server.ts';
-    const raw = cancelGuard(await p.text({ message, placeholder, defaultValue: preseed?.entryFile }) as string);
-    entryFile = raw.trim() || preseed?.entryFile || undefined;
+      ? 'Absolute path to CLI entry file or binary (leave blank to skip auto-extraction):'
+      : 'Absolute path to MCP server entry file (leave blank to skip auto-extraction):';
+    const defaultEntry = surface === 'cli' ? 'src/cli.ts' : 'src/server.ts';
+    const defaultEntryAbs = preseed?.entryFile
+      ? resolve(preseed.entryFile.startsWith('/') ? preseed.entryFile : resolve(repoPath, preseed.entryFile))
+      : resolve(repoPath, defaultEntry);
+    const raw = cancelGuard(await p.text({ message, placeholder: defaultEntryAbs, defaultValue: defaultEntryAbs }) as string);
+    const rawTrimmed = raw.trim();
+    entryFile = rawTrimmed
+      ? (rawTrimmed.startsWith('/') ? rawTrimmed : resolve(repoPath, rawTrimmed))
+      : undefined;
   }
 
   const answers: WizardAnswers = { surface, repoPath, models, maxTasks, maxIterations, skillPath, entryFile, name: preseed?.name };
