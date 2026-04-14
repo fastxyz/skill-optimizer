@@ -72,7 +72,17 @@ npx skill-optimizer init --answers answers.json
 {
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
-  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
+  "models": [
+    "openrouter/anthropic/claude-sonnet-4.6",
+    "openrouter/deepseek/deepseek-v3.2",
+    "openrouter/google/gemini-2.5-flash",
+    "openrouter/qwen/qwen3.5-397b-a17b",
+    "openrouter/moonshotai/kimi-k2.5",
+    "openrouter/z-ai/glm-5.1",
+    "openrouter/minimax/minimax-m2.7",
+    "openrouter/google/gemma-4-31b-it",
+    "openrouter/meta-llama/llama-4-maverick"
+  ],
   "maxTasks": 20,
   "maxIterations": 5,
   "entryFile": "src/cli.ts"

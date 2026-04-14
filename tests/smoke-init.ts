@@ -176,7 +176,7 @@ assert.strictEqual(typeof _a.surface, 'string');
 // MODEL_PRESETS count check
 {
   const { MODEL_PRESETS } = await import('../src/init/wizard.js');
-  assert.strictEqual(MODEL_PRESETS.length, 20, `Expected 20 presets, got ${MODEL_PRESETS.length}`);
+  assert.strictEqual(MODEL_PRESETS.length, 23, `Expected 23 presets, got ${MODEL_PRESETS.length}`);
   assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets should be openrouter/ IDs');
 }
 
