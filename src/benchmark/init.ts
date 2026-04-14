@@ -119,9 +119,9 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       outputDir: '.',
     },
     models: [
-      { id: 'openrouter/anthropic/claude-sonnet-4.6', name: 'Claude Sonnet 4.6', tier: 'flagship' },
-      { id: 'openrouter/deepseek/deepseek-v3.2', name: 'DeepSeek V3.2', tier: 'flagship' },
-      { id: 'openrouter/google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', tier: 'mid' },
+      { id: 'openrouter/anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'flagship' },
+      { id: 'openrouter/deepseek/deepseek-v3-2', name: 'DeepSeek V3.2', tier: 'flagship' },
+      { id: 'openrouter/google/gemini-2-5-flash', name: 'Gemini 2.5 Flash', tier: 'mid' },
     ],
     output: {
       dir: '../benchmark-results',
@@ -133,7 +133,7 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
   };
 
   const commonOptimize = {
-    model: 'openrouter/anthropic/claude-sonnet-4.6',
+    model: 'openrouter/anthropic/claude-sonnet-4-6',
     apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: ['./SKILL.md'],
     validation: [],
