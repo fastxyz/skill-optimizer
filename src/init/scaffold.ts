@@ -1,5 +1,5 @@
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { resolve, relative, join, basename } from 'node:path';
+import { isAbsolute, resolve, relative, join, basename } from 'node:path';
 import type { WizardAnswers } from './answers.js';
 import { importCommands } from '../import/index.js';
 
@@ -48,8 +48,11 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
 
   // Paths stored in the JSON are relative to configDir so the config is portable
   const relRepo = relative(configDir, repoPath) || '.';
-  const skillRelPath = answers.skillPath || 'SKILL.md';
-  const skillConfigPath = join(relRepo, skillRelPath);
+  // skillPath may be absolute (from wizard) or relative to repoPath (from answers file)
+  const skillAbsPath = answers.skillPath
+    ? (isAbsolute(answers.skillPath) ? answers.skillPath : resolve(repoPath, answers.skillPath))
+    : resolve(repoPath, 'SKILL.md');
+  const skillConfigPath = relative(configDir, skillAbsPath);
 
   const commonBenchmark = {
     apiKeyEnv: 'OPENROUTER_API_KEY',
@@ -123,17 +126,15 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
   mkdirSync(generatedDir, { recursive: true });
 
   const configPath = resolve(configDir, 'skill-optimizer.json');
-  if (existsSync(configPath)) {
-    console.log(`[init] Skipping ${configPath} (already exists)`);
-  } else {
-    writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, configDir), null, 2) + '\n', 'utf-8');
-    console.log(`[init] Created ${configPath}`);
-  }
+  const configExisted = existsSync(configPath);
+  writeFileSync(configPath, JSON.stringify(buildConfigFromAnswers(answers, configDir), null, 2) + '\n', 'utf-8');
+  console.log(`[init] ${configExisted ? 'Updated' : 'Created'} ${configPath}`);
 
   if (answers.surface === 'cli') {
     const commandsPath = resolve(generatedDir, 'cli-commands.json');
-    if (existsSync(commandsPath)) {
-      console.log(`[init] Skipping ${commandsPath} (already exists)`);
+    if (existsSync(commandsPath) && !answers.entryFile) {
+      // Only skip auto-extraction if no entry file was specified — otherwise re-extract
+      console.log(`[init] Skipping ${commandsPath} (already exists — run import-commands to refresh)`);
     } else if (answers.entryFile) {
       console.log(`[init] Running import-commands from ${answers.entryFile}...`);
       try {
@@ -157,7 +158,7 @@ export async function scaffoldInit(answers: WizardAnswers, cwd: string): Promise
   if (answers.surface === 'mcp') {
     const toolsPath = resolve(generatedDir, 'tools.json');
     if (existsSync(toolsPath)) {
-      console.log(`[init] Skipping ${toolsPath} (already exists)`);
+      console.log(`[init] Skipping ${toolsPath} (already exists — edit to update your tools)`);
     } else {
       writeMcpTemplate(toolsPath);
     }
@@ -218,13 +219,21 @@ function writeMcpTemplate(toolsPath: string): void {
 }
 
 function printNextSteps(answers: WizardAnswers, configPath: string): void {
-  const skillRelPath = answers.skillPath || 'SKILL.md';
-  const skillAbsPath = resolve(answers.repoPath, skillRelPath);
+  const skillAbsPath = answers.skillPath
+    ? (isAbsolute(answers.skillPath) ? answers.skillPath : resolve(answers.repoPath, answers.skillPath))
+    : resolve(answers.repoPath, 'SKILL.md');
   const skillMissing = !existsSync(skillAbsPath);
 
-  console.log('\n[init] Done! Next steps:');
-  console.log(`  Config: ${configPath}`);
+  console.log('\n[init] Done!');
+  console.log(`  Surface:    ${answers.surface}`);
+  console.log(`  Repo:       ${answers.repoPath}`);
+  console.log(`  SKILL.md:   ${skillAbsPath}${skillMissing ? ' (not found yet — create it)' : ''}`);
+  console.log(`  Models:     ${answers.models.length} — ${answers.models.map(m => m.split('/').pop()).join(', ')}`);
+  console.log(`  Tasks:      up to ${answers.maxTasks} per run`);
+  console.log(`  Iterations: up to ${answers.maxIterations}`);
+  console.log(`  Config:     ${configPath}`);
 
+  console.log('\n  Next steps:');
   let step = 1;
   if (answers.surface === 'sdk') {
     console.log(`  ${step++}. Review target.discovery.sources in the config — points to your SDK entry file`);
@@ -233,7 +242,7 @@ function printNextSteps(answers: WizardAnswers, configPath: string): void {
       console.log(`  ${step++}. Review skill-optimizer/.skill-optimizer/cli-commands.json — auto-extracted from your CLI`);
     } else {
       console.log(`  ${step++}. Edit skill-optimizer/.skill-optimizer/cli-commands.json — replace template with real commands`);
-      console.log('     Or run: npx skill-optimizer import-commands --from <entry-file>');
+      console.log('     Or run: skill-optimizer import-commands --from <entry-file>');
     }
   } else {
     console.log(`  ${step++}. Edit skill-optimizer/.skill-optimizer/tools.json — replace template with your real MCP tools`);
@@ -241,5 +250,5 @@ function printNextSteps(answers: WizardAnswers, configPath: string): void {
   if (skillMissing) {
     console.log(`  ${step++}. Create ${skillAbsPath} — explain your surface to the model (what it does, key concepts, usage examples)`);
   }
-  console.log(`  ${step}. Run: npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json`);
+  console.log(`  ${step}. Run: skill-optimizer run --config ./skill-optimizer/skill-optimizer.json`);
 }

@@ -57,12 +57,18 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   const repoPath = resolve(repoPathRaw.trim() || preseed?.repoPath || cwd);
 
   // 3. SKILL.md path
+  const defaultSkillPath = preseed?.skillPath
+    ? resolve(preseed.skillPath.startsWith('/') ? preseed.skillPath : resolve(repoPath, preseed.skillPath))
+    : resolve(repoPath, 'SKILL.md');
   const skillPathRaw = cancelGuard(await p.text({
-    message: 'Path to SKILL.md (relative to repo root, leave blank for SKILL.md):',
-    placeholder: 'SKILL.md',
-    defaultValue: preseed?.skillPath,
+    message: 'Absolute path to your SKILL.md:',
+    placeholder: defaultSkillPath,
+    defaultValue: defaultSkillPath,
   }) as string);
-  const skillPath = skillPathRaw.trim() || preseed?.skillPath || undefined;
+  const skillPathTrimmed = skillPathRaw.trim();
+  const skillPath = skillPathTrimmed
+    ? (skillPathTrimmed.startsWith('/') ? skillPathTrimmed : resolve(repoPath, skillPathTrimmed))
+    : defaultSkillPath;
 
   // 4. Models (multi-select)
   const selectedPresets = cancelGuard(await p.multiselect({
