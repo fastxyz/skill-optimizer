@@ -269,6 +269,26 @@ await test('resolveApiKey: codex auth reads browser-login access token from ~/.c
 });
 
 await test('openai format: codex auth bridges through pi with openai provider refs', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-bridge-auth-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify({ exp: futureExp })).toString('base64url'),
+    'sig',
+  ].join('.');
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: jwt } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+
   let capturedModel: string | null = null;
 
   __setPiImplementationsForTest({
@@ -310,6 +330,7 @@ await test('openai format: codex auth bridges through pi with openai provider re
     assertEqual(capturedModel, 'openai/gpt-5.4', 'openai-format codex auth should bridge to pi using provider/model form');
     assertEqual(result.content, 'hello from codex auth', 'codex-auth bridged response should be returned');
   } finally {
+    process.env.HOME = originalHome;
     __setPiImplementationsForTest(null);
   }
 });
