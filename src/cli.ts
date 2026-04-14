@@ -67,6 +67,7 @@ const BOOLEAN_FLAGS = new Set([
   '-h',
   '--auto',
   '--dry-run',
+  '--force',
   '--no-cache',
   '--skip-generation',
   '--check-models',
@@ -167,6 +168,7 @@ Import-commands options:
   --out <path>                                  Output path (default: skill-optimizer/.skill-optimizer/cli-commands.json)
   --scrape                                      Force --help scraping regardless of file type
   --depth <n>                                   Max subcommand depth for --help scraping (default: 2)
+  --force                                       Overwrite output file without prompting
 
 Compare options:
   --baseline <path>                             Path to baseline report.json
@@ -314,6 +316,7 @@ async function main(): Promise<void> {
         scrape: hasFlag(args, '--scrape'),
         depth: depthRaw ? parseInt(depthRaw, 10) : 2,
         cwd: process.cwd(),
+        force: hasFlag(args, '--force'),
       });
     } catch (err) {
       console.error(`\n  ERROR: ${err instanceof Error ? err.message : err}`);

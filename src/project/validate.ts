@@ -220,10 +220,11 @@ export async function checkConfig(
     }
   }
 
-  // Check: target.skill file exists
+  // Check: target.skill file exists (skip for remote sources — github: / https: / http:)
   if (target.skill !== undefined) {
     const skillSource = typeof target.skill === 'string' ? target.skill : target.skill.source;
-    if (skillSource) {
+    const isRemoteSkill = skillSource.startsWith('github:') || skillSource.startsWith('https://') || skillSource.startsWith('http://');
+    if (skillSource && !isRemoteSkill) {
       const absSkill = isAbsolute(skillSource) ? skillSource : resolve(configDir, skillSource);
       if (!existsSync(absSkill)) {
         issues.push({
