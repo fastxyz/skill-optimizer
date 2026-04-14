@@ -1,4 +1,5 @@
 import { readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, basename } from 'node:path';
 import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
@@ -21,16 +22,8 @@ export class PiCodingMutationExecutor {
       ? dirname(context.localSkillPath)
       : context.manifest.targetRepo.path;
 
-    console.log(`[mutation] cwd: ${agentCwd}`);
-    if (context.localSkillPath) {
-      console.log(`[mutation] skill file: ${basename(context.localSkillPath)}`);
-      try {
-        const before = statSync(context.localSkillPath);
-        console.log(`[mutation] skill file size before: ${before.size} bytes`);
-      } catch {
-        console.log('[mutation] skill file not found before mutation');
-      }
-    }
+    // Snapshot the skill file before mutation so we can detect no-ops.
+    const beforeHash = context.localSkillPath ? hashFile(context.localSkillPath) : null;
 
     const { session } = await createCodingOrchestratorSession({
       cwd: agentCwd,
@@ -43,18 +36,29 @@ export class PiCodingMutationExecutor {
 
     const messages = session.state.messages as unknown[];
     const toolActivity = extractToolActivity(messages);
-    console.log(`[mutation] session messages: ${messages.length}, tool calls: ${toolActivity.length}`);
-    if (toolActivity.length === 0) {
-      console.log('[mutation] WARNING: agent made no tool calls — skill file was not modified');
+    const assistantText = extractLatestAssistantText(messages);
+
+    // If the orchestrator produced no text and no tool calls the model failed to act.
+    // This usually means the optimizer model is too weak or the API call silently failed.
+    // Throw rather than silently producing an identical skill file and wasting a benchmark run.
+    if (!assistantText && toolActivity.length === 0) {
+      const modelRef = `${mutation.provider}/${mutation.model}`;
+      throw new Error(
+        `Orchestrator model "${modelRef}" produced no output (no tool calls, no text response). ` +
+        `The model may be too weak for coding-orchestrator tasks or the API call failed silently. ` +
+        `Try a more capable model such as openrouter/anthropic/claude-sonnet-4-6.`,
+      );
     }
 
-    if (context.localSkillPath) {
-      try {
-        const after = statSync(context.localSkillPath);
-        console.log(`[mutation] skill file size after: ${after.size} bytes`);
-      } catch {
-        console.log('[mutation] skill file missing after mutation');
-      }
+    // Warn when the agent responded with text but never called a tool to modify the file.
+    if (context.localSkillPath && toolActivity.length === 0) {
+      console.warn('[mutation] WARNING: orchestrator produced text but made no tool calls — skill file unchanged');
+    }
+
+    // Detect no-op: agent ran but the file content did not change.
+    const afterHash = context.localSkillPath ? hashFile(context.localSkillPath) : null;
+    if (beforeHash !== null && afterHash !== null && beforeHash === afterHash) {
+      console.warn('[mutation] WARNING: skill file content is identical before and after mutation');
     }
 
     // If we wrote to a local skill file, return it directly — no git detection needed.
@@ -62,7 +66,7 @@ export class PiCodingMutationExecutor {
     const changedFiles = context.localSkillPath
       ? [context.localSkillPath]
       : await collectGitChangedFiles(context.manifest.targetRepo.path);
-    const summary = extractLatestAssistantText(session.state.messages)
+    const summary = assistantText
       ?? context.failureBuckets[0]?.kind
       ?? 'benchmark failures';
 
@@ -204,4 +208,12 @@ function extractToolActivity(messages: unknown): string[] {
   }
 
   return lines;
+}
+
+function hashFile(filePath: string): string | null {
+  try {
+    return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+  } catch {
+    return null;
+  }
 }
