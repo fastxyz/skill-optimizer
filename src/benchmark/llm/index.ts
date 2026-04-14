@@ -16,6 +16,19 @@ export interface LLMClient {
 }
 
 /**
+ * Strip the provider prefix (e.g. "anthropic/", "openai/") from a model ID
+ * when talking directly to a provider API rather than through a router.
+ *
+ * The config validation requires prefixed IDs like "anthropic/claude-sonnet-4-6",
+ * but the native Anthropic/OpenAI APIs expect just "claude-sonnet-4-6" / "gpt-4o".
+ */
+function stripProviderPrefix(modelId: string): string {
+  const slashIndex = modelId.indexOf('/');
+  if (slashIndex === -1) return modelId;
+  return modelId.slice(slashIndex + 1);
+}
+
+/**
  * Create an LLM client from config.
  */
 export function createLLMClient(config: LLMConfig): LLMClient {
@@ -29,33 +42,41 @@ export function createLLMClient(config: LLMConfig): LLMClient {
 
   const extraHeaders = config.headers ?? {};
 
+  // When format is 'anthropic' or 'openai', we're talking directly to a provider
+  // API that doesn't understand prefixed model IDs like "anthropic/claude-sonnet-4-6".
+  // Strip the prefix so only the bare model name (e.g. "claude-sonnet-4-6") is sent.
+  const shouldStripPrefix = config.format === 'anthropic' || config.format === 'openai';
+
   return {
     async chat(modelId, system, user) {
+      const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatPi({ timeout, modelId, system, user, apiKeyOverride: apiKey, headers: config.headers });
       }
       if (config.format === 'anthropic') {
-        return chatAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user });
+        return chatAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user });
       }
-      return chatOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user });
+      return chatOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user });
     },
     async chatWithTools(modelId, system, user, tools) {
+      const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatWithToolsPi({ timeout, modelId, system, user, tools, apiKeyOverride: apiKey, headers: config.headers });
       }
       if (config.format === 'anthropic') {
-        return chatWithToolsAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools });
+        return chatWithToolsAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools });
       }
-      return chatWithToolsOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools });
+      return chatWithToolsOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools });
     },
     async chatAgentLoop(modelId, system, user, tools, executor, maxTurns = 5) {
+      const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatAgentLoopPi({ timeout, modelId, system, user, tools, executor, maxTurns, apiKeyOverride: apiKey, headers: config.headers });
       }
       if (config.format === 'anthropic') {
-        return chatAgentLoopAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools, executor, maxTurns });
+        return chatAgentLoopAnthropic({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools, executor, maxTurns });
       }
-      return chatAgentLoopOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId, system, user, tools, executor, maxTurns });
+      return chatAgentLoopOpenAI({ baseUrl: baseUrl!, apiKey, timeout, extraHeaders, modelId: resolvedModelId, system, user, tools, executor, maxTurns });
     },
   };
 }
