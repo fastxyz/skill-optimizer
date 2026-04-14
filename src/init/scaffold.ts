@@ -52,7 +52,10 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   const skillAbsPath = answers.skillPath
     ? (isAbsolute(answers.skillPath) ? answers.skillPath : resolve(repoPath, answers.skillPath))
     : resolve(repoPath, 'SKILL.md');
+  // target.skill and discovery.sources are resolved relative to configDir by the loader
   const skillConfigPath = relative(configDir, skillAbsPath);
+  // optimize.allowedPaths are validated relative to repoPath (not configDir) by the validator
+  const skillAllowedPath = relative(repoPath, skillAbsPath);
 
   const commonBenchmark = {
     apiKeyEnv: 'OPENROUTER_API_KEY',
@@ -67,7 +70,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   const commonOptimize = {
     model: pickOptimizeModel(models),
     apiKeyEnv: 'OPENROUTER_API_KEY',
-    allowedPaths: [skillConfigPath],
+    allowedPaths: [skillAllowedPath],
     validation: [],
     maxIterations,
   };
@@ -87,7 +90,11 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   }
 
   const defaultEntry = surface === 'cli' ? 'src/cli.ts' : 'src/server.ts';
-  const entryRelative = answers.entryFile ?? defaultEntry;
+  // entryFile from wizard is now absolute; compute relative to configDir for config JSON
+  const entryAbsPath = answers.entryFile
+    ? answers.entryFile
+    : resolve(repoPath, defaultEntry);
+  const entryConfigPath = relative(configDir, entryAbsPath);
 
   if (surface === 'cli') {
     return {
@@ -96,7 +103,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
         surface: 'cli',
         repoPath: relRepo,
         skill: skillConfigPath,
-        discovery: { mode: 'auto', sources: [join(relRepo, entryRelative)] },
+        discovery: { mode: 'auto', sources: [entryConfigPath] },
         cli: { commands: './.skill-optimizer/cli-commands.json' },
       },
       benchmark: commonBenchmark,
@@ -111,7 +118,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
       surface: 'mcp',
       repoPath: relRepo,
       skill: skillConfigPath,
-      discovery: { mode: 'auto', sources: [join(relRepo, entryRelative)] },
+      discovery: { mode: 'auto', sources: [entryConfigPath] },
       mcp: { tools: './.skill-optimizer/tools.json' },
     },
     benchmark: commonBenchmark,
