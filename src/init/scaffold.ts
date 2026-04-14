@@ -4,18 +4,37 @@ import type { WizardAnswers } from './answers.js';
 import { importCommands } from '../import/index.js';
 
 const KNOWN_MODELS: Record<string, { name: string; tier: 'flagship' | 'mid' | 'low' }> = {
-  'openrouter/openai/gpt-5.4': { name: 'GPT-5.4', tier: 'flagship' },
-  'openrouter/openai/gpt-5.3-codex': { name: 'GPT-5.3 Codex', tier: 'flagship' },
-  'openrouter/openai/gpt-4o': { name: 'GPT-4o', tier: 'flagship' },
-  'openrouter/openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid' },
+  // DeepSeek
+  'openrouter/deepseek/deepseek-v3': { name: 'DeepSeek V3.2', tier: 'flagship' },
+  // Anthropic
   'openrouter/anthropic/claude-opus-4.6': { name: 'Claude Opus 4.6', tier: 'flagship' },
   'openrouter/anthropic/claude-sonnet-4.6': { name: 'Claude Sonnet 4.6', tier: 'flagship' },
-  'openrouter/google/gemini-2.5-pro-preview': { name: 'Gemini 2.5 Pro', tier: 'flagship' },
-  'openrouter/google/gemini-2.0-flash-001': { name: 'Gemini 2.0 Flash', tier: 'mid' },
-  'openrouter/meta-llama/llama-3.3-70b-instruct': { name: 'Llama 3.3 70B', tier: 'mid' },
-  'openrouter/mistralai/mistral-large-2411': { name: 'Mistral Large', tier: 'mid' },
-  'openrouter/deepseek/deepseek-chat': { name: 'DeepSeek Chat', tier: 'mid' },
-  'openrouter/qwen/qwen-2.5-72b-instruct': { name: 'Qwen 2.5 72B', tier: 'mid' },
+  // MiniMax
+  'openrouter/minimax/minimax-m2.7': { name: 'MiniMax M2.7', tier: 'flagship' },
+  'openrouter/minimax/minimax-m2.5': { name: 'MiniMax M2.5', tier: 'mid' },
+  // Google
+  'openrouter/google/gemini-3-flash-preview': { name: 'Gemini 3 Flash Preview', tier: 'mid' },
+  'openrouter/google/gemini-3.1-pro-preview': { name: 'Gemini 3.1 Pro Preview', tier: 'flagship' },
+  'openrouter/google/gemini-2.5-flash': { name: 'Gemini 2.5 Flash', tier: 'mid' },
+  'openrouter/google/gemini-2.5-flash-lite-preview': { name: 'Gemini 2.5 Flash Lite', tier: 'low' },
+  // Qwen
+  'openrouter/qwen/qwen3.6-plus': { name: 'Qwen 3.6 Plus', tier: 'mid' },
+  // Xiaomi
+  'openrouter/xiaomi/mimo-v2-pro': { name: 'MiMo-V2-Pro', tier: 'mid' },
+  // Nvidia
+  'openrouter/nvidia/nemotron-3-super': { name: 'Nemotron 3 Super', tier: 'mid' },
+  // Moonshot
+  'openrouter/moonshotai/kimi-k2.5': { name: 'Kimi K2.5', tier: 'flagship' },
+  // xAI
+  'openrouter/x-ai/grok-4.1-fast': { name: 'Grok 4.1 Fast', tier: 'flagship' },
+  // OpenAI
+  'openrouter/openai/gpt-5.4': { name: 'GPT-5.4', tier: 'flagship' },
+  'openrouter/openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid' },
+  'openrouter/openai/gpt-oss-120b': { name: 'GPT-OSS 120B', tier: 'mid' },
+  // Z-AI
+  'openrouter/z-ai/glm-5': { name: 'GLM 5', tier: 'mid' },
+  'openrouter/z-ai/glm-5.1': { name: 'GLM 5.1', tier: 'mid' },
+  'openrouter/z-ai/glm-5-turbo': { name: 'GLM 5 Turbo', tier: 'low' },
 };
 
 function resolveModel(id: string): { id: string; name: string; tier: 'flagship' | 'mid' | 'low' } {
@@ -31,8 +50,11 @@ const OPTIMIZE_MODEL_PREFERENCE = [
   'openrouter/anthropic/claude-opus-4.6',
   'openrouter/openai/gpt-5.4',
   'openrouter/anthropic/claude-sonnet-4.6',
-  'openrouter/openai/gpt-5.3-codex',
-  'openrouter/openai/gpt-4o',
+  'openrouter/google/gemini-3.1-pro-preview',
+  'openrouter/x-ai/grok-4.1-fast',
+  'openrouter/deepseek/deepseek-v3',
+  'openrouter/moonshotai/kimi-k2.5',
+  'openrouter/minimax/minimax-m2.7',
 ];
 
 function pickOptimizeModel(models: string[]): string {
@@ -44,6 +66,7 @@ function pickOptimizeModel(models: string[]): string {
 
 export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
+  const targetPassRate = answers.targetPassRate ?? 0.8;
   const projectName = name ?? basename(repoPath);
 
   // Paths stored in the JSON are relative to configDir so the config is portable
@@ -64,7 +87,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
     taskGeneration: { enabled: true, maxTasks, outputDir: './.skill-optimizer' },
     models: models.map(resolveModel),
     output: { dir: '../benchmark-results' },
-    verdict: { perModelFloor: 0.6, targetWeightedAverage: 0.7 },
+    verdict: { perModelFloor: Math.max(0.5, targetPassRate - 0.2), targetWeightedAverage: targetPassRate },
   };
 
   const commonOptimize = {
@@ -241,6 +264,7 @@ function printNextSteps(answers: WizardAnswers, configPath: string, commandsSour
   console.log(`  Models:     ${answers.models.length} — ${answers.models.map(m => m.split('/').pop()).join(', ')}`);
   console.log(`  Tasks:      up to ${answers.maxTasks} per run`);
   console.log(`  Iterations: up to ${answers.maxIterations}`);
+  console.log(`  Target:     ${Math.round((answers.targetPassRate ?? 0.8) * 100)}% pass rate`);
   console.log(`  Config:     ${configPath}`);
 
   // Only show a manifest step if user action is actually required
@@ -265,7 +289,7 @@ function printNextSteps(answers: WizardAnswers, configPath: string, commandsSour
     steps.push(`Create ${skillAbsPath}\n     Explain your surface to the model: what it does, key concepts, usage examples`);
   }
 
-  steps.push('Run: skill-optimizer run --config ./skill-optimizer/skill-optimizer.json');
+  steps.push('Run: skill-optimizer optimize --config ./skill-optimizer/skill-optimizer.json');
 
   if (steps.length > 0) {
     console.log('\n  Next steps:');

@@ -1,0 +1,72 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <linearGradient id="glow" x1="820" y1="110" x2="1220" y2="536" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#5F6672"/>
+    <stop offset="0.45" stop-color="#A1B0CF"/>
+    <stop offset="1" stop-color="#2B2C2F"/>
+  </linearGradient>
+  <radialGradient id="halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1020 180) rotate(90) scale(220 260)">
+    <stop stop-color="#A1B0CF" stop-opacity="0.26"/>
+    <stop offset="1" stop-color="#A1B0CF" stop-opacity="0"/>
+  </radialGradient>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="#A1B0CF"/>
+  </marker>
+</defs>
+<rect width="1280" height="640" fill="#2B2C2F"/>
+<rect width="1280" height="640" fill="url(#halo)"/>
+<path d="M822 94C912 62 1066 88 1182 212C1236 270 1268 328 1280 392V640H822V94Z" fill="url(#glow)" opacity="0.28"/>
+<path d="M826 154C952 110 1094 156 1208 282" stroke="#C8CFD8" stroke-opacity="0.14" stroke-width="2"/>
+
+<text x="88" y="96" fill="#C8CFD8" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="600">fastxyz / skill-optimizer</text>
+<text x="88" y="188" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="82" font-weight="700">Skill</text>
+<text x="88" y="270" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="82" font-weight="700">optimizer</text>
+<text x="88" y="336" fill="#C8CFD8" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="500">Benchmark and optimize SDK, CLI, and MCP</text>
+<text x="88" y="374" fill="#C8CFD8" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="500">for reliable multi-model tool calling.</text>
+
+<g>
+  <rect x="88" y="420" width="88" height="40" rx="20" fill="#35383C" stroke="#5F6672"/>
+  <text x="132" y="446" text-anchor="middle" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="18" font-weight="700">SDK</text>
+  <rect x="188" y="420" width="80" height="40" rx="20" fill="#35383C" stroke="#5F6672"/>
+  <text x="228" y="446" text-anchor="middle" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="18" font-weight="700">CLI</text>
+  <rect x="280" y="420" width="92" height="40" rx="20" fill="#35383C" stroke="#5F6672"/>
+  <text x="326" y="446" text-anchor="middle" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="18" font-weight="700">MCP</text>
+  <rect x="384" y="420" width="150" height="40" rx="20" fill="#35383C" stroke="#5F6672"/>
+  <text x="459" y="446" text-anchor="middle" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="18" font-weight="700">multi-model</text>
+</g>
+
+<text x="88" y="520" fill="#F6F8FA" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="700">Measure tool-call accuracy, then refine guidance until it passes.</text>
+<text x="88" y="560" fill="#A1B0CF" font-family="DejaVu Sans, Arial, sans-serif" font-size="21">Static evaluator • coverage-guaranteed tasks • safe mutation loop</text>
+
+<g transform="translate(1118 42) scale(0.78)"><g fill="#F6F8FA"><path d="M84.8983 0.0598478C85.5104 -0.0185278 86.3199 0.00330379 86.9495 0.0014636C97.7663 -0.0305725 105.415 5.6742 105.361 16.9667C103.601 16.9578 101.841 16.9582 100.081 16.9681C100.082 16.4235 100.085 15.8766 100.064 15.3324C99.9621 12.6606 99.0833 9.83714 97.0715 7.98306C94.0395 5.18814 89.3477 4.76297 85.4093 4.93971C82.205 5.0835 78.4414 5.63706 76.1703 8.14089C74.743 9.71543 74.3859 11.7291 74.4854 13.7953C74.5674 15.5125 74.9186 17.2061 76.1093 18.5125C80.5076 23.3381 95.9284 22.4144 102.411 28.338C104.807 30.5274 106.03 33.5009 106.176 36.7166C106.333 40.1877 105.315 43.6594 102.936 46.2492C99.4529 50.0399 94.4559 51.0594 89.5358 51.2706C89.1729 51.2767 88.8092 51.2797 88.4463 51.2797C77.3385 51.271 68.6933 46.4761 68.7179 34.3217L74.0029 34.3231C73.9979 34.967 73.9988 35.6166 74.0489 36.2586C74.2605 38.9365 75.0657 41.4643 77.1654 43.245C80.7894 46.3192 86.7053 46.565 91.2642 46.1907C94.0829 45.9592 97.2613 45.2751 99.1761 43.0077C100.603 41.318 100.986 38.9598 100.802 36.8119C100.642 34.9361 100.056 33.1116 98.6602 31.7892C93.7318 27.1197 79.5945 28.3014 73.0965 22.8101C70.603 20.7032 69.3517 18.0958 69.0847 14.8562C68.8013 11.4172 69.7194 8.13429 71.9735 5.48591C75.2095 1.68315 80.1313 0.447209 84.8983 0.0598478Z"/><path d="M55.9766 0.80249L64.2183 0.808345L64.2171 50.5481L58.7964 50.5471C58.7628 47.4501 58.8372 44.227 58.8453 41.114L58.9274 17.6427L58.9507 9.40532C58.9521 8.76936 58.9952 6.34131 58.9164 5.92743L58.7273 5.8734C58.4573 5.99711 49.3034 20.1531 48.1396 21.9382L35.7724 40.8892C33.754 43.9826 31.563 47.5393 29.4618 50.5451L23.4698 50.5493L43.815 19.3812L51.7684 7.2001C53.0667 5.21327 54.6207 2.68275 55.9766 0.80249Z"/><path d="M0.00012207 0.763916L33.3706 0.764333L33.3691 5.5777L5.35292 5.57594L5.35393 24.5317L30.2247 24.5316L32.2625 24.532L32.2622 29.3728L5.35242 29.3721L5.35359 50.5464L0.00221201 50.5472L0.00012207 0.763916Z"/><path d="M105.207 0.764047L145.802 0.762207L145.801 5.58101C140.005 5.49862 134.024 5.57549 128.214 5.57549L128.215 32.94L128.216 50.5472L122.926 50.5463V5.58034C117.137 5.47787 111.026 5.57499 105.207 5.57825V0.764047Z"/></g></g>
+
+<g>
+  <rect x="830" y="132" width="366" height="382" rx="34" fill="#303337" stroke="#5F6672" stroke-width="1.5"/>
+
+  <rect x="856" y="180" width="112" height="158" rx="22" fill="#F6F8FA" stroke="#C8CFD8" stroke-width="2"/>
+  <text x="912" y="216" text-anchor="middle" fill="#2B2C2F" font-family="DejaVu Sans, Arial, sans-serif" font-size="20" font-weight="700">SKILL.md</text>
+  <rect x="878" y="242" width="68" height="10" rx="5" fill="#C8CFD8"/>
+  <rect x="878" y="266" width="58" height="10" rx="5" fill="#C8CFD8"/>
+  <rect x="878" y="290" width="74" height="10" rx="5" fill="#C8CFD8"/>
+  <rect x="878" y="314" width="52" height="10" rx="5" fill="#A1B0CF"/>
+
+  <path d="M978 258H1002" stroke="#A1B0CF" stroke-width="8" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+  <rect x="1018" y="192" width="144" height="98" rx="24" fill="#35383C" stroke="#A1B0CF" stroke-width="2"/>
+  <text x="1090" y="226" text-anchor="middle" fill="#C8CFD8" font-family="DejaVu Sans, Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.4">BENCHMARK</text>
+  <rect x="1042" y="246" width="96" height="10" rx="5" fill="#5F6672"/>
+  <rect x="1042" y="266" width="72" height="10" rx="5" fill="#A1B0CF"/>
+
+  <path d="M1090 302C1090 332 1070 356 1040 372" stroke="#A1B0CF" stroke-width="8" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+
+  <circle cx="914" cy="424" r="54" fill="#F6F8FA"/>
+  <circle cx="914" cy="424" r="40" fill="none" stroke="#C8CFD8" stroke-width="10"/>
+  <path d="M886 445A40 40 0 1 1 946 395" fill="none" stroke="#A1B0CF" stroke-width="10" stroke-linecap="round"/>
+  <text x="914" y="418" text-anchor="middle" fill="#5F6672" font-family="DejaVu Sans, Arial, sans-serif" font-size="14" font-weight="700">SCORE</text>
+  <text x="914" y="444" text-anchor="middle" fill="#2B2C2F" font-family="DejaVu Sans, Arial, sans-serif" font-size="24" font-weight="700">0.91</text>
+
+  <rect x="1018" y="388" width="144" height="92" rx="22" fill="#F6F8FA"/>
+  <text x="1090" y="420" text-anchor="middle" fill="#5F6672" font-family="DejaVu Sans, Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="1.3">RESULT</text>
+  <text x="1090" y="454" text-anchor="middle" fill="#2B2C2F" font-family="DejaVu Sans, Arial, sans-serif" font-size="32" font-weight="700">PASS</text>
+</g>
+</svg>
