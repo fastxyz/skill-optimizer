@@ -13,6 +13,15 @@ export async function loadProjectConfig(configPath?: string, opts?: { skipDirtyG
     : resolve(process.cwd(), DEFAULT_PROJECT_CONFIG_NAME);
 
   if (!existsSync(resolvedPath)) {
+    // Give a targeted hint when the old config filename is present so users
+    // upgrading from pre-1.x get clear guidance instead of a generic error.
+    const legacyPath = resolve(resolvedPath, '..', 'skill-benchmark.json');
+    if (existsSync(legacyPath)) {
+      throw new Error(
+        `Config file not found at ${resolvedPath}.\n` +
+        `Found 'skill-benchmark.json' — rename it to 'skill-optimizer.json' to continue.`,
+      );
+    }
     throw new Error(
       `Project config not found: ${resolvedPath}\n` +
       `Run 'skill-optimizer init' to create one, or specify --config <path>.`,
