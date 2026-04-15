@@ -357,7 +357,11 @@ await test('resolveApiKey: codex auth reads browser-login access token from ~/.c
     const result = resolveApiKey({ provider: 'openai', authMode: 'codex' });
     assertEqual(result, jwt, 'browser-login access token should be returned');
   } finally {
-    process.env.HOME = originalHome;
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
   }
 });
 
@@ -423,7 +427,11 @@ await test('openai format: codex auth bridges through pi with openai provider re
     assertEqual(capturedModel, 'openai/gpt-5.4', 'openai-format codex auth should bridge to pi using provider/model form');
     assertEqual(result.content, 'hello from codex auth', 'codex-auth bridged response should be returned');
   } finally {
-    process.env.HOME = originalHome;
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
     __setPiImplementationsForTest(null);
   }
 });
@@ -493,7 +501,11 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
     assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
     assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
   } finally {
-    process.env.HOME = originalHome;
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
     __setPiImplementationsForTest(null);
   }
 });
@@ -563,7 +575,11 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
     assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
     assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
   } finally {
-    process.env.HOME = originalHome;
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
     __setPiImplementationsForTest(null);
   }
 });
@@ -634,7 +650,11 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
     assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
     assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
   } finally {
-    process.env.HOME = originalHome;
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
     __setPiImplementationsForTest(null);
   }
 });
