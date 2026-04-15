@@ -14,20 +14,28 @@ export interface DefaultPiCriticOptions {
 export function createDefaultPiCritic(options: DefaultPiCriticOptions): CriticDeps {
   return {
     async complete(input) {
-      const text = await piSimpleComplete(
-        {
-          provider: options.provider,
-          model: options.model,
-          authMode: options.authMode,
-          apiKeyEnv: options.apiKeyEnv,
-          timeoutMs: options.timeoutMs,
-          headers: options.headers,
-          reasoning: 'minimal',
-        },
-        { system: input.system, prompt: input.prompt },
-      );
-
-      return text || '[]';
+      try {
+        return await piSimpleComplete(
+          {
+            provider: options.provider,
+            model: options.model,
+            authMode: options.authMode,
+            apiKeyEnv: options.apiKeyEnv,
+            timeoutMs: options.timeoutMs,
+            headers: options.headers,
+            reasoning: 'minimal',
+          },
+          { system: input.system, prompt: input.prompt },
+        );
+      } catch (err) {
+        // A model that returns no text blocks is treated as "no recommendations"
+        // rather than a hard failure — the verdict flow continues with an empty list.
+        // Real provider errors (stopReason === 'error') are re-thrown.
+        if (err instanceof Error && err.message.startsWith('Model returned no text blocks')) {
+          return '[]';
+        }
+        throw err;
+      }
     },
   };
 }
