@@ -127,16 +127,18 @@ function readCodexApiKey(provider: string): ResolvedApiCredential {
       OPENAI_API_KEY?: unknown;
       tokens?: { OPENAI_API_KEY?: unknown; access_token?: unknown };
     };
-    if (typeof parsed.OPENAI_API_KEY === 'string' && parsed.OPENAI_API_KEY.trim()) {
-      return { apiKey: parsed.OPENAI_API_KEY, source: 'codex' };
-    }
-    if (typeof parsed.tokens?.OPENAI_API_KEY === 'string' && parsed.tokens.OPENAI_API_KEY.trim()) {
-      return { apiKey: parsed.tokens.OPENAI_API_KEY, source: 'codex' };
-    }
+    // Browser-login JWT takes highest priority: it represents an active user session.
+    // A stale static key must not shadow a valid browser-login token.
     if (typeof parsed.tokens?.access_token === 'string' && parsed.tokens.access_token.trim()) {
       return isJwtExpired(parsed.tokens.access_token)
         ? {}
         : { apiKey: parsed.tokens.access_token, source: 'codex' };
+    }
+    if (typeof parsed.tokens?.OPENAI_API_KEY === 'string' && parsed.tokens.OPENAI_API_KEY.trim()) {
+      return { apiKey: parsed.tokens.OPENAI_API_KEY, source: 'codex' };
+    }
+    if (typeof parsed.OPENAI_API_KEY === 'string' && parsed.OPENAI_API_KEY.trim()) {
+      return { apiKey: parsed.OPENAI_API_KEY, source: 'codex' };
     }
     return {};
   } catch {
