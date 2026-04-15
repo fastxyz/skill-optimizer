@@ -428,6 +428,76 @@ await test('openai format: codex auth bridges through pi with openai provider re
   }
 });
 
+await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiKeyEnv) to pi call', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-override-auth-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify({ exp: futureExp })).toString('base64url'),
+    'sig',
+  ].join('.');
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: jwt } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+
+  let capturedAuthMode: string | undefined = 'NOT_SET';
+  let capturedApiKeyEnv: string | undefined = 'NOT_SET';
+  let capturedApiKeyOverride: string | undefined = 'NOT_SET';
+
+  __setPiImplementationsForTest({
+    async resolve(_modelId, authOptions) {
+      capturedAuthMode = authOptions?.authMode;
+      capturedApiKeyEnv = authOptions?.apiKeyEnv;
+      capturedApiKeyOverride = authOptions?.apiKeyOverride;
+      return {
+        model: { id: 'gpt-5.4', provider: 'openai-codex', api: 'openai-codex-responses', name: 'GPT-5.4' } as any,
+        auth: { apiKey: jwt, headers: {} },
+      };
+    },
+    async completeSimple() {
+      return {
+        role: 'assistant',
+        api: 'openai-codex-responses',
+        provider: 'openai-codex',
+        model: 'gpt-5.4',
+        stopReason: 'stop',
+        timestamp: Date.now(),
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [{ type: 'text', text: 'ok' }],
+      } as any;
+    },
+    async complete() {
+      throw new Error('unexpected complete() call');
+    },
+  });
+
+  try {
+    const client = createLLMClient({
+      format: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      authMode: 'codex',
+      models: [],
+    });
+    await client.chat('gpt-5.4', 'sys', 'user');
+
+    assertEqual(capturedApiKeyOverride, jwt, 'codex bridge should pass pre-resolved JWT as apiKeyOverride');
+    assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
+    assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
+  } finally {
+    process.env.HOME = originalHome;
+    __setPiImplementationsForTest(null);
+  }
+});
+
 await test('pi format: agent loop feeds tool results back with original tool call ids', async () => {
   const toolCallIds: string[] = [];
   let callCount = 0;

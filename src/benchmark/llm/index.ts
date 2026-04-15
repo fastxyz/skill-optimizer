@@ -38,17 +38,19 @@ export function createLLMClient(config: LLMConfig): LLMClient {
   const baseUrl = config.baseUrl?.replace(/\/+$/, ''); // strip trailing slash
   const timeout = config.timeout ?? 240_000;
   const extraHeaders = config.headers ?? {};
-  const resolvedOpenAICredential = config.format === 'openai'
-    ? resolveApiCredential({
+
+  function resolveOpenAICredential() {
+    if (config.format !== 'openai') return undefined;
+    return resolveApiCredential({
       provider: 'openai',
       authMode: config.authMode,
       apiKeyEnv: config.apiKeyEnv,
-    })
-    : undefined;
-  const useCodexBridgeForOpenAI = config.format === 'openai' && resolvedOpenAICredential?.source === 'codex';
-  const resolveDirectApiKey = (provider: 'openai' | 'anthropic'): string | undefined =>
-    provider === 'openai' && resolvedOpenAICredential?.apiKey
-      ? resolvedOpenAICredential.apiKey
+    });
+  }
+
+  const resolveDirectApiKey = (provider: 'openai' | 'anthropic', openAICredential?: ReturnType<typeof resolveOpenAICredential>): string | undefined =>
+    provider === 'openai' && openAICredential?.apiKey
+      ? openAICredential.apiKey
       : requireConfiguredApiKey({
         provider,
         authMode: config.authMode,
@@ -64,6 +66,8 @@ export function createLLMClient(config: LLMConfig): LLMClient {
 
   return {
     async chat(modelId, system, user) {
+      const openAICredential = resolveOpenAICredential();
+      const useCodexBridgeForOpenAI = config.format === 'openai' && openAICredential?.source === 'codex';
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatPi({
@@ -82,8 +86,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           modelId: toOpenAIProviderModelRef(modelId),
           system,
           user,
-          authMode: config.authMode,
-          apiKeyEnv: config.apiKeyEnv,
+          apiKeyOverride: openAICredential?.apiKey,
           headers: config.headers,
         });
       }
@@ -100,7 +103,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       }
       return chatOpenAI({
         baseUrl: baseUrl!,
-        apiKey: resolveDirectApiKey('openai'),
+        apiKey: resolveDirectApiKey('openai', openAICredential),
         timeout,
         extraHeaders,
         modelId: resolvedModelId,
@@ -109,6 +112,8 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       });
     },
     async chatWithTools(modelId, system, user, tools) {
+      const openAICredential = resolveOpenAICredential();
+      const useCodexBridgeForOpenAI = config.format === 'openai' && openAICredential?.source === 'codex';
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatWithToolsPi({
@@ -129,8 +134,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           system,
           user,
           tools,
-          authMode: config.authMode,
-          apiKeyEnv: config.apiKeyEnv,
+          apiKeyOverride: openAICredential?.apiKey,
           headers: config.headers,
         });
       }
@@ -148,7 +152,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       }
       return chatWithToolsOpenAI({
         baseUrl: baseUrl!,
-        apiKey: resolveDirectApiKey('openai'),
+        apiKey: resolveDirectApiKey('openai', openAICredential),
         timeout,
         extraHeaders,
         modelId: resolvedModelId,
@@ -158,6 +162,8 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       });
     },
     async chatAgentLoop(modelId, system, user, tools, executor, maxTurns = 5) {
+      const openAICredential = resolveOpenAICredential();
+      const useCodexBridgeForOpenAI = config.format === 'openai' && openAICredential?.source === 'codex';
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatAgentLoopPi({
@@ -182,8 +188,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           tools,
           executor,
           maxTurns,
-          authMode: config.authMode,
-          apiKeyEnv: config.apiKeyEnv,
+          apiKeyOverride: openAICredential?.apiKey,
           headers: config.headers,
         });
       }
@@ -203,7 +208,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       }
       return chatAgentLoopOpenAI({
         baseUrl: baseUrl!,
-        apiKey: resolveDirectApiKey('openai'),
+        apiKey: resolveDirectApiKey('openai', openAICredential),
         timeout,
         extraHeaders,
         modelId: resolvedModelId,
