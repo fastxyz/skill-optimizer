@@ -101,6 +101,7 @@ export async function runOptimizeFromConfig(
           const deps = createDefaultPiTaskGenerator({
             provider: mutation.provider,
             model: mutation.model,
+            authMode: mutation.authMode,
             apiKeyEnv: mutation.apiKeyEnv,
           });
           const generation = await generateTasksForProject({
