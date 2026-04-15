@@ -150,8 +150,8 @@ await test('diffActionCatalog ignores arg reordering and catches schema changes'
   assertEqual(changedDiff.changed.length, 1, 'required-flag changes should count as schema changes');
 });
 
-await test('surface snapshot compatibility mapping preserves legacy shape', () => {
-  const legacy: SurfaceSnapshot = {
+await test('fromSurfaceSnapshot maps SurfaceSnapshot action names to ActionCatalog keys', () => {
+  const snapshot: SurfaceSnapshot = {
     surface: 'cli',
     actions: [
       {
@@ -164,16 +164,16 @@ await test('surface snapshot compatibility mapping preserves legacy shape', () =
     ],
   };
 
-  const catalog = fromSurfaceSnapshot(legacy);
-  assertEqual(catalog.actions[0].key, 'wallet create', 'legacy action name should map to canonical key by default');
+  const catalog = fromSurfaceSnapshot(snapshot);
+  assertEqual(catalog.actions[0].key, 'wallet create', 'action name should map to canonical key');
 
   const roundtrip = toSurfaceSnapshot(catalog);
-  assertEqual(roundtrip.actions[0].name, 'wallet create', 'legacy action name should roundtrip');
-  assert(!('key' in roundtrip.actions[0]), 'legacy surface snapshot actions should not include key field');
+  assertEqual(roundtrip.actions[0].name, 'wallet create', 'action name should roundtrip via toSurfaceSnapshot');
+  assert(!('key' in roundtrip.actions[0]), 'SurfaceSnapshot actions should not include key field');
 });
 
-await test('fromSurfaceSnapshot trims keys so legacy conversions diff stably', () => {
-  const legacy: SurfaceSnapshot = {
+await test('fromSurfaceSnapshot trims whitespace from derived action keys', () => {
+  const snapshot: SurfaceSnapshot = {
     surface: 'mcp',
     actions: [
       {
@@ -186,8 +186,8 @@ await test('fromSurfaceSnapshot trims keys so legacy conversions diff stably', (
     ],
   };
 
-  const converted = fromSurfaceSnapshot(legacy);
-  assertEqual(converted.actions[0].key, 'wallet.send', 'legacy conversion should trim derived canonical keys');
+  const converted = fromSurfaceSnapshot(snapshot);
+  assertEqual(converted.actions[0].key, 'wallet.send', 'action name whitespace should be trimmed to derive canonical key');
 
   const normalized = {
     surface: 'mcp' as const,
@@ -364,7 +364,7 @@ await test('loadActionSnapshotFile includes path on invalid JSON', () => {
   }
 });
 
-await test('buildSurfaceSnapshot returns expected legacy snapshot fields from discovery fixture', async () => {
+await test('buildSurfaceSnapshot returns surface snapshot from code-first discovery fixture', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-bridge-'));
   try {
     const sourcePath = join(root, 'server.ts');
