@@ -553,7 +553,7 @@ async function main(): Promise<void> {
   // Determine output dir — resolve relative to the config file's directory (matching the runner)
   const configFileDir = options.configPath ? dirname(resolve(options.configPath)) : process.cwd();
   const reportConfig = report.config as { name: string; surface: string; outputDir?: string };
-  const outputDir = resolve(configFileDir, reportConfig?.outputDir ?? 'benchmark-results');
+  const outputDir = resolve(configFileDir, reportConfig.outputDir ?? 'benchmark-results');
 
   // Generate recommendations if verdict is FAIL
   let recommendations: Recommendation[] = [];
