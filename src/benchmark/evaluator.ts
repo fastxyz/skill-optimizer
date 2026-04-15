@@ -1,7 +1,7 @@
 import type {
-  ExpectedTool,
+  ExpectedAction,
   ExtractedCall,
-  ToolMatch,
+  ActionMatch,
   TaskDefinition,
   TaskResult,
   ModelConfig,
@@ -169,14 +169,14 @@ function matchExpectedValue(
 
 /**
  * Match extracted calls against expected tools.
- * Returns ToolMatch[] with match details.
+ * Returns ActionMatch[] with match details.
  *
  * Each extracted call can only be matched to ONE expected tool (greedy, first match wins).
  */
 export function matchTools(
-  expectedTools: ExpectedTool[],
+  expectedTools: ExpectedAction[],
   extractedCalls: ExtractedCall[],
-): ToolMatch[] {
+): ActionMatch[] {
   // Track which extracted call indices have already been consumed
   const usedIndices = new Set<number>();
 
@@ -222,7 +222,7 @@ export function matchTools(
           argsCorrect: true,
           matched: true,
           argResults,
-        } satisfies ToolMatch;
+        } satisfies ActionMatch;
       }
 
       // Pass 2: no perfect match — fall back to the first method-name match.
@@ -244,7 +244,7 @@ export function matchTools(
           methodFound: false,
           argsCorrect: false,
           matched: false,
-        } satisfies ToolMatch;
+        } satisfies ActionMatch;
       }
 
       // Consume the fallback index so it can't be re-matched
@@ -264,7 +264,7 @@ export function matchTools(
         argsCorrect: allArgsMatch,
         matched: allArgsMatch,
         argResults,
-      } satisfies ToolMatch;
+      } satisfies ActionMatch;
     }
 
     // No args to check — find the first unused extracted call matching the method name.
@@ -285,7 +285,7 @@ export function matchTools(
         methodFound: false,
         argsCorrect: false,
         matched: false,
-      } satisfies ToolMatch;
+      } satisfies ActionMatch;
     }
 
     // No args to check — method match is sufficient
@@ -296,7 +296,7 @@ export function matchTools(
       methodFound: true,
       argsCorrect: true,
       matched: true,
-    } satisfies ToolMatch;
+    } satisfies ActionMatch;
   });
 }
 
@@ -316,7 +316,7 @@ export function matchTools(
 function resolveCallsFromBindings(
   extractedCalls: ExtractedCall[],
   bindings: Map<string, string>,
-  expectedTools: ExpectedTool[],
+  expectedTools: ExpectedAction[],
 ): ExtractedCall[] {
   // 1. Collect type prefixes from expected tools.
   const expectedPrefixes = new Set<string>();
@@ -531,7 +531,6 @@ export function evaluateTask(params: {
     rawResponse,
     extractedCalls,
     actionMatches: toolMatches,
-    toolMatches,
     codePatternResults: hasCodePatterns ? codePatternResults : undefined,
     metrics: {
       toolPrecision,
@@ -540,9 +539,7 @@ export function evaluateTask(params: {
       toolSelectionAccuracy,
       argAccuracy,
       unnecessaryActions: unnecessaryCalls,
-      unnecessaryCalls,
       hallucinatedActions: hallucinatedCalls,
-      hallucinatedCalls,
       hallucinationRate,
     },
     llmLatencyMs,

@@ -461,17 +461,6 @@ export async function checkConfig(
     });
   }
 
-  // Check: legacy skill-benchmark.json alongside skill-optimizer.json
-  const legacyPath = resolve(dirname(_configPath), 'skill-benchmark.json');
-  if (existsSync(legacyPath)) {
-    issues.push({
-      code: 'legacy-config-name', severity: 'warning', field: '(config file)',
-      message: `Found legacy "skill-benchmark.json" alongside "skill-optimizer.json"`,
-      hint: `Delete skill-benchmark.json — it is no longer used`,
-      fixable: false,
-    });
-  }
-
   return issues;
 }
 

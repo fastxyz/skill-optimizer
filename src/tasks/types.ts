@@ -4,8 +4,7 @@ import type { ResolvedProjectConfig, SurfaceSnapshot } from '../project/types.js
 export interface GeneratedTask {
   id: string;
   prompt: string;
-  expected_actions?: ExpectedAction[];
-  expected_tools?: ExpectedAction[];
+  expected_actions: ExpectedAction[];
 }
 
 export interface TaskGeneratorConfig {

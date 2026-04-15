@@ -47,7 +47,7 @@ export interface SdkSurfaceConfig {
   language: SdkLanguage;
   style?: 'sdk';                   // defaults to 'sdk' if omitted
   // Optional: explicit API surface for coverage/hallucination reporting only.
-  // If omitted, derived automatically from task expected_tools.
+  // If omitted, derived automatically from task expected_actions.
   apiSurface?: string[];
 }
 
@@ -72,10 +72,6 @@ export interface CliCommandDefinition {
 export interface McpSurfaceConfig {
   tools: string;                   // path to tools.json (OpenAI function calling format)
 }
-
-// Public type aliases for backward compatibility.
-export type CodeModeConfig = SdkSurfaceConfig;
-export type McpModeConfig = McpSurfaceConfig;
 
 export interface SkillConfig {
   source: string;                  // "github:org/repo/path", "./file.md", "https://url"
@@ -136,13 +132,9 @@ export interface FetchedSkill {
 // === Task Definition (loaded from tasks.json) ===
 
 export interface ExpectedAction {
-  name?: string;                   // Unified action name (SDK method, CLI command, or MCP tool)
-  method?: string;                 // Transitional alias for older internal code paths
+  name: string;                    // Unified action name (SDK method, CLI command, or MCP tool)
   args?: Record<string, unknown>;  // expected arg values (supports nested objects/arrays, strings, regexes, sentinels)
 }
-
-// Alias for backward compatibility.
-export type ExpectedTool = ExpectedAction;
 
 export interface TaskVerification {
   code_pattern?: string;           // regex pattern to match in generated code
@@ -151,8 +143,7 @@ export interface TaskVerification {
 export interface TaskDefinition {
   id: string;
   prompt: string;
-  expected_actions?: ExpectedAction[];
-  expected_tools?: ExpectedAction[]; // alias for expected_actions (populated by the loader)
+  expected_actions: ExpectedAction[];
   verify?: TaskVerification[];
   expected_fetches?: string[];
 }
@@ -191,17 +182,13 @@ export interface ActionMatch {
   }>;
 }
 
-// Alias for backward compatibility.
-export type ToolMatch = ActionMatch;
-
 export interface TaskResult {
   task: TaskDefinition;
   model: ModelConfig;
   generatedCode: string | null;
   rawResponse: string;
   extractedCalls: ExtractedCall[];
-  actionMatches?: ActionMatch[];
-  toolMatches: ActionMatch[]; // alias for actionMatches
+  actionMatches: ActionMatch[];
   codePatternResults?: Record<string, boolean>;
   metrics: {
     toolPrecision: number;
@@ -209,10 +196,8 @@ export interface TaskResult {
     taskPassed: boolean;
     toolSelectionAccuracy: number;
     argAccuracy: number;
-    unnecessaryActions?: string[];
-    unnecessaryCalls: string[]; // alias for unnecessaryActions
-    hallucinatedActions?: string[];
-    hallucinatedCalls: string[]; // alias for hallucinatedActions
+    unnecessaryActions: string[];
+    hallucinatedActions: string[];
     hallucinationRate: number;
     fetchRecall?: number;
     fetchPrecision?: number;
@@ -306,11 +291,11 @@ export interface BenchmarkReport {
 }
 
 export function getExpectedActionName(action: ExpectedAction): string {
-  return action.name || action.method || '';
+  return action.name;
 }
 
 export function getExpectedActions(task: TaskDefinition): ExpectedAction[] {
-  return task.expected_actions ?? task.expected_tools ?? [];
+  return task.expected_actions;
 }
 
 // === Comparison ===

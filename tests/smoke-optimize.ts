@@ -42,7 +42,7 @@ function makeReport(overallPassRate: number, kinds: Array<'missing' | 'args' | '
     task: {
       id: `task-${overallPassRate}-${kinds.join('-') || 'ok'}`,
       prompt: 'Do the thing',
-      expected_tools: [{ method: 'Client.doThing', args: { id: '123' } }],
+      expected_actions: [{ name: 'Client.doThing', args: { id: '123' } }],
     },
     model: {
       id: 'openai/test',
@@ -52,15 +52,15 @@ function makeReport(overallPassRate: number, kinds: Array<'missing' | 'args' | '
     generatedCode: 'client.doThing({ id: "123" })',
     rawResponse: 'ok',
     extractedCalls: [],
-    toolMatches: [],
+    actionMatches: [],
     metrics: {
       toolPrecision: 1,
       toolRecall: 1,
       taskPassed: true,
       toolSelectionAccuracy: 1,
       argAccuracy: 1,
-      unnecessaryCalls: [],
-      hallucinatedCalls: [],
+      unnecessaryActions: [],
+      hallucinatedActions: [],
       hallucinationRate: 0,
     },
     llmLatencyMs: 10,
@@ -76,9 +76,9 @@ function makeReport(overallPassRate: number, kinds: Array<'missing' | 'args' | '
             ...baseResult.task,
             id: `task-${kind}-${index}`,
           },
-          toolMatches: [
+          actionMatches: [
             {
-              expected: { method: 'Client.doThing', args: { id: '123' } },
+              expected: { name: 'Client.doThing', args: { id: '123' } },
               found: kind === 'missing' ? null : { method: 'Client.doThing', args: { id: kind === 'args' ? '999' : '123' }, line: 1, raw: 'mock' },
               methodFound: kind !== 'missing',
               argsCorrect: kind !== 'args',
@@ -90,7 +90,7 @@ function makeReport(overallPassRate: number, kinds: Array<'missing' | 'args' | '
             taskPassed: false,
             toolSelectionAccuracy: kind === 'missing' ? 0 : 1,
             argAccuracy: kind === 'args' ? 0 : 1,
-            hallucinatedCalls: kind === 'hallucination' ? ['Client.deleteEverything'] : [],
+            hallucinatedActions: kind === 'hallucination' ? ['Client.deleteEverything'] : [],
             hallucinationRate: kind === 'hallucination' ? 1 : 0,
           },
           error: kind === 'error' ? 'provider failed' : undefined,

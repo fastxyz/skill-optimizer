@@ -1,5 +1,4 @@
 import type { ExpectedAction, CoverageReport } from '../benchmark/types.js';
-import { getExpectedActionName } from '../benchmark/types.js';
 
 import type { ActionDefinition } from '../actions/types.js';
 import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
@@ -186,7 +185,6 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     id: taskId,
     prompt: taskPrompt,
     expected_actions,
-    expected_tools: expected_actions,
   };
 }
 
@@ -205,14 +203,10 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] args must be an object when present`);
   }
 
-  const normalized: ExpectedAction = {
+  return {
     name,
-    method: name,
     args: typed.args as Record<string, unknown> | undefined,
   };
-  // Touch helper so transitional action alias stays normalized consistently.
-  getExpectedActionName(normalized);
-  return normalized;
 }
 
 export async function generateCandidateTasksWithCoverage(

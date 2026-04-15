@@ -21,10 +21,8 @@ export type {
   CliCommandDefinition,
   CliCommandOptionDefinition,
   McpSurfaceConfig,
-  CodeModeConfig,
-  McpModeConfig,
   LLMConfig,
-  TaskDefinition, ExpectedTool, ExtractedCall, ToolMatch,
+  TaskDefinition, ExpectedAction, ExtractedCall, ActionMatch,
   TaskResult, BenchmarkReport, ComparisonReport,
   ModelConfig, Tier, LLMResponse, ToolCallResult,
 } from './types.js';

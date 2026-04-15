@@ -50,9 +50,9 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
     throw new Error(`Failed to read tasks: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
 
-  let parsed: { tasks: Array<TaskDefinition & { expected_tools?: unknown; expected_actions?: unknown }> };
+  let parsed: { tasks: Array<{ id?: unknown; prompt?: unknown; expected_actions?: unknown; expected_tools?: unknown; verify?: unknown; expected_fetches?: unknown }> };
   try {
-    parsed = JSON.parse(raw) as { tasks: TaskDefinition[] };
+    parsed = JSON.parse(raw) as typeof parsed;
   } catch (err) {
     throw new Error(`Invalid JSON in tasks file: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
@@ -65,7 +65,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
 }
 
 function normalizeTaskDefinition(
-  task: TaskDefinition & { expected_tools?: unknown; expected_actions?: unknown },
+  task: { id?: unknown; prompt?: unknown; expected_actions?: unknown; expected_tools?: unknown; verify?: unknown; expected_fetches?: unknown },
   resolvedPath: string,
   index: number,
 ): TaskDefinition {
@@ -95,9 +95,8 @@ function normalizeTaskDefinition(
     id: task.id,
     prompt: task.prompt,
     expected_actions,
-    expected_tools: expected_actions,
-    verify: task.verify,
-    expected_fetches: task.expected_fetches,
+    verify: task.verify as TaskDefinition['verify'],
+    expected_fetches: task.expected_fetches as TaskDefinition['expected_fetches'],
   };
 }
 
@@ -128,7 +127,6 @@ function normalizeExpectedAction(
 
   return {
     name,
-    method: name,
     args: (candidate.args as Record<string, unknown> | undefined) ?? {},
   };
 }

@@ -348,17 +348,17 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
             {
               id: 'kept-task',
               prompt: 'Create wallet called beta.',
-              expected_tools: [{ method: 'create_wallet', args: { label: 'beta' } }],
+              expected_actions: [{ name: 'create_wallet', args: { label: 'beta' } }],
             },
             {
               id: 'balance-task',
               prompt: 'Get balance for address 0x1.',
-              expected_tools: [{ method: 'get_balance', args: { address: '0x1' } }],
+              expected_actions: [{ name: 'get_balance', args: { address: '0x1' } }],
             },
             {
               id: 'rejected-task',
               prompt: 'Use unknown method.',
-              expected_tools: [{ method: 'delete_wallet', args: { id: 'x' } }],
+              expected_actions: [{ name: 'delete_wallet', args: { id: 'x' } }],
             },
           ],
         });

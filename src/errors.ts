@@ -139,14 +139,6 @@ export const ERRORS = {
       'Get a key at https://openrouter.ai/keys',
     ],
   },
-  E_LEGACY_CONFIG: {
-    code: 'E_LEGACY_CONFIG',
-    message: 'Found skill-benchmark.json instead of skill-optimizer.json',
-    fix: [
-      'Rename skill-benchmark.json to skill-optimizer.json',
-      'See CHANGELOG.md for any field renames between versions',
-    ],
-  },
   // ── Discovery ─────────────────────────────────────────────────────────────
   E_DISCOVERY_EMPTY: {
     code: 'E_DISCOVERY_EMPTY',

@@ -6,7 +6,6 @@ import { resolveProjectConfig } from './resolve.js';
 import { validateProjectConfig } from './validate.js';
 
 export const DEFAULT_PROJECT_CONFIG_NAME = 'skill-optimizer.json';
-export const LEGACY_PROJECT_CONFIG_NAME = 'skill-benchmark.json';
 
 export async function loadProjectConfig(configPath?: string, opts?: { skipDirtyGitCheck?: boolean }): Promise<ResolvedProjectConfig> {
   const resolvedPath = configPath
@@ -14,15 +13,6 @@ export async function loadProjectConfig(configPath?: string, opts?: { skipDirtyG
     : resolve(process.cwd(), DEFAULT_PROJECT_CONFIG_NAME);
 
   if (!existsSync(resolvedPath)) {
-    if (!configPath) {
-      const legacyCandidate = resolve(process.cwd(), LEGACY_PROJECT_CONFIG_NAME);
-      if (existsSync(legacyCandidate)) {
-        throw new Error(
-          `Found legacy '${LEGACY_PROJECT_CONFIG_NAME}'. ` +
-            `Rename it to '${DEFAULT_PROJECT_CONFIG_NAME}' — see CHANGELOG.md for migration notes.`,
-        );
-      }
-    }
     throw new Error(
       `Project config not found: ${resolvedPath}\n` +
       `Run 'skill-optimizer init' to create one, or specify --config <path>.`,

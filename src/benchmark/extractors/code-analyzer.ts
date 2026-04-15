@@ -580,28 +580,3 @@ export async function extractAllFromCode(code: string): Promise<RawExtraction> {
   return { calls, bindings };
 }
 
-// ── Legacy Public API (deprecated — use extractAllFromCode) ────────────────
-
-/**
- * @deprecated Use extractAllFromCode instead. This function requires config hints.
- */
-export async function extractFromCode(
-  code: string,
-  classes: string[],
-  functions: string[] = [],
-  functionReturns: Record<string, string> = {},
-): Promise<ExtractedCall[]> {
-  const sdkClasses = new Set(classes);
-  const knownFunctions = new Set(functions);
-  const fnReturns = new Map(Object.entries(functionReturns));
-  const p = await initParser();
-  const tree = p.parse(code);
-  const root = tree.rootNode;
-  const literalMap = collectLiteralBindings(root);
-
-  const varMap = collectVariableBindings(root, sdkClasses, knownFunctions, fnReturns);
-  const calls = collectCalls(root, varMap, literalMap, code, sdkClasses, knownFunctions);
-  calls.sort((a, b) => a.line - b.line);
-
-  return calls;
-}

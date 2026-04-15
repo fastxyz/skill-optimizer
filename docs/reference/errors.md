@@ -24,7 +24,6 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 | `E_ALLOWED_PATHS_ESCAPE` | optimize.allowedPaths contains a path outside target.repoPath | All paths in optimize.allowedPaths must be inside target.repoPath |
 | `E_OUTPUT_DIR_NOT_WRITABLE` | benchmark.output.dir is not writable | Check directory permissions for the path set in benchmark.output.dir |
 | `E_MISSING_API_KEY` | API key environment variable is not set | Export your OpenRouter API key before running: export OPENROUTER_API_KEY=sk-or-... |
-| `E_LEGACY_CONFIG` | Found skill-benchmark.json instead of skill-optimizer.json | Rename skill-benchmark.json to skill-optimizer.json |
 | `E_DISCOVERY_EMPTY` | Discovery found zero callable actions | Check that target.discovery.sources points at the right entry file |
 | `E_MAXTASKS_TOO_LOW` | benchmark.taskGeneration.maxTasks is less than the in-scope action count | Raise benchmark.taskGeneration.maxTasks to at least the number of in-scope actions |
 | `E_COVERAGE_EXHAUSTED` | Task generation could not cover all in-scope actions after 2 retry passes | Add guidance for the uncovered actions to your SKILL.md |
@@ -149,14 +148,6 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 - Export your OpenRouter API key before running: export OPENROUTER_API_KEY=sk-or-...
 - Or add it to a .env file alongside your skill-optimizer.json
 - Get a key at https://openrouter.ai/keys
-
-### `E_LEGACY_CONFIG`
-
-**Found skill-benchmark.json instead of skill-optimizer.json**
-
-**How to fix:**
-- Rename skill-benchmark.json to skill-optimizer.json
-- See CHANGELOG.md for any field renames between versions
 
 ### `E_DISCOVERY_EMPTY`
 

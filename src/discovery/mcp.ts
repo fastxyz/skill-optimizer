@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 
 import ts from 'typescript';
 
-import type { DiscoveryOptions, DiscoveredAction, DiscoveredActionArg, McpDiscoverySnapshot } from './types.js';
+import type { ActionArgSchema } from '../actions/types.js';
+import type { DiscoveryOptions, DiscoveredAction, McpDiscoverySnapshot } from './types.js';
 
 type LiteralPrimitive = string | number | boolean | null;
 interface LiteralObject {
@@ -290,7 +291,7 @@ function toDiscoveredAction(toolDefinition: LiteralObject, source: string): Disc
   const properties = parameters && isLiteralObject(parameters.properties) ? parameters.properties : {};
   const requiredNames = parameters ? asRequiredArray(parameters.required) : [];
 
-  const args: DiscoveredActionArg[] = [];
+  const args: ActionArgSchema[] = [];
   for (const [argName, schemaValue] of Object.entries(properties)) {
     if (!isLiteralObject(schemaValue)) {
       continue;

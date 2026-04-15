@@ -372,7 +372,7 @@ function summarizeTopFailures(report: BenchmarkReport, limit = 3): string[] {
     existing.failCount += 1;
     existing.models.add(result.model.name);
 
-    for (const match of result.actionMatches ?? result.toolMatches) {
+    for (const match of result.actionMatches) {
       if (!match.methodFound) {
         existing.missing.add(getExpectedActionName(match.expected));
       } else if (!match.argsCorrect) {
