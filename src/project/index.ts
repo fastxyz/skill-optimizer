@@ -20,7 +20,6 @@ export type {
   ResolvedProjectConfig,
   SurfaceSnapshot,
   SurfaceSnapshotAction,
-  SurfaceSnapshotArg,
   ResolvedProjectOptimizeConfig,
   ResolvedProjectTargetConfig,
   ResolvedProjectTaskGenerationConfig,

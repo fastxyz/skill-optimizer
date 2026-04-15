@@ -6,11 +6,12 @@ import {
 
 import { parseModelRef } from '../../project/types.js';
 import { resolvePiModel } from './models.js';
+import type { PiAuthMode } from './auth.js';
 
 export async function createCodingOrchestratorSession(params: {
   cwd: string;
   modelRef: string;
-  authMode?: import('./auth.js').PiAuthMode;
+  authMode?: PiAuthMode;
   apiKeyEnv?: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 }) {

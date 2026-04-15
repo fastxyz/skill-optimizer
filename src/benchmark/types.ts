@@ -3,6 +3,7 @@ import type {
   ActionAttempt,
   ActionCatalog,
   ActionDefinition,
+  ActionSurface,
 } from '../actions/types.js';
 
 // === Core ===
@@ -23,7 +24,8 @@ export interface TokenUsage {
 
 // === Config (loaded from benchmark.config.json) ===
 
-export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp';
+/** Canonical surface type — same union as ActionSurface in actions/types. */
+export type BenchmarkSurface = ActionSurface;
 export type SdkLanguage = 'typescript' | 'python' | 'rust';
 
 export interface BenchmarkConfig {
@@ -233,8 +235,6 @@ export interface MethodCoverage {
   tasksCovering: string[];
   covered: boolean;
 }
-
-export type SurfaceActionArg = ActionArgSchema;
 
 export type SurfaceAction = Omit<ActionDefinition, 'key'>;
 

@@ -154,8 +154,6 @@ export interface ResolvedProjectConfig {
   optimize?: ResolvedProjectOptimizeConfig;
 }
 
-export type SurfaceSnapshotArg = ActionArgSchema;
-
 export type SurfaceSnapshotAction = Omit<ActionDefinition, 'key'>;
 
 export interface SurfaceSnapshot extends Omit<ActionCatalog, 'actions'> {

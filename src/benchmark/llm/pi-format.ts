@@ -4,10 +4,11 @@ import { complete, completeSimple } from '@mariozechner/pi-ai';
 
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 import { resolvePiModelByRef } from '../../runtime/pi/index.js';
+import type { PiAuthMode } from '../../runtime/pi/auth.js';
 import { createToolNameAliasCodec } from './tool-name-aliases.js';
 
 interface PiCallParams {
-  authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+  authMode?: PiAuthMode;
   apiKeyOverride?: string;
   apiKeyEnv?: string;
   headers?: Record<string, string>;
@@ -33,7 +34,7 @@ type PiImplementationSet = {
   resolve(
     modelId: string,
     authOptions?: {
-      authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+      authMode?: PiAuthMode;
       apiKeyEnv?: string;
       apiKeyOverride?: string;
     },
@@ -177,7 +178,7 @@ function getPiImplementations(): PiImplementationSet {
 async function resolvePiRequest(
   modelId: string,
   authOptions?: {
-    authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+    authMode?: PiAuthMode;
     apiKeyEnv?: string;
     apiKeyOverride?: string;
   },

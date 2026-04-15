@@ -3,6 +3,7 @@ import { getModel } from '@mariozechner/pi-ai';
 import { ModelRegistry } from '@mariozechner/pi-coding-agent';
 
 import { createPiAuthStorage, resolveApiCredential } from './auth.js';
+import type { PiAuthMode } from './auth.js';
 import { parseModelRef } from '../../project/types.js';
 
 export interface ResolvedPiModelRequest {
@@ -17,7 +18,7 @@ export interface ResolvedPiModelRequest {
 
 export async function resolvePiModelByRef(
   modelRef: string,
-  options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
+  options?: { authMode?: PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
   const { provider, model } = parseModelRef(modelRef);
   return resolvePiModel(provider, model, options);
@@ -64,7 +65,7 @@ function synthesizeOpenAICodexModel(provider: string, modelName: string): Model<
 export async function resolvePiModel(
   provider: string,
   modelName: string,
-  options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
+  options?: { authMode?: PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
   // Guard: direct-provider model + OpenRouter key = guaranteed 401.
   // Catches stale scaffolded configs that had apiKeyEnv:"OPENROUTER_API_KEY" and were

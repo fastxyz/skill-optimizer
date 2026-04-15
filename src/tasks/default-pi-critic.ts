@@ -1,10 +1,11 @@
 import type { CriticDeps } from '../verdict/recommendations.js';
 import { piSimpleComplete } from './pi-simple-complete.js';
+import type { PiAuthMode } from '../runtime/pi/auth.js';
 
 export interface DefaultPiCriticOptions {
   provider: string;
   model: string;
-  authMode?: import('../runtime/pi/auth.js').PiAuthMode;
+  authMode?: PiAuthMode;
   apiKeyEnv?: string;
   timeoutMs?: number;
   headers?: Record<string, string>;
