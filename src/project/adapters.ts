@@ -21,6 +21,7 @@ export function toBenchmarkConfig(project: ResolvedProjectConfig): BenchmarkConf
     llm: {
       format: project.benchmark.format,
       baseUrl: project.benchmark.baseUrl,
+      authMode: project.benchmark.authMode,
       apiKeyEnv: project.benchmark.apiKeyEnv,
       timeout: project.benchmark.timeout,
       headers: project.benchmark.headers,
@@ -78,6 +79,7 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
     mutation: {
       provider: mutationModel.provider,
       model: mutationModel.model,
+      authMode: optimize.authMode,
       apiKeyEnv: optimize.apiKeyEnv,
       thinkingLevel: optimize.thinkingLevel,
       reportContextMaxBytes: optimize.reportContextMaxBytes,
@@ -115,6 +117,7 @@ export function toLegacyOptimizeManifest(project: ResolvedProjectConfig): Optimi
     },
     mutation: {
       ...parseModelRef(optimize.model),
+      authMode: optimize.authMode,
       apiKeyEnv: optimize.apiKeyEnv,
       thinkingLevel: optimize.thinkingLevel,
       reportContextMaxBytes: optimize.reportContextMaxBytes,

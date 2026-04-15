@@ -67,7 +67,6 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   const skillAllowedPath = relative(repoPath, skillAbsPath);
 
   const commonBenchmark = {
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
     taskGeneration: { enabled: true, maxTasks, outputDir: '.' },
@@ -78,7 +77,6 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
 
   const commonOptimize = {
     model: 'openrouter/anthropic/claude-sonnet-4-6',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: [skillAllowedPath],
     validation: [],
     maxIterations,

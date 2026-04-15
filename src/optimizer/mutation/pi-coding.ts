@@ -28,6 +28,7 @@ export class PiCodingMutationExecutor {
     const { session } = await createCodingOrchestratorSession({
       cwd: agentCwd,
       modelRef: `${mutation.provider}/${mutation.model}`,
+      authMode: mutation.authMode,
       apiKeyEnv: mutation.apiKeyEnv,
       thinkingLevel: mutation.thinkingLevel ?? 'medium',
     });

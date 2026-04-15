@@ -751,6 +751,22 @@ await test('checkConfig: model ID with dot version → fixable warning', async (
   assert(warn!.hint?.includes('4-6'), `hint should show hyphen version, got: ${warn!.hint}`);
 });
 
+await test('checkConfig: direct openai model IDs do not get OpenRouter dot-version warning', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      taskGeneration: { enabled: true, maxTasks: 5 },
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const warn = issues.find(i => i.code === 'model-id-bad-format');
+  assert(warn === undefined, 'direct openai model IDs should not be warned as OpenRouter dot versions');
+});
+
 await test('checkConfig: deprecated benchmark.tasks field → fixable warning', async () => {
   const { checkConfig } = await import('../src/project/validate.js');
   const config = {
@@ -768,6 +784,71 @@ await test('checkConfig: deprecated benchmark.tasks field → fixable warning', 
   assert(warn !== undefined, 'expected deprecated-tasks-field issue');
   assert(warn!.severity === 'warning', 'should be warning');
   assert(warn!.fixable === true, 'deprecated-tasks-field should be fixable');
+});
+
+await test('checkConfig: codex auth rejects non-openai benchmark models', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      authMode: 'codex' as const,
+      models: [
+        { id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const },
+        { id: 'openrouter/openai/gpt-5.4', name: 'OpenRouter GPT-5.4', tier: 'flagship' as const },
+      ],
+      tasks: './tasks.json',
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'codex-auth-provider-mismatch' && i.field.includes('benchmark.models'));
+  assert(err !== undefined, 'expected codex-auth-provider-mismatch for benchmark.models');
+  assert(err!.severity === 'error', 'benchmark model/provider mismatch should be an error');
+});
+
+await test('checkConfig: codex auth rejects non-openai optimize model', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      tasks: './tasks.json',
+    },
+    optimize: {
+      authMode: 'codex' as const,
+      model: 'openrouter/anthropic/claude-sonnet-4-6',
+      allowedPaths: ['SKILL.md'],
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'codex-auth-provider-mismatch' && i.field === 'optimize.model');
+  assert(err !== undefined, 'expected codex-auth-provider-mismatch for optimize.model');
+  assert(err!.severity === 'error', 'optimize model/provider mismatch should be an error');
+});
+
+await test('checkConfig: inherited codex auth rejects non-openai optimize model', async () => {
+  const { checkConfig } = await import('../src/project/validate.js');
+  const config = {
+    name: 'test',
+    target: { surface: 'sdk' as const, discovery: { sources: ['./src/index.ts'], language: 'typescript' as const } },
+    benchmark: {
+      format: 'pi' as const,
+      authMode: 'codex' as const,
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      tasks: './tasks.json',
+    },
+    optimize: {
+      model: 'openrouter/anthropic/claude-sonnet-4-6',
+      allowedPaths: ['SKILL.md'],
+    },
+  };
+  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
+  const err = issues.find(i => i.code === 'codex-auth-provider-mismatch' && i.field === 'optimize.model');
+  assert(err !== undefined, 'expected inherited codex-auth-provider-mismatch for optimize.model');
+  assert(err!.severity === 'error', 'inherited optimize model/provider mismatch should be an error');
 });
 
 await test('applyFixes: adds openrouter/ prefix to model IDs', async () => {
@@ -915,6 +996,58 @@ await test('doctor --fix: corrects model ID in-place', async () => {
     assertEqual(fixed.benchmark.models[0]!.id, 'openrouter/z-ai/glm-5-1', '--fix should write corrected model ID');
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('checkModelReachability: mixed list skips non-openrouter and probes only openrouter models', async () => {
+  const { checkModelReachability } = await import('../src/doctor/checks.js');
+
+  const project = {
+    configPath: '/fake/skill-optimizer.json',
+    configDir: '/fake',
+    name: 'test-mixed',
+    target: {
+      surface: 'mcp',
+      repoPath: '/fake',
+      scope: { include: ['.*'], exclude: [] },
+    },
+    benchmark: {
+      format: 'pi',
+      authMode: 'env',
+      timeout: 30000,
+      models: [
+        { id: 'anthropic/claude-sonnet-4-6', name: 'Claude', tier: 'flagship' as const },
+        { id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' as const },
+      ],
+      taskGeneration: { enabled: false, maxTasks: 10, useExisting: false },
+      output: { dir: '/fake/.results' },
+      verdict: { perModelFloor: 0.5, targetWeightedAverage: 0.6 },
+    },
+  } as unknown as ResolvedProjectConfig;
+
+  // Without OPENROUTER_API_KEY set the key resolution throws, so the function
+  // returns early after emitting reachability-skipped. We verify:
+  //   1. A reachability-skipped issue appears (for the 1 non-openrouter model)
+  //   2. No reachability-skipped with field 'benchmark.format' (wrong early-exit path)
+  //   3. No model-unreachable for the anthropic model
+  const savedKey = process.env['OPENROUTER_API_KEY'];
+  delete process.env['OPENROUTER_API_KEY'];
+  try {
+    const issues = await checkModelReachability(project);
+    const skipped = issues.filter((i) => i.code === 'reachability-skipped');
+    assert(skipped.length >= 1, 'should have at least one reachability-skipped issue');
+    const modelSkipped = skipped.find((i) => i.field === 'benchmark.models');
+    assert(modelSkipped !== undefined, 'reachability-skipped issue should reference benchmark.models field');
+    assert(
+      modelSkipped!.message.includes('1 non-OpenRouter'),
+      `message should count 1 skipped, got: ${modelSkipped!.message}`,
+    );
+    const anthropicUnreachable = issues.find(
+      (i) => i.code === 'model-unreachable' && i.message.includes('anthropic/'),
+    );
+    assert(anthropicUnreachable === undefined, 'anthropic model must not produce a model-unreachable issue');
+  } finally {
+    if (savedKey !== undefined) process.env['OPENROUTER_API_KEY'] = savedKey;
   }
 });
 

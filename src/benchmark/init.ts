@@ -110,7 +110,6 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
 
 function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
   const commonBenchmark = {
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
     taskGeneration: {
@@ -134,7 +133,6 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
 
   const commonOptimize = {
     model: 'openrouter/anthropic/claude-sonnet-4-6',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: ['./SKILL.md'],
     validation: [],
     maxIterations: 5,

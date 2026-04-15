@@ -88,18 +88,21 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 
 ## Model ID Convention
 
-Model IDs in configs and presets follow a strict format:
+Model IDs use a provider-prefixed format. The prefix determines how the request is routed:
 
 ```
-openrouter/<provider>/<model-slug>
+openrouter/<provider>/<model-slug>   — routed through OpenRouter (format: "pi")
+anthropic/<model-slug>               — direct Anthropic API    (format: "anthropic")
+openai/<model-slug>                  — direct OpenAI API       (format: "openai")
 ```
 
-**Version segments use hyphens, not dots.** Examples:
+**Version segments use hyphens, not dots**, regardless of provider. Examples:
 - `openrouter/anthropic/claude-sonnet-4-6` ✓ (not `claude-sonnet-4.6`)
 - `openrouter/google/gemini-2-5-flash` ✓ (not `gemini-2.5-flash`)
 - `openrouter/deepseek/deepseek-v3-2` ✓ (not `deepseek-v3.2`)
+- `openai/gpt-5-4` ✓ (not `openai/gpt-5.4`)
 
-`src/project/validate.ts` warns on dot-notation version segments (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, always use hyphens in the model ID path.
+`src/project/validate.ts` warns on dot-notation version segments for `openrouter/` model IDs (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, always use hyphens in the model ID path.
 
 Display names (`name:` / `label:` fields) are human-readable and should keep dots (e.g. `'Claude Sonnet 4.6'`, `'Gemini 2.5 Flash'`).
 

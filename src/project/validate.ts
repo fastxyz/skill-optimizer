@@ -4,7 +4,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import type { ProjectConfig } from './types.js';
-import { isSdkLanguage } from './types.js';
+import { isSdkLanguage, parseModelRef } from './types.js';
+import { resolveApiKey } from '../runtime/pi/auth.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -134,9 +135,27 @@ export async function checkConfig(
       }
     }
 
-    for (const model of benchmark.models) {
+    for (const [i, model] of benchmark.models.entries()) {
       if (model.weight !== undefined && (!Number.isFinite(model.weight) || model.weight < 0)) {
-        err('invalid-model-weight', `benchmark.models[${model.id}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
+        err('invalid-model-weight', `benchmark.models[${i}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
+      }
+    }
+
+    if (benchmark.authMode === 'codex') {
+      for (const [i, model] of benchmark.models.entries()) {
+        try {
+          const { provider } = parseModelRef(model.id);
+          if (provider !== 'openai') {
+            err(
+              'codex-auth-provider-mismatch',
+              `benchmark.models[${i}].id`,
+              `benchmark.authMode="codex" only supports openai/* models, but found "${model.id}"`,
+              'Use openai/* model IDs with codex auth, or switch benchmark.authMode to "env" / "auto"',
+            );
+          }
+        } catch {
+          // model-id format issues are reported separately
+        }
       }
     }
   }
@@ -203,6 +222,27 @@ export async function checkConfig(
 
     if (optimize.requireCleanGit === false) {
       err('require-clean-git-disabled', 'optimize.requireCleanGit', '"optimize.requireCleanGit" must remain true in v1');
+    }
+
+    const effectiveOptimizeAuthMode = optimize.authMode ?? benchmark.authMode;
+    if (effectiveOptimizeAuthMode === 'codex') {
+      const optimizeModelRef = optimize.model
+        ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
+      if (typeof optimizeModelRef === 'string') {
+        try {
+          const { provider } = parseModelRef(optimizeModelRef);
+          if (provider !== 'openai') {
+            err(
+              'codex-auth-provider-mismatch',
+              'optimize.model',
+              `optimize.authMode="codex" only supports openai/* models, but found "${optimizeModelRef}"`,
+              'Use an openai/* optimize.model with codex auth, or switch optimize.authMode to "env" / "auto"',
+            );
+          }
+        } catch {
+          // model-id format issues are reported separately
+        }
+      }
     }
   }
 
@@ -295,11 +335,14 @@ export async function checkConfig(
         });
       }
 
-      if (/\d+\.\d+/.test(model.id)) {
+      // OpenAI's own API uses dots in some model slugs (e.g. gpt-4.5), so skip the
+      // dot check for openai/ IDs. All other providers (openrouter/, anthropic/, etc.)
+      // expect hyphens in version segments.
+      if (!model.id.startsWith('openai/') && /\d+\.\d+/.test(model.id)) {
         const corrected = model.id.replace(/(\d+)\.(\d+)/g, '$1-$2');
         issues.push({
           code: 'model-id-bad-format', severity: 'warning', field: `benchmark.models[${i}].id`,
-          message: `model ID "${model.id}" uses dots in version segment — OpenRouter expects hyphens`,
+          message: `model ID "${model.id}" uses dots in version segment — use hyphens instead`,
           hint: `Change to: ${corrected}`,
           fixable: true,
         });
@@ -323,15 +366,60 @@ export async function checkConfig(
     }
   }
 
-  // Check: API key env var
-  const apiKeyEnv = benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY';
-  if (!process.env[apiKeyEnv]) {
+  // Check: API key env var / Codex auth
+  const authMode = benchmark.authMode ?? 'env';
+  // Helper: push a missing-credential warning for a given provider
+  function warnMissingApiKey(provider: string, effectiveAuthMode: typeof authMode, apiKeyEnv: string | undefined, fieldPrefix: 'benchmark' | 'optimize'): void {
+    const defaultEnvName = apiKeyEnv
+      ?? (provider === 'openai' ? 'OPENAI_API_KEY'
+        : provider === 'anthropic' ? 'ANTHROPIC_API_KEY'
+        : 'OPENROUTER_API_KEY');
+    const hint = effectiveAuthMode === 'codex'
+      ? `Sign in with Codex so ~/.codex/auth.json contains a browser-login access token or OPENAI_API_KEY, or switch ${fieldPrefix}.authMode to "env"`
+      : effectiveAuthMode === 'auto' && provider === 'openai'
+        ? `Run: export ${defaultEnvName}=... or sign in with Codex`
+        : `Run: export ${defaultEnvName}=...`;
     issues.push({
-      code: 'api-key-not-set', severity: 'warning', field: 'benchmark.apiKeyEnv',
-      message: `env var "${apiKeyEnv}" is not set`,
-      hint: `Run: export ${apiKeyEnv}=sk-or-...`,
+      code: 'api-key-not-set', severity: 'warning',
+      field: effectiveAuthMode === 'codex' ? `${fieldPrefix}.authMode` : `${fieldPrefix}.apiKeyEnv`,
+      message: effectiveAuthMode === 'codex'
+        ? 'Codex auth is enabled but no usable browser-login access token or OPENAI_API_KEY was found in ~/.codex/auth.json'
+        : `No API key was found for authMode "${effectiveAuthMode}"`,
+      hint,
       fixable: false,
     });
+  }
+
+  if (benchmark.format === 'openai' || benchmark.format === 'anthropic') {
+    // Single direct-API provider — one credential to check
+    const benchmarkProvider = benchmark.format === 'openai' ? 'openai' : 'anthropic';
+    const apiKey = resolveApiKey({ provider: benchmarkProvider, authMode, apiKeyEnv: benchmark.apiKeyEnv });
+    if (!apiKey) warnMissingApiKey(benchmarkProvider, authMode, benchmark.apiKeyEnv, 'benchmark');
+  } else {
+    // Pi format: each model may route through a different provider — check all unique ones
+    const modelList = Array.isArray(benchmark.models) ? benchmark.models : [];
+    const providers = Array.from(new Set(
+      modelList.length > 0
+        ? modelList.map(m => String(m.id ?? '').split('/')[0] || 'openrouter')
+        : ['openrouter'],
+    ));
+    for (const provider of providers) {
+      const apiKey = resolveApiKey({ provider, authMode, apiKeyEnv: benchmark.apiKeyEnv });
+      if (!apiKey) warnMissingApiKey(provider, authMode, benchmark.apiKeyEnv, 'benchmark');
+    }
+  }
+
+  // Check: optimize API key env var / Codex auth (skip when optimization is disabled)
+  if (optimize !== undefined && optimize.enabled !== false) {
+    const optimizeAuthMode = optimize.authMode ?? benchmark.authMode ?? 'env';
+    const optimizeModelRef = optimize.model
+      ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
+    const optimizeProvider = typeof optimizeModelRef === 'string'
+      ? (optimizeModelRef.split('/')[0] || 'openrouter')
+      : 'openrouter';
+    const optimizeApiKeyEnv = optimize.apiKeyEnv ?? benchmark.apiKeyEnv;
+    const optimizeApiKey = resolveApiKey({ provider: optimizeProvider, authMode: optimizeAuthMode, apiKeyEnv: optimizeApiKeyEnv });
+    if (!optimizeApiKey) warnMissingApiKey(optimizeProvider, optimizeAuthMode, optimizeApiKeyEnv, 'optimize');
   }
 
   // Check: dirty git (injection-safe: fixed arg array, no shell)

@@ -301,6 +301,7 @@ function toDiscoveredAction(toolDefinition: LiteralObject, source: string): Disc
       required: requiredNames.includes(argName),
       type: typeof schemaValue.type === 'string' ? schemaValue.type : undefined,
       description: typeof schemaValue.description === 'string' ? schemaValue.description : undefined,
+      schema: schemaValue,
     });
   }
 
