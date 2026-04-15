@@ -49,11 +49,6 @@ export interface SdkSurfaceConfig {
   // Optional: explicit API surface for coverage/hallucination reporting only.
   // If omitted, derived automatically from task expected_tools.
   apiSurface?: string[];
-  // Deprecated fields — kept for backward compat, no longer required
-  classes?: string[];
-  functions?: string[];
-  functionReturns?: Record<string, string>;
-  methods?: string[];
 }
 
 export interface CliSurfaceConfig {
@@ -78,7 +73,7 @@ export interface McpSurfaceConfig {
   tools: string;                   // path to tools.json (OpenAI function calling format)
 }
 
-// Backward-compatible aliases retained for internal usage.
+// Backward-compatible public type aliases.
 export type CodeModeConfig = SdkSurfaceConfig;
 export type McpModeConfig = McpSurfaceConfig;
 

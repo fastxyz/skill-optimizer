@@ -136,7 +136,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         fromTasks.add(getExpectedActionName(action));
       }
     }
-    const apiSurface = config.sdk?.apiSurface ?? config.sdk?.methods ?? [];
+    const apiSurface = config.sdk?.apiSurface ?? [];
     knownMethods = new Set([...fromTasks, ...apiSurface]);
   } else if (config.surface === 'cli') {
     cliCommands = loadCliCommands(config.cli!.commands, configDir);
