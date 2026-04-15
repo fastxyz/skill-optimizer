@@ -20,7 +20,6 @@ export function truncateToolResult(result: string): string {
   return result.slice(0, MAX_TOOL_RESULT_CHARS) + TRUNCATED_SUFFIX;
 }
 
-/** Return true if the error is a fetch AbortError (timeout). */
 export function isAbortError(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && 'name' in err && (err as { name: unknown }).name === 'AbortError');
 }
@@ -40,17 +39,14 @@ export function isRetryableError(err: unknown): boolean {
   return true;
 }
 
-/** Sleep for `ms` milliseconds. */
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Return `arr` if non-empty, otherwise `undefined`. Useful for toolCalls. */
 export function undefinedIfEmpty<T>(arr: T[]): T[] | undefined {
   return arr.length > 0 ? arr : undefined;
 }
 
-/** Collapse accumulated usage into `undefined` when totals are all zero. */
 export function normalizeUsage(
   usage: { prompt: number; completion: number; total: number },
 ): LLMResponse['usage'] {

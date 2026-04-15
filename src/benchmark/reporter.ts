@@ -11,17 +11,14 @@ function fixed2(n: number): string {
   return n.toFixed(2);
 }
 
-/** Pad a string to a fixed width (left-aligned). */
 function padR(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length);
 }
 
-/** Pad a string to a fixed width (right-aligned). */
 function padL(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s;
 }
 
-/** Center a string in a fixed width. */
 function center(s: string, w: number): string {
   if (s.length >= w) return s.slice(0, w);
   const total = w - s.length;
@@ -32,9 +29,6 @@ function center(s: string, w: number): string {
 
 // ── Markdown generation ───────────────────────────────────────────────────────
 
-/**
- * Generate a Markdown report string.
- */
 export function generateMarkdown(report: BenchmarkReport): string {
   const lines: string[] = [];
   const { summary, skillVersion, coverage, results } = report;

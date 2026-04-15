@@ -32,7 +32,6 @@ interface AnthropicTool {
   };
 }
 
-/** Transform OpenAI-format McpToolDefinition to Anthropic tool format. */
 function toAnthropicTool(tool: McpToolDefinition): AnthropicTool {
   return {
     name: tool.function.name,

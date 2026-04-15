@@ -23,10 +23,6 @@ interface CallWithToolsParams extends CallParams {
   tools: McpToolDefinition[];
 }
 
-/**
- * Regular chat completion (code mode).
- * POST {baseUrl}/chat/completions
- */
 export async function chatOpenAI(params: CallParams): Promise<LLMResponse> {
   const body = {
     model: params.modelId,
@@ -39,10 +35,6 @@ export async function chatOpenAI(params: CallParams): Promise<LLMResponse> {
   return callWithRetry(params, body);
 }
 
-/**
- * Chat with tools (MCP mode).
- * POST {baseUrl}/chat/completions with tools array
- */
 export async function chatWithToolsOpenAI(params: CallWithToolsParams): Promise<LLMResponse> {
   const toolCodec = createToolNameAliasCodec(params.tools);
   const body = {

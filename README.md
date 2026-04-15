@@ -110,7 +110,7 @@ npx skill-optimizer init --answers answers.json
 | `target.repoPath` | Root of the project being benchmarked | Absolute or relative path to your repo |
 | `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["../src/index.ts"]` or `["../src/server.ts"]` |
 | `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
-| `benchmark.models` | Models to benchmark | Valid [OpenRouter](https://openrouter.ai/models) model IDs |
+| `benchmark.models` | Models to benchmark | Model IDs with provider prefix: `openrouter/<provider>/<model>` (via OpenRouter), `anthropic/<model>` (direct Anthropic), `openai/<model>` (direct OpenAI) |
 | `benchmark.authMode` | How model auth is resolved | `env` (default), `codex`, or `auto` |
 
 ## How it works
