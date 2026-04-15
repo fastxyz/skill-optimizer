@@ -135,20 +135,20 @@ export async function checkConfig(
       }
     }
 
-    for (const model of benchmark.models) {
+    for (const [i, model] of benchmark.models.entries()) {
       if (model.weight !== undefined && (!Number.isFinite(model.weight) || model.weight < 0)) {
-        err('invalid-model-weight', `benchmark.models[${model.id}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
+        err('invalid-model-weight', `benchmark.models[${i}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
       }
     }
 
     if (benchmark.authMode === 'codex') {
-      for (const model of benchmark.models) {
+      for (const [i, model] of benchmark.models.entries()) {
         try {
           const { provider } = parseModelRef(model.id);
           if (provider !== 'openai') {
             err(
               'codex-auth-provider-mismatch',
-              `benchmark.models[${model.id}].id`,
+              `benchmark.models[${i}].id`,
               `benchmark.authMode="codex" only supports openai/* models, but found "${model.id}"`,
               'Use openai/* model IDs with codex auth, or switch benchmark.authMode to "env" / "auto"',
             );
