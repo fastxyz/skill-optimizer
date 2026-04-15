@@ -129,10 +129,12 @@ function readCodexApiKey(provider: string): ResolvedApiCredential {
     };
     // Browser-login JWT takes highest priority: it represents an active user session.
     // A stale static key must not shadow a valid browser-login token.
+    // However, an expired JWT must not shadow a valid static key — fall through on expiry.
     if (typeof parsed.tokens?.access_token === 'string' && parsed.tokens.access_token.trim()) {
-      return isJwtExpired(parsed.tokens.access_token)
-        ? {}
-        : { apiKey: parsed.tokens.access_token, source: 'codex' };
+      if (!isJwtExpired(parsed.tokens.access_token)) {
+        return { apiKey: parsed.tokens.access_token, source: 'codex' };
+      }
+      // JWT is expired — fall through to static key fallbacks below
     }
     if (typeof parsed.tokens?.OPENAI_API_KEY === 'string' && parsed.tokens.OPENAI_API_KEY.trim()) {
       return { apiKey: parsed.tokens.OPENAI_API_KEY, source: 'codex' };

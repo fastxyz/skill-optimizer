@@ -485,22 +485,27 @@ async function main(): Promise<void> {
           `Edit "target.repoPath" in ${project.configPath}.`,
       );
     }
-    const benchmarkProvider = project.benchmark.format === 'openai'
-      ? 'openai'
+    // Preflight: check credentials for every unique provider in the benchmark config.
+    // For direct-API formats there is one provider; for pi format each model may need
+    // a different key (e.g. openrouter + openai in the same run).
+    const benchmarkProviders = project.benchmark.format === 'openai'
+      ? ['openai']
       : project.benchmark.format === 'anthropic'
-        ? 'anthropic'
-        : parseModelRef(project.benchmark.models[0]!.id).provider;
-    try {
-      requireConfiguredApiKey({
-        provider: benchmarkProvider,
-        authMode: project.benchmark.authMode,
-        apiKeyEnv: project.benchmark.apiKeyEnv,
-      });
-    } catch (error) {
-      throw new Error(
-        `${error instanceof Error ? error.message : String(error)} ` +
-          `Configure auth in ${project.configPath} before running the benchmark.`,
-      );
+        ? ['anthropic']
+        : [...new Set(project.benchmark.models.map(m => parseModelRef(m.id).provider))];
+    for (const benchmarkProvider of benchmarkProviders) {
+      try {
+        requireConfiguredApiKey({
+          provider: benchmarkProvider,
+          authMode: project.benchmark.authMode,
+          apiKeyEnv: project.benchmark.apiKeyEnv,
+        });
+      } catch (error) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} ` +
+            `Configure auth in ${project.configPath} before running the benchmark.`,
+        );
+      }
     }
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;

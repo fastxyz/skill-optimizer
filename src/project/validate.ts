@@ -409,8 +409,8 @@ export async function checkConfig(
     }
   }
 
-  // Check: optimize API key env var / Codex auth
-  if (optimize !== undefined) {
+  // Check: optimize API key env var / Codex auth (skip when optimization is disabled)
+  if (optimize !== undefined && optimize.enabled !== false) {
     const optimizeAuthMode = optimize.authMode ?? benchmark.authMode ?? 'env';
     const optimizeModelRef = optimize.model
       ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
