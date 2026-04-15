@@ -999,6 +999,58 @@ await test('doctor --fix: corrects model ID in-place', async () => {
   }
 });
 
+await test('checkModelReachability: mixed list skips non-openrouter and probes only openrouter models', async () => {
+  const { checkModelReachability } = await import('../src/doctor/checks.js');
+
+  const project = {
+    configPath: '/fake/skill-optimizer.json',
+    configDir: '/fake',
+    name: 'test-mixed',
+    target: {
+      surface: 'mcp',
+      repoPath: '/fake',
+      scope: { include: ['.*'], exclude: [] },
+    },
+    benchmark: {
+      format: 'pi',
+      authMode: 'env',
+      timeout: 30000,
+      models: [
+        { id: 'anthropic/claude-sonnet-4-6', name: 'Claude', tier: 'flagship' as const },
+        { id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' as const },
+      ],
+      taskGeneration: { enabled: false, maxTasks: 10, useExisting: false },
+      output: { dir: '/fake/.results' },
+      verdict: { perModelFloor: 0.5, targetWeightedAverage: 0.6 },
+    },
+  } as unknown as ResolvedProjectConfig;
+
+  // Without OPENROUTER_API_KEY set the key resolution throws, so the function
+  // returns early after emitting reachability-skipped. We verify:
+  //   1. A reachability-skipped issue appears (for the 1 non-openrouter model)
+  //   2. No reachability-skipped with field 'benchmark.format' (wrong early-exit path)
+  //   3. No model-unreachable for the anthropic model
+  const savedKey = process.env['OPENROUTER_API_KEY'];
+  delete process.env['OPENROUTER_API_KEY'];
+  try {
+    const issues = await checkModelReachability(project);
+    const skipped = issues.filter((i) => i.code === 'reachability-skipped');
+    assert(skipped.length >= 1, 'should have at least one reachability-skipped issue');
+    const modelSkipped = skipped.find((i) => i.field === 'benchmark.models');
+    assert(modelSkipped !== undefined, 'reachability-skipped issue should reference benchmark.models field');
+    assert(
+      modelSkipped!.message.includes('1 non-OpenRouter'),
+      `message should count 1 skipped, got: ${modelSkipped!.message}`,
+    );
+    const anthropicUnreachable = issues.find(
+      (i) => i.code === 'model-unreachable' && i.message.includes('anthropic/'),
+    );
+    assert(anthropicUnreachable === undefined, 'anthropic model must not produce a model-unreachable issue');
+  } finally {
+    if (savedKey !== undefined) process.env['OPENROUTER_API_KEY'] = savedKey;
+  }
+});
+
 // ── Summary ────────────────────────────────────────────────────────────────
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

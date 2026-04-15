@@ -75,22 +75,27 @@ export async function checkModelReachability(project: ResolvedProjectConfig): Pr
     return issues;
   }
 
-  const provider = project.benchmark.models.length > 0
-    ? project.benchmark.models[0]!.id.split('/')[0]!
-    : 'openrouter';
-  if (provider !== 'openrouter') {
+  const openrouterEntries = project.benchmark.models
+    .map((model, i) => ({ model, i }))
+    .filter(({ model }) => model.id.startsWith('openrouter/'));
+  const skippedCount = project.benchmark.models.length - openrouterEntries.length;
+
+  if (skippedCount > 0) {
     issues.push({
       code: 'reachability-skipped', severity: 'info', field: 'benchmark.models',
-      message: 'Skipping reachability check (--check-models currently probes OpenRouter models only)',
+      message: `Skipping reachability for ${skippedCount} non-OpenRouter model(s) (only OpenRouter models can be probed)`,
       fixable: false,
     });
+  }
+
+  if (openrouterEntries.length === 0) {
     return issues;
   }
 
   let apiKey: string;
   try {
     apiKey = requireConfiguredApiKey({
-      provider,
+      provider: 'openrouter',
       authMode: project.benchmark.authMode,
       apiKeyEnv: project.benchmark.apiKeyEnv,
     });
@@ -98,8 +103,7 @@ export async function checkModelReachability(project: ResolvedProjectConfig): Pr
     return issues; // already reported by checkConfig
   }
 
-  for (let i = 0; i < project.benchmark.models.length; i++) {
-    const model = project.benchmark.models[i]!;
+  for (const { model, i } of openrouterEntries) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
