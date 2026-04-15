@@ -195,7 +195,7 @@ Examples:
   skill-optimizer run --no-cache
   skill-optimizer generate-tasks --config ./skill-optimizer.json
   skill-optimizer optimize --config ./skill-optimizer.json
-  skill-optimizer compare --baseline results/old/report.json --current results/report.json
+  skill-optimizer compare --baseline results/baseline/report.json --current results/report.json
 `);
 }
 
@@ -343,12 +343,12 @@ async function main(): Promise<void> {
 
     if (!baselinePath) {
       console.error('ERROR: --baseline <path> is required for compare mode.');
-      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/baseline/report.json --current results/report.json');
       process.exit(1);
     }
     if (!currentPath) {
       console.error('ERROR: --current <path> is required for compare mode.');
-      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/baseline/report.json --current results/report.json');
       process.exit(1);
     }
 

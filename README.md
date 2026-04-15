@@ -192,8 +192,6 @@ export OPENROUTER_API_KEY=sk-or-...
 
 **Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
 
-**Legacy `skill-benchmark.json`**: Rename it to `skill-optimizer.json`. The loader will tell you if it finds the old name.
-
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md).

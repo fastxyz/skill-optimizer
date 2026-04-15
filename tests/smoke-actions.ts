@@ -418,7 +418,7 @@ await test('buildSurfaceSnapshot returns surface snapshot from code-first discov
     assertEqual(actual.actions[0].args.length, 1, 'snapshot should include tool args');
     assertEqual(actual.actions[0].args[0].name, 'label', 'arg name should match discovered schema');
     assertEqual(actual.actions[0].args[0].required, true, 'required arg flag should be preserved');
-    assert(!('key' in actual.actions[0]), 'legacy snapshot action should not expose canonical key field');
+    assert(!('key' in actual.actions[0]), 'SurfaceSnapshot action should not expose the key field');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -480,14 +480,14 @@ await test('loadSurfaceSnapshotFile supports versioned action snapshot artifact'
     assertEqual(loaded.surface, 'cli', 'versioned file should map to cli snapshot');
     assertEqual(loaded.actions[0].name, 'wallet create', 'action name should map from action catalog');
     assertEqual(loaded.actions[0].args[0].name, 'label', 'converted cli arg names should be normalized');
-    assert(!('key' in loaded.actions[0]), 'converted legacy snapshot should not expose key field');
+    assert(!('key' in loaded.actions[0]), 'converted SurfaceSnapshot action should not expose key field');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-await test('loadSurfaceSnapshotFile throws a clear error for old plain snapshot format', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-old-format-'));
+await test('loadSurfaceSnapshotFile throws a clear error for unsupported plain snapshot format', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-unsupported-format-'));
   try {
     const snapshotPath = join(root, 'surface.snapshot.json');
     writeFileSync(snapshotPath, JSON.stringify({
@@ -505,11 +505,11 @@ await test('loadSurfaceSnapshotFile throws a clear error for old plain snapshot 
       loadSurfaceSnapshotFile(snapshotPath);
     } catch (error: any) {
       threw = true;
-      assert(error.message.includes('old format'), 'error should mention old format');
+      assert(error.message.includes('not supported'), 'error should describe the format as unsupported');
       assert(error.message.includes('.skill-optimizer/'), 'error should direct user to delete .skill-optimizer/');
     }
 
-    assert(threw, 'old plain snapshot format should throw');
+    assert(threw, 'unsupported plain snapshot format should throw');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
