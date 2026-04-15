@@ -103,6 +103,20 @@ const sampleTools: McpToolDefinition[] = [
   },
 ];
 
+const dottedSampleTools: McpToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'auth.status',
+      description: 'Check session auth state',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Save original fetch so we can restore it after all tests
 // ---------------------------------------------------------------------------
@@ -235,6 +249,85 @@ await test('pi format: converts tool calls for MCP chat', async () => {
 
   assertEqual(result.toolCalls?.[0]?.name, 'get_weather', 'pi tool call name should be surfaced');
   assertEqual((result.toolCalls?.[0]?.arguments as any).city, 'NYC', 'pi tool call args should be surfaced');
+
+  __setPiImplementationsForTest(null);
+});
+
+await test('pi format: sanitizes dotted MCP tool names and maps them back', async () => {
+  __setPiImplementationsForTest({
+    async resolve() {
+      return {
+        model: { id: 'gpt-5.4', provider: 'openai-codex', api: 'openai-codex-responses', name: 'GPT-5.4' } as any,
+        auth: { apiKey: 'codex-access-token', headers: {} },
+      };
+    },
+    async completeSimple() {
+      throw new Error('unexpected completeSimple() call');
+    },
+    async complete(_model, context) {
+      assert(Array.isArray(context.tools), 'tools should be passed to pi complete()');
+      assertEqual(context.tools?.[0]?.name, 'auth_status', 'tool name should be sanitized for provider request');
+      return {
+        role: 'assistant',
+        api: 'openai-codex-responses',
+        provider: 'openai-codex',
+        model: 'gpt-5.4',
+        stopReason: 'toolUse',
+        timestamp: Date.now(),
+        usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [
+          { type: 'toolCall', id: 'call-1', name: 'auth_status', arguments: {} },
+        ],
+      } as any;
+    },
+  });
+
+  const client = createLLMClient({ ...piConfig, authMode: 'codex' });
+  const result = await client.chatWithTools('openai/gpt-5.4', 'sys', 'user', dottedSampleTools);
+
+  assertEqual(result.toolCalls?.[0]?.name, 'auth.status', 'tool call name should map back to canonical form');
+
+  __setPiImplementationsForTest(null);
+});
+
+await test('pi format: throws provider-side errors instead of returning empty output', async () => {
+  __setPiImplementationsForTest({
+    async resolve() {
+      return {
+        model: { id: 'gpt-5.4', provider: 'openai-codex', api: 'openai-codex-responses', name: 'GPT-5.4' } as any,
+        auth: { apiKey: 'codex-access-token', headers: {} },
+      };
+    },
+    async completeSimple() {
+      throw new Error('unexpected completeSimple() call');
+    },
+    async complete() {
+      return {
+        role: 'assistant',
+        api: 'openai-codex-responses',
+        provider: 'openai-codex',
+        model: 'gpt-5.4',
+        stopReason: 'error',
+        errorMessage: 'Invalid tool schema',
+        timestamp: Date.now(),
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        content: [],
+      } as any;
+    },
+  });
+
+  const client = createLLMClient({ ...piConfig, authMode: 'codex' });
+  let threw = false;
+  try {
+    await client.chatWithTools('openai/gpt-5.4', 'sys', 'user', dottedSampleTools);
+  } catch (e: any) {
+    threw = true;
+    assert(
+      e.message.includes('Invalid tool schema'),
+      'provider-side error message should surface to the caller',
+    );
+  }
+  assert(threw, 'chatWithTools should throw when the provider reports an error');
 
   __setPiImplementationsForTest(null);
 });
@@ -501,6 +594,48 @@ await test('openai format: parses tool_calls response', async () => {
     (result.toolCalls![0].arguments as any).city,
     'NYC',
     'tool call argument city',
+  );
+});
+
+await test('openai format: sanitizes dotted tool names in requests and maps them back in responses', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        choices: [
+          {
+            message: {
+              content: '',
+              tool_calls: [
+                {
+                  function: {
+                    name: 'auth_status',
+                    arguments: '{}',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(openaiConfig);
+  const result = await client.chatWithTools('gpt-4o', 'sys', 'user', dottedSampleTools);
+
+  assertEqual(
+    capturedBody.tools[0].function.name,
+    'auth_status',
+    'dotted tool name should be sanitized in the request body',
+  );
+  assertEqual(
+    result.toolCalls?.[0]?.name,
+    'auth.status',
+    'sanitized tool call names should map back to canonical form',
   );
 });
 
