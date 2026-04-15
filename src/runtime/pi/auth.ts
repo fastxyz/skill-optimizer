@@ -59,7 +59,7 @@ export function resolveApiCredential(options: PiAuthOptions): ResolvedApiCredent
     return readCodexApiKey(options.provider);
   }
 
-  if (envApiKey) {
+  if (options.authMode !== 'codex' && envApiKey) {
     return { apiKey: envApiKey, source: 'env' };
   }
 
