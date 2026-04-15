@@ -179,9 +179,6 @@ export async function checkConfig(
     err('invalid-format', 'benchmark.format', '"benchmark.format" must be pi, openai, or anthropic');
   }
 
-  if (!benchmark.taskGeneration?.enabled && !benchmark.tasks) {
-    err('missing-tasks', 'benchmark.tasks', '"benchmark.tasks" is required when task generation is disabled');
-  }
 
   if (benchmark.taskGeneration?.maxTasks !== undefined && (!Number.isInteger(benchmark.taskGeneration.maxTasks) || benchmark.taskGeneration.maxTasks <= 0)) {
     err('invalid-max-tasks', 'benchmark.taskGeneration.maxTasks', '"benchmark.taskGeneration.maxTasks" must be a positive integer');
@@ -449,16 +446,6 @@ export async function checkConfig(
         // Not a git repo or git unavailable — skip silently
       }
     }
-  }
-
-  // Check: deprecated benchmark.tasks field
-  if (benchmark.tasks !== undefined && benchmark.taskGeneration?.enabled === true) {
-    issues.push({
-      code: 'deprecated-tasks-field', severity: 'warning', field: 'benchmark.tasks',
-      message: '"benchmark.tasks" is set but task generation is enabled — the tasks field is deprecated',
-      hint: `Remove "tasks" from benchmark — task generation replaces it`,
-      fixable: true,
-    });
   }
 
   return issues;

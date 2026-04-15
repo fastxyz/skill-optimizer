@@ -31,26 +31,21 @@ export function loadSurfaceSnapshotFile(snapshotPath: string): SurfaceSnapshot {
     throw new Error(`Invalid surface snapshot file: ${snapshotPath} (invalid JSON: ${error instanceof Error ? error.message : String(error)})`);
   }
 
-  if (isLegacySurfaceSnapshot(parsed)) {
-    return normalizeCliArgs(parsed);
+  if (!isActionSnapshotArtifactShape(parsed)) {
+    if (
+      parsed
+      && typeof parsed === 'object'
+      && 'surface' in parsed
+      && 'actions' in parsed
+    ) {
+      throw new Error(
+        `Snapshot file uses an old format — delete .skill-optimizer/ and re-run the benchmark to regenerate.`,
+      );
+    }
+    throw new Error(`Invalid surface snapshot file: ${snapshotPath}`);
   }
 
-  if (isActionSnapshotArtifactShape(parsed)) {
-    return normalizeCliArgs(toSurfaceSnapshot(loadActionSnapshotFile(snapshotPath).catalog));
-  }
-
-  throw new Error(`Invalid surface snapshot file: ${snapshotPath}`);
-}
-
-function isLegacySurfaceSnapshot(value: unknown): value is SurfaceSnapshot {
-  return Boolean(
-    value
-      && typeof value === 'object'
-      && 'surface' in value
-      && 'actions' in value
-      && Array.isArray((value as { actions?: unknown }).actions)
-      && ['sdk', 'cli', 'mcp'].includes(String((value as { surface?: unknown }).surface)),
-  );
+  return normalizeCliArgs(toSurfaceSnapshot(loadActionSnapshotFile(snapshotPath).catalog));
 }
 
 function isActionSnapshotArtifactShape(value: unknown): value is { version: number; catalog: { surface: string; actions: unknown[] } } {

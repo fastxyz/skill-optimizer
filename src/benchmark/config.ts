@@ -50,7 +50,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
     throw new Error(`Failed to read tasks: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
 
-  let parsed: { tasks: Array<{ id?: unknown; prompt?: unknown; expected_actions?: unknown; expected_tools?: unknown; verify?: unknown; expected_fetches?: unknown }> };
+  let parsed: { tasks: Array<{ id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown }> };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch (err) {
@@ -65,7 +65,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
 }
 
 function normalizeTaskDefinition(
-  task: { id?: unknown; prompt?: unknown; expected_actions?: unknown; expected_tools?: unknown; verify?: unknown; expected_fetches?: unknown },
+  task: { id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown },
   resolvedPath: string,
   index: number,
 ): TaskDefinition {
@@ -79,11 +79,7 @@ function normalizeTaskDefinition(
     throw new Error(`Tasks file ${resolvedPath}: task ${task.id} must include a non-empty string prompt`);
   }
 
-  const rawExpectedActions = Array.isArray(task.expected_actions)
-    ? task.expected_actions
-    : Array.isArray(task.expected_tools)
-      ? task.expected_tools
-      : null;
+  const rawExpectedActions = Array.isArray(task.expected_actions) ? task.expected_actions : null;
 
   if (!rawExpectedActions) {
     throw new Error(`Tasks file ${resolvedPath}: task at index ${index} must include an expected_actions array`);
@@ -110,12 +106,8 @@ function normalizeExpectedAction(
     throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must be an object`);
   }
 
-  const candidate = rawAction as { name?: unknown; method?: unknown; args?: unknown };
-  const name = typeof candidate.name === 'string'
-    ? candidate.name
-    : typeof candidate.method === 'string'
-      ? candidate.method
-      : null;
+  const candidate = rawAction as { name?: unknown; args?: unknown };
+  const name = typeof candidate.name === 'string' ? candidate.name : null;
 
   if (!name || name.trim() === '') {
     throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must include a non-empty name`);

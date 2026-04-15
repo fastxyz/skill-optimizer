@@ -103,7 +103,6 @@ export function resolveProjectConfig(config: ProjectConfig, configPath: string):
       timeout: config.benchmark.timeout ?? DEFAULT_TIMEOUT,
       headers: config.benchmark.headers,
       models: config.benchmark.models,
-      tasks: config.benchmark.tasks ? resolve(configDir, config.benchmark.tasks) : undefined,
       surfaceSnapshot: config.benchmark.surfaceSnapshot ? resolve(configDir, config.benchmark.surfaceSnapshot) : undefined,
       taskGeneration: {
         enabled: config.benchmark.taskGeneration?.enabled ?? false,

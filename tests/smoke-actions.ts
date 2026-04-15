@@ -461,29 +461,6 @@ await test('buildMcpToolDefinitionsFromSnapshot preserves nested arg schemas', (
   assertEqual(properties.peers.items.type, 'string', 'optional array items should be preserved in rebuilt tool schema');
 });
 
-await test('loadSurfaceSnapshotFile supports legacy plain snapshot shape', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-legacy-'));
-  try {
-    const snapshotPath = join(root, 'surface.snapshot.json');
-    writeFileSync(snapshotPath, JSON.stringify({
-      surface: 'cli',
-      actions: [
-        {
-          name: 'wallet create',
-          args: [{ name: '--label', required: true, type: 'string' }],
-        },
-      ],
-    }, null, 2), 'utf-8');
-
-    const loaded = loadSurfaceSnapshotFile(snapshotPath);
-    assertEqual(loaded.surface, 'cli', 'legacy file should load as cli snapshot');
-    assertEqual(loaded.actions.length, 1, 'legacy file should include actions');
-    assertEqual(loaded.actions[0].args[0].name, 'label', 'legacy cli arg names should be normalized');
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
 await test('loadSurfaceSnapshotFile supports versioned action snapshot artifact', () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-versioned-'));
   try {
@@ -509,8 +486,8 @@ await test('loadSurfaceSnapshotFile supports versioned action snapshot artifact'
   }
 });
 
-await test('loadSurfaceSnapshotFile prefers valid legacy snapshot shape even with version/catalog keys present', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-legacy-extra-'));
+await test('loadSurfaceSnapshotFile throws a clear error for old plain snapshot format', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-old-format-'));
   try {
     const snapshotPath = join(root, 'surface.snapshot.json');
     writeFileSync(snapshotPath, JSON.stringify({
@@ -521,16 +498,18 @@ await test('loadSurfaceSnapshotFile prefers valid legacy snapshot shape even wit
           args: [{ name: '--label', required: true, type: 'string' }],
         },
       ],
-      version: ACTION_SNAPSHOT_VERSION,
-      catalog: {
-        this: 'should be ignored for legacy shape',
-      },
     }, null, 2), 'utf-8');
 
-    const loaded = loadSurfaceSnapshotFile(snapshotPath);
-    assertEqual(loaded.surface, 'cli', 'valid legacy snapshot should load as legacy shape');
-    assertEqual(loaded.actions.length, 1, 'legacy action list should be preserved');
-    assertEqual(loaded.actions[0].args[0].name, 'label', 'legacy CLI arg normalization should still apply');
+    let threw = false;
+    try {
+      loadSurfaceSnapshotFile(snapshotPath);
+    } catch (error: any) {
+      threw = true;
+      assert(error.message.includes('old format'), 'error should mention old format');
+      assert(error.message.includes('.skill-optimizer/'), 'error should direct user to delete .skill-optimizer/');
+    }
+
+    assert(threw, 'old plain snapshot format should throw');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

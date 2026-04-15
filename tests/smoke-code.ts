@@ -771,25 +771,6 @@ await test('checkConfig: direct openai model IDs do not get OpenRouter dot-versi
   assert(warn === undefined, 'direct openai model IDs should not be warned as OpenRouter dot versions');
 });
 
-await test('checkConfig: deprecated benchmark.tasks field → fixable warning', async () => {
-  const { checkConfig } = await import('../src/project/validate.js');
-  const config = {
-    name: 'test',
-    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
-    benchmark: {
-      format: 'pi' as const,
-      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT', tier: 'flagship' as const }],
-      tasks: './tasks.json',
-      taskGeneration: { enabled: true, maxTasks: 5 },
-    },
-  };
-  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
-  const warn = issues.find(i => i.code === 'deprecated-tasks-field');
-  assert(warn !== undefined, 'expected deprecated-tasks-field issue');
-  assert(warn!.severity === 'warning', 'should be warning');
-  assert(warn!.fixable === true, 'deprecated-tasks-field should be fixable');
-});
-
 await test('checkConfig: codex auth rejects non-openai benchmark models', async () => {
   const { checkConfig } = await import('../src/project/validate.js');
   const config = {
@@ -893,24 +874,6 @@ await test('applyFixes: normalises dot versions in model IDs', async () => {
   const fixed = applyFixes(rawJson as any, issues, '/fake');
   const models = (fixed.benchmark as any).models as Array<{ id: string }>;
   assertEqual(models[0]!.id, 'openrouter/anthropic/claude-sonnet-4-6', 'dots should be replaced with hyphens');
-});
-
-await test('applyFixes: removes deprecated benchmark.tasks field', async () => {
-  const { applyFixes } = await import('../src/project/fix.js');
-  const { checkConfig } = await import('../src/project/validate.js');
-  const rawJson = {
-    name: 'test',
-    target: { surface: 'cli', discovery: { sources: ['./src/cli.ts'] } },
-    benchmark: {
-      format: 'pi',
-      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT', tier: 'flagship' }],
-      tasks: './tasks.json',
-      taskGeneration: { enabled: true, maxTasks: 5 },
-    },
-  };
-  const issues = await checkConfig(rawJson as any, '/fake/skill-optimizer.json');
-  const fixed = applyFixes(rawJson as any, issues, '/fake');
-  assert(!(fixed.benchmark as any).tasks, 'deprecated tasks field should be removed');
 });
 
 await test('applyFixes: does not mutate input', async () => {

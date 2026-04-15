@@ -158,7 +158,7 @@ function validateTask(task: unknown, index: number): GeneratedTask {
   }
 
   let rawExpectedActions = (
-    ['expected_actions', 'expected_tools', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
+    ['expected_actions', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
   )
     .map((key) => candidate[key])
     .find((v) => Array.isArray(v)) as unknown[] | undefined;
@@ -167,7 +167,6 @@ function validateTask(task: unknown, index: number): GeneratedTask {
   if (!rawExpectedActions) {
     const actionName =
       typeof candidate['action'] === 'string' ? candidate['action'] :
-      typeof candidate['method'] === 'string' ? candidate['method'] :
       typeof candidate['command'] === 'string' ? candidate['command'] : null;
     if (actionName && actionName.trim()) {
       rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
@@ -193,8 +192,8 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] must be an object`);
   }
 
-  const typed = action as { name?: unknown; method?: unknown; args?: unknown };
-  const name = typeof typed.name === 'string' ? typed.name : typeof typed.method === 'string' ? typed.method : null;
+  const typed = action as { name?: unknown; args?: unknown };
+  const name = typeof typed.name === 'string' ? typed.name : null;
   if (!name || name.trim() === '') {
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] must include a non-empty name`);
   }

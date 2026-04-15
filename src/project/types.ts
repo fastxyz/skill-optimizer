@@ -57,7 +57,6 @@ export interface ProjectBenchmarkConfig {
   timeout?: number;
   headers?: Record<string, string>;
   models: ModelConfig[];
-  tasks?: string;
   surfaceSnapshot?: string;
   taskGeneration?: ProjectTaskGenerationConfig;
   output?: OutputConfig;
@@ -121,7 +120,6 @@ export interface ResolvedProjectBenchmarkConfig {
   timeout: number;
   headers?: Record<string, string>;
   models: ModelConfig[];
-  tasks?: string;
   surfaceSnapshot?: string;
   taskGeneration: ResolvedProjectTaskGenerationConfig;
   output: { dir: string };
