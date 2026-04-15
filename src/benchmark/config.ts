@@ -95,8 +95,8 @@ function normalizeTaskDefinition(
     id: task.id,
     prompt: task.prompt,
     expected_actions,
-    verify: task.verify as TaskDefinition['verify'],
-    expected_fetches: task.expected_fetches as TaskDefinition['expected_fetches'],
+    verify: Array.isArray(task.verify) ? (task.verify as TaskDefinition['verify']) : undefined,
+    expected_fetches: Array.isArray(task.expected_fetches) ? (task.expected_fetches as string[]) : undefined,
   };
 }
 

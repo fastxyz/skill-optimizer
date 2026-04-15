@@ -32,8 +32,7 @@ interface PiSimpleCompleteInput {
  * Resolve a Pi model, call completeSimple with a timeout, check for errors,
  * and return the concatenated text from all text blocks.
  *
- * Returns an empty string when the response contained no text blocks — callers
- * decide what to do with that (throw, return a fallback, etc.).
+ * Throws if the model signals an error or if the response contains no text blocks.
  */
 export async function piSimpleComplete(
   options: PiSimpleCompleteOptions,
@@ -63,13 +62,20 @@ export async function piSimpleComplete(
     },
   ).finally(() => clearTimeout(timer));
 
-  if (response.stopReason === 'error' && response.errorMessage) {
-    throw new Error(response.errorMessage);
+  if (response.stopReason === 'error') {
+    throw new Error(response.errorMessage ?? 'Model returned stop reason "error" with no message');
   }
 
-  return response.content
+  const text = response.content
     .filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
     .map((block) => block.text)
     .join('\n')
     .trim();
+
+  if (!text) {
+    const contentTypes = response.content.map((b) => b.type).join(', ');
+    throw new Error(`Model returned no text blocks${contentTypes ? ` (content types: ${contentTypes})` : ''}`);
+  }
+
+  return text;
 }

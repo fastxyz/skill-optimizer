@@ -19,7 +19,7 @@ export interface DefaultPiGeneratorOptions {
 export function createDefaultPiTaskGenerator(options: DefaultPiGeneratorOptions): TaskGeneratorDeps {
   return {
     async complete(input) {
-      const text = await piSimpleComplete(
+      return await piSimpleComplete(
         {
           provider: options.provider,
           model: options.model,
@@ -31,12 +31,6 @@ export function createDefaultPiTaskGenerator(options: DefaultPiGeneratorOptions)
         },
         { system: input.system, prompt: input.prompt },
       );
-
-      if (!text) {
-        throw new Error(`Generation model returned no text blocks`);
-      }
-
-      return text;
     },
   };
 }
