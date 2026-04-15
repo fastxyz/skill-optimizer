@@ -365,39 +365,58 @@ export async function checkConfig(
 
   // Check: API key env var / Codex auth
   const authMode = benchmark.authMode ?? 'env';
-  const benchmarkProvider = benchmark.format === 'openai'
-    ? 'openai'
-    : benchmark.format === 'anthropic'
-      ? 'anthropic'
-      : Array.isArray(benchmark.models) && benchmark.models.length > 0
-        ? String(benchmark.models[0]?.id ?? '').split('/')[0] || 'openrouter'
-        : 'openrouter';
-  const apiKey = resolveApiKey({
-    provider: benchmarkProvider,
-    authMode,
-    apiKeyEnv: benchmark.apiKeyEnv,
-  });
-  if (!apiKey) {
-    const defaultEnvName = benchmark.apiKeyEnv
-      ?? (benchmarkProvider === 'openai'
-        ? 'OPENAI_API_KEY'
-        : benchmarkProvider === 'anthropic'
-          ? 'ANTHROPIC_API_KEY'
-          : 'OPENROUTER_API_KEY');
-    const hint = authMode === 'codex'
-      ? 'Sign in with Codex so ~/.codex/auth.json contains a browser-login access token or OPENAI_API_KEY, or switch benchmark.authMode to "env"'
-      : authMode === 'auto' && benchmarkProvider === 'openai'
+  // Helper: push a missing-credential warning for a given provider
+  function warnMissingApiKey(provider: string, effectiveAuthMode: typeof authMode, apiKeyEnv: string | undefined, fieldPrefix: 'benchmark' | 'optimize'): void {
+    const defaultEnvName = apiKeyEnv
+      ?? (provider === 'openai' ? 'OPENAI_API_KEY'
+        : provider === 'anthropic' ? 'ANTHROPIC_API_KEY'
+        : 'OPENROUTER_API_KEY');
+    const hint = effectiveAuthMode === 'codex'
+      ? `Sign in with Codex so ~/.codex/auth.json contains a browser-login access token or OPENAI_API_KEY, or switch ${fieldPrefix}.authMode to "env"`
+      : effectiveAuthMode === 'auto' && provider === 'openai'
         ? `Run: export ${defaultEnvName}=... or sign in with Codex`
         : `Run: export ${defaultEnvName}=...`;
     issues.push({
       code: 'api-key-not-set', severity: 'warning',
-      field: authMode === 'codex' ? 'benchmark.authMode' : 'benchmark.apiKeyEnv',
-      message: authMode === 'codex'
+      field: effectiveAuthMode === 'codex' ? `${fieldPrefix}.authMode` : `${fieldPrefix}.apiKeyEnv`,
+      message: effectiveAuthMode === 'codex'
         ? 'Codex auth is enabled but no usable browser-login access token or OPENAI_API_KEY was found in ~/.codex/auth.json'
-        : `No API key was found for authMode "${authMode}"`,
+        : `No API key was found for authMode "${effectiveAuthMode}"`,
       hint,
       fixable: false,
     });
+  }
+
+  if (benchmark.format === 'openai' || benchmark.format === 'anthropic') {
+    // Single direct-API provider — one credential to check
+    const benchmarkProvider = benchmark.format === 'openai' ? 'openai' : 'anthropic';
+    const apiKey = resolveApiKey({ provider: benchmarkProvider, authMode, apiKeyEnv: benchmark.apiKeyEnv });
+    if (!apiKey) warnMissingApiKey(benchmarkProvider, authMode, benchmark.apiKeyEnv, 'benchmark');
+  } else {
+    // Pi format: each model may route through a different provider — check all unique ones
+    const modelList = Array.isArray(benchmark.models) ? benchmark.models : [];
+    const providers = Array.from(new Set(
+      modelList.length > 0
+        ? modelList.map(m => String(m.id ?? '').split('/')[0] || 'openrouter')
+        : ['openrouter'],
+    ));
+    for (const provider of providers) {
+      const apiKey = resolveApiKey({ provider, authMode, apiKeyEnv: benchmark.apiKeyEnv });
+      if (!apiKey) warnMissingApiKey(provider, authMode, benchmark.apiKeyEnv, 'benchmark');
+    }
+  }
+
+  // Check: optimize API key env var / Codex auth
+  if (optimize !== undefined) {
+    const optimizeAuthMode = optimize.authMode ?? benchmark.authMode ?? 'env';
+    const optimizeModelRef = optimize.model
+      ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
+    const optimizeProvider = typeof optimizeModelRef === 'string'
+      ? (optimizeModelRef.split('/')[0] || 'openrouter')
+      : 'openrouter';
+    const optimizeApiKeyEnv = optimize.apiKeyEnv ?? benchmark.apiKeyEnv;
+    const optimizeApiKey = resolveApiKey({ provider: optimizeProvider, authMode: optimizeAuthMode, apiKeyEnv: optimizeApiKeyEnv });
+    if (!optimizeApiKey) warnMissingApiKey(optimizeProvider, optimizeAuthMode, optimizeApiKeyEnv, 'optimize');
   }
 
   // Check: dirty git (injection-safe: fixed arg array, no shell)
