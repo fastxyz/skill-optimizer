@@ -67,7 +67,6 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   const skillAllowedPath = relative(repoPath, skillAbsPath);
 
   const commonBenchmark = {
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
     taskGeneration: { enabled: true, maxTasks, outputDir: '.' },
