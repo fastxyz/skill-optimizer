@@ -63,8 +63,7 @@ export class PiCodingMutationExecutor {
       console.warn('[mutation] WARNING: skill file content is identical before and after mutation');
     }
 
-    // If we wrote to a local skill file, return it directly — no git detection needed.
-    // Otherwise fall back to git status for target-repo mutations.
+    // Local skill file: return the path directly; git detection only applies to target-repo mutations.
     const changedFiles = context.localSkillPath
       ? [context.localSkillPath]
       : await collectGitChangedFiles(context.manifest.targetRepo.path);

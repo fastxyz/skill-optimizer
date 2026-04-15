@@ -107,14 +107,12 @@ export interface RunnerOptions {
  * Run the full benchmark.
  */
 export async function runBenchmark(options: RunnerOptions = {}): Promise<BenchmarkReport> {
-  // 1. Load config
   const { config, configDir } = await loadConfig(options.configPath);
 
   console.log('================================================================');
   console.log(`  Skill Benchmark — ${config.name}`);
   console.log('================================================================\n');
 
-  // 2. Load tasks first (needed for known action derivation)
   if (config.tasks === '__generated__') {
     throw new Error(
       'This benchmark config uses task generation (benchmark.taskGeneration.enabled=true). ' +
@@ -124,12 +122,10 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
   let tasks = loadTasks(config.tasks, configDir);
 
-  // 3. Determine known actions (for precision/hallucination tracking)
   let knownMethods: Set<string>;
   let cliCommands: ReturnType<typeof loadCliCommands> | undefined = undefined;
   let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
   if (config.surface === 'sdk') {
-    // Derive from task expected actions + optional sdk.apiSurface
     const fromTasks = new Set<string>();
     for (const task of tasks) {
       for (const action of getExpectedActions(task)) {
@@ -142,7 +138,6 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     cliCommands = loadCliCommands(config.cli!.commands, configDir);
     knownMethods = new Set(cliCommands.map((c) => c.command));
   } else {
-    // MCP surface: load tools once, reuse for both knownMethods and chatWithTools
     mcpToolDefs = config.mcpToolDefinitions ?? (config.mcp ? loadMcpTools(config.mcp.tools, configDir) : []);
     knownMethods = new Set(mcpToolDefs.map(t => t.function.name));
   }
@@ -156,7 +151,6 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log(`[tasks] Filtered to task: ${options.taskId}`);
   }
 
-  // 4. Log known definitions (already loaded in step 3)
   if (config.surface === 'mcp' && mcpToolDefs) {
     const sourceLabel = config.surfaceSnapshot ? 'surface snapshot' : config.mcp?.tools ?? 'MCP manifest';
     console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${sourceLabel}`);
@@ -164,7 +158,6 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log(`[cli] Loaded ${cliCommands.length} command definitions from ${config.cli!.commands}`);
   }
 
-  // 5. Fetch skill doc (optional — may be null)
   const skillConfig = options.skillOverride
     ? { ...(config.skill ?? {}), source: options.skillOverride, cache: false } as typeof config.skill
     : config.skill;
@@ -178,7 +171,6 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log('[skill] No skill configured — using generic system prompt\n');
   }
 
-  // 6. Build system prompt
   const promptOptions = {
     surface: config.surface,
     agentic: Boolean(config.agentic),
@@ -189,10 +181,8 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   console.log(`[prompt] Surface: ${config.surface}`);
   console.log(`[prompt] System prompt: ${systemPrompt.length} chars\n`);
 
-  // 7. Create LLM client
   const client = createLLMClient(config.llm);
 
-  // 8. Select models
   let models: ModelConfig[] = [...config.llm.models];
   if (options.tier) {
     models = getModelsByTier(config, options.tier);
@@ -209,13 +199,11 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
 
   console.log(`\n[run] ${tasks.length} tasks × ${models.length} models = ${tasks.length * models.length} evaluations\n`);
 
-  // 9. Setup output directory
   const outputDir = options.outputDir
     ? resolve(options.outputDir)
     : resolve(configDir, config.output?.dir ?? 'benchmark-results');
   mkdirSync(outputDir, { recursive: true });
 
-  // 10. Run evaluations
   const results: TaskResult[] = [];
 
   for (const task of tasks) {
@@ -288,11 +276,9 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         llmLatencyMs = Date.now() - start;
         error = err instanceof Error ? err.message : String(err);
         console.error(`  [${slug}] FAILED: ${error}`);
-        // Create a minimal empty response for extraction
         llmResponse = { content: '', usage: undefined };
       }
 
-      // Extract calls from response
       let extractedCalls: ExtractedCall[] = [];
       let generatedCode: string | null = null;
       let bindings: Map<string, string> | undefined;
@@ -340,7 +326,6 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         error = error ?? `Extraction failed: ${err instanceof Error ? err.message : err}`;
       }
 
-      // Evaluate
       const taskResult = evaluateTask({
         task,
         model,
@@ -397,11 +382,9 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     }
   }
 
-  // 11. Compute coverage
   const allMethods = Array.from(knownMethods);
   const coverage = computeCoverage(tasks, allMethods);
 
-  // 12. Build report
   const skillVersion: SkillVersion = skill?.version ?? {
     source: 'none',
     commitSha: 'none',
@@ -418,17 +401,14 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     outputDir,
   );
 
-  // 12b. Attach scope coverage if provided
   if (options.scopeCoverage) {
     report.scopeCoverage = options.scopeCoverage;
   }
 
-  // 13. Compute verdict
   if (options.verdictPolicy) {
     report.verdict = computeVerdict(report, config.llm.models, options.verdictPolicy);
   }
 
-  // 14. Save report
   const jsonPath = resolve(outputDir, 'report.json');
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
   console.log(`\n[output] Report saved to ${jsonPath}`);

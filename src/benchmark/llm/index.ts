@@ -79,7 +79,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
-      // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
+      // openAICredential is set only when config.format === 'openai'
       if (openAICredential?.source === 'codex') {
         // Pass authMode:'codex' so Pi re-reads ~/.codex/auth.json and sets source:'codex',
         // which is required for resolvePiModel to route to the openai-codex provider
@@ -131,7 +131,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
-      // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
+      // openAICredential is set only when config.format === 'openai'
       if (openAICredential?.source === 'codex') {
         return chatWithToolsPi({
           timeout,
@@ -184,7 +184,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
-      // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
+      // openAICredential is set only when config.format === 'openai'
       if (openAICredential?.source === 'codex') {
         return chatAgentLoopPi({
           timeout,

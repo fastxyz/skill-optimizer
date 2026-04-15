@@ -73,7 +73,7 @@ export interface McpSurfaceConfig {
   tools: string;                   // path to tools.json (OpenAI function calling format)
 }
 
-// Backward-compatible public type aliases.
+// Public type aliases for backward compatibility.
 export type CodeModeConfig = SdkSurfaceConfig;
 export type McpModeConfig = McpSurfaceConfig;
 
@@ -141,7 +141,7 @@ export interface ExpectedAction {
   args?: Record<string, unknown>;  // expected arg values (supports nested objects/arrays, strings, regexes, sentinels)
 }
 
-// Transitional alias retained while internal code paths migrate.
+// Alias for backward compatibility.
 export type ExpectedTool = ExpectedAction;
 
 export interface TaskVerification {
@@ -152,7 +152,7 @@ export interface TaskDefinition {
   id: string;
   prompt: string;
   expected_actions?: ExpectedAction[];
-  expected_tools?: ExpectedAction[]; // transitional alias populated by the loader
+  expected_tools?: ExpectedAction[]; // alias for expected_actions (populated by the loader)
   verify?: TaskVerification[];
   expected_fetches?: string[];
 }
@@ -191,7 +191,7 @@ export interface ActionMatch {
   }>;
 }
 
-// Transitional alias retained while internal code paths migrate.
+// Alias for backward compatibility.
 export type ToolMatch = ActionMatch;
 
 export interface TaskResult {
@@ -201,7 +201,7 @@ export interface TaskResult {
   rawResponse: string;
   extractedCalls: ExtractedCall[];
   actionMatches?: ActionMatch[];
-  toolMatches: ActionMatch[]; // transitional alias
+  toolMatches: ActionMatch[]; // alias for actionMatches
   codePatternResults?: Record<string, boolean>;
   metrics: {
     toolPrecision: number;
@@ -210,9 +210,9 @@ export interface TaskResult {
     toolSelectionAccuracy: number;
     argAccuracy: number;
     unnecessaryActions?: string[];
-    unnecessaryCalls: string[]; // transitional alias
+    unnecessaryCalls: string[]; // alias for unnecessaryActions
     hallucinatedActions?: string[];
-    hallucinatedCalls: string[]; // transitional alias
+    hallucinatedCalls: string[]; // alias for hallucinatedActions
     hallucinationRate: number;
     fetchRecall?: number;
     fetchPrecision?: number;

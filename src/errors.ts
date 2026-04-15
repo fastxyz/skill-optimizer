@@ -1,4 +1,3 @@
-// src/errors.ts
 export interface ErrorDef {
   code: string;
   message: string;

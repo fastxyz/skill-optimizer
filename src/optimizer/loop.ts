@@ -141,15 +141,11 @@ export async function runOptimizeLoop(
       console.log(
         `[optimize] Changed files: ${changedFiles.length > 0 ? changedFiles.join(', ') : '(none)'}`,
       );
-      // When the mutation writes to a local skill file, the target repo must stay clean.
-      // The agent runs with cwd = targetRepo and can inadvertently write tracked files there.
-      // Restore the repo to the accepted checkpoint so any rogue writes are undone — only
-      // changes to the local skill file (outside the repo) are kept.
+      // In local-skill mode: restore the repo to undo any rogue writes the agent may have made
+      // (it runs with cwd=targetRepo), then skip scope validation (the local file is always in scope).
       if (localSkillPath) {
         await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
       }
-      // When the mutation writes to a local skill file (not the target repo),
-      // skip target-repo scope validation — the local file is always in scope.
       const scopeValidation = localSkillPath
         ? null
         : validateChangedFiles(changedFiles, resolvedManifest);

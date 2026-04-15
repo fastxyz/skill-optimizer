@@ -15,7 +15,6 @@ export function compareReports(
   baseline: BenchmarkReport,
   current: BenchmarkReport,
 ): ComparisonReport {
-  // Build lookup maps keyed by "taskId:modelId"
   const baselineMap = new Map<string, { passed: boolean; recall: number; toolSelection: number }>();
   for (const r of baseline.results) {
     const key = `${r.task.id}:${r.model.id}`;
@@ -38,7 +37,6 @@ export function compareReports(
     });
   }
 
-  // Collect all unique keys from both reports
   const allKeys = new Set<string>([...baselineMap.keys(), ...currentMap.keys()]);
 
   const taskDeltas: TaskDelta[] = [];
@@ -79,13 +77,10 @@ export function compareReports(
       passedNow = inCurrent.passed;
       recallNow = inCurrent.recall;
       delta = 'new';
-      // 'new' entries don't count toward improved/regressed/unchanged
     } else {
-      // only in baseline
       passedBefore = inBaseline!.passed;
       recallBefore = inBaseline!.recall;
       delta = 'removed';
-      // 'removed' entries don't count toward improved/regressed/unchanged
     }
 
     taskDeltas.push({
@@ -101,7 +96,6 @@ export function compareReports(
     });
   }
 
-  // Sort for stable output: regressions first, then improvements, then unchanged
   const deltaOrder: Record<Delta, number> = {
     regressed: 0,
     improved: 1,
@@ -117,11 +111,8 @@ export function compareReports(
     return a.modelId.localeCompare(b.modelId);
   });
 
-  // Coverage delta
   const coverageBefore = baseline.summary.methodCoveragePercent;
   const coverageNow = current.summary.methodCoveragePercent;
-
-  // Accuracy delta — read from overallPassRate
   const accuracyBefore = baseline.summary.overallPassRate;
   const accuracyNow = current.summary.overallPassRate;
 
@@ -183,7 +174,6 @@ export function printComparison(comparison: ComparisonReport): void {
   console.log(header);
   console.log('─'.repeat(header.length + COL_DELTA));
 
-  // Rows — only print non-unchanged entries first, then unchanged if any
   const interesting = taskDeltas.filter(d => d.delta !== 'unchanged');
   const unchangedDeltas = taskDeltas.filter(d => d.delta === 'unchanged');
 
@@ -209,7 +199,6 @@ export function printComparison(comparison: ComparisonReport): void {
         deltaLabel = 'unchanged';
     }
 
-    // Shorten model ID for display (use last segment after '/')
     const modelDisplay = d.modelId.includes('/') ? d.modelId.split('/').pop()! : d.modelId;
 
     console.log(

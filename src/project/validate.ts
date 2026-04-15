@@ -368,7 +368,6 @@ export async function checkConfig(
 
   // Check: API key env var / Codex auth
   const authMode = benchmark.authMode ?? 'env';
-  // Helper: push a missing-credential warning for a given provider
   function warnMissingApiKey(provider: string, effectiveAuthMode: typeof authMode, apiKeyEnv: string | undefined, fieldPrefix: 'benchmark' | 'optimize'): void {
     const defaultEnvName = apiKeyEnv
       ?? (provider === 'openai' ? 'OPENAI_API_KEY'
@@ -422,9 +421,8 @@ export async function checkConfig(
     if (!optimizeApiKey) warnMissingApiKey(optimizeProvider, optimizeAuthMode, optimizeApiKeyEnv, 'optimize');
   }
 
-  // Check: dirty git (injection-safe: fixed arg array, no shell)
-  // Skipped when called from within the optimizer benchmark loop — the loop manages
-  // git state itself via ensureReady (run once before the loop starts).
+  // Check: dirty git (uses a fixed arg array, not a shell string, to prevent injection)
+  // Skipped inside the optimizer loop — the loop manages git state itself via ensureReady.
   if (!opts?.skipDirtyGitCheck && optimize !== undefined && optimize.requireCleanGit !== false && target.repoPath) {
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     if (existsSync(absRepo)) {

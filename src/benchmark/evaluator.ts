@@ -433,17 +433,14 @@ export function evaluateTask(params: {
     surface,
   } = params;
 
-  // ── Resolve raw calls if bindings provided ──
   let extractedCalls = params.extractedCalls;
   const expectedActions = getExpectedActions(task);
   if (bindings && bindings.size > 0) {
     extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, expectedActions);
   }
 
-  // ── Tool matching ──
   const toolMatches = matchTools(expectedActions, extractedCalls);
 
-  // ── Code pattern checks ──
   const codePatternResults: Record<string, boolean> = {};
   let allCodePatternsPass = true;
 
@@ -463,7 +460,6 @@ export function evaluateTask(params: {
       }
     }
   } else if (task.verify) {
-    // generatedCode is null — any code_pattern check fails
     for (const verification of task.verify) {
       if (verification.code_pattern) {
         codePatternResults[verification.code_pattern] = false;
@@ -472,37 +468,32 @@ export function evaluateTask(params: {
     }
   }
 
-  // ── Metrics ──
   const expectedCount = expectedActions.length;
   const matchedCount = toolMatches.filter((m) => m.matched).length;
 
-  // Recall: matched / expected. If 0 expected, recall = 1.0
+  // recall = matched / expected; 1.0 when there are no expectations
   const toolRecall = expectedCount === 0 ? 1.0 : matchedCount / expectedCount;
 
-  // Precision: matched / total known calls extracted. If 0 extracted known calls, precision = 0.0
+  // precision = matched / known calls extracted; 0.0 when nothing was extracted
   const knownCallCount = extractedCalls.filter((c) => knownMethods.has(c.method)).length;
   const toolPrecision = knownCallCount === 0 ? 0.0 : matchedCount / knownCallCount;
 
-  // Task passes if all expected tools matched AND all code_pattern checks passed
   const hasCodePatterns = Object.keys(codePatternResults).length > 0;
   const taskPassed =
     matchedCount === expectedCount &&
     (expectedCount > 0 || matchedCount === 0) &&
     (!hasCodePatterns || allCodePatternsPass);
 
-  // Tool selection accuracy: how many expected methods were found (ignoring args)?
   const methodsFoundCount = toolMatches.filter(m => m.methodFound).length;
   const toolSelectionAccuracy = expectedCount === 0 ? 1.0 : methodsFoundCount / expectedCount;
 
-  // Arg accuracy: of methods found, how many had correct args?
   const argAccuracy = methodsFoundCount === 0 ? 1.0
     : toolMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
 
-  // Surface-aware hallucination tracking
   const allExtractedMethods = extractedCalls.map(c => c.method);
   const expectedMethods = new Set(expectedActions.map((action) => getExpectedActionName(action)));
 
-  // Derive SDK prefixes from knownMethods
+  // Collect known class/type prefixes for SDK hallucination filtering (e.g. "FastClient" from "FastClient.setup")
   const sdkPrefixes = new Set<string>();
   for (const m of knownMethods) {
     if (m.includes('.')) {
@@ -510,7 +501,6 @@ export function evaluateTask(params: {
     }
   }
 
-  // Unnecessary: valid SDK methods that weren't expected for this task
   const unnecessaryCalls = allExtractedMethods.filter(
     m => knownMethods.has(m) && !expectedMethods.has(m)
   );

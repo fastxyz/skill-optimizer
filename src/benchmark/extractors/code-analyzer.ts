@@ -410,7 +410,7 @@ function extractCallExpression(
   const fnNode = node.childForFieldName('function');
   if (!fnNode) return null;
 
-  // NEW: standalone function call
+  // Standalone function call (e.g. x402Pay(...), fast(...))
   if (fnNode.type === 'identifier' && knownFunctions.has(fnNode.text)) {
     const method = fnNode.text;
     const argsNode = node.childForFieldName('arguments');
@@ -599,13 +599,8 @@ export async function extractFromCode(
   const root = tree.rootNode;
   const literalMap = collectLiteralBindings(root);
 
-  // First pass: collect variable bindings
   const varMap = collectVariableBindings(root, sdkClasses, knownFunctions, fnReturns);
-
-  // Second pass: collect all calls
   const calls = collectCalls(root, varMap, literalMap, code, sdkClasses, knownFunctions);
-
-  // Sort by line number
   calls.sort((a, b) => a.line - b.line);
 
   return calls;

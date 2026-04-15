@@ -232,7 +232,6 @@ async function runDryRun(configPath: string): Promise<void> {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  // Strip node + script path from argv
   const args = process.argv.slice(2);
 
   if (hasFlag(args, '--help') || hasFlag(args, '-h')) {
@@ -485,9 +484,8 @@ async function main(): Promise<void> {
           `Edit "target.repoPath" in ${project.configPath}.`,
       );
     }
-    // Preflight: check credentials for every unique provider in the benchmark config.
-    // For direct-API formats there is one provider; for pi format each model may need
-    // a different key (e.g. openrouter + openai in the same run).
+    // Check credentials for each unique provider: direct-API formats have one provider,
+    // but pi format may route different models to different providers (e.g. openrouter + openai).
     const benchmarkProviders = project.benchmark.format === 'openai'
       ? ['openai']
       : project.benchmark.format === 'anthropic'
@@ -544,18 +542,14 @@ async function main(): Promise<void> {
     fatalError(err);
   }
 
-  // Print console summary
   printSummary(report);
-
-  // Print coverage
   printCoverage(report.coverage);
 
-  // Determine output dir — resolve relative to the config file's directory (matching the runner)
+  // Resolve output dir relative to the config file's directory, matching the runner's behavior
   const configFileDir = options.configPath ? dirname(resolve(options.configPath)) : process.cwd();
   const reportConfig = report.config as { name: string; surface: string; outputDir?: string };
   const outputDir = resolve(configFileDir, reportConfig.outputDir ?? 'benchmark-results');
 
-  // Generate recommendations if verdict is FAIL
   let recommendations: Recommendation[] = [];
   if (report.verdict?.result === 'FAIL' && project) {
     try {
@@ -577,10 +571,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // Print verdict
   console.log(renderVerdictConsole(report, recommendations));
 
-  // Generate and save Markdown report alongside JSON
   const mdPath = resolve(outputDir, 'report.md');
   try {
     const markdown = generateMarkdown(report) + '\n\n' + renderVerdictMarkdown(report, recommendations);
@@ -590,7 +582,6 @@ async function main(): Promise<void> {
     console.error(`WARNING: Could not write Markdown report: ${err instanceof Error ? err.message : err}`);
   }
 
-  // Final summary line
   const { summary } = report;
   const passedCount = Math.round(summary.overallPassRate * summary.totalEvaluations);
   console.log(
