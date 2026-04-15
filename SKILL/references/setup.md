@@ -12,12 +12,18 @@ node --version
 # Expected: v20.x.x or higher
 ```
 
-**OpenRouter API key:**
+**API key** (which one depends on your `benchmark.format`):
 ```bash
-echo $OPENROUTER_API_KEY
-# Expected: sk-or-... (not empty)
-# If missing: export OPENROUTER_API_KEY=sk-or-your-key-here
+# Default — OpenRouter (format: "pi"):
+export OPENROUTER_API_KEY=sk-or-your-key-here
+
+# Direct OpenAI (format: "openai"):
+export OPENAI_API_KEY=sk-your-key-here
+
+# Direct Anthropic (format: "anthropic"):
+export ANTHROPIC_API_KEY=sk-ant-your-key-here
 ```
+If you're just getting started, use OpenRouter — one key covers all providers.
 
 **skill-optimizer available:**
 ```bash
@@ -51,7 +57,7 @@ npx skill-optimizer init <surface>
 The wizard prompts for:
 
 - **Repo path** — absolute path to your project root (defaults to CWD)
-- **Models** — OpenRouter model IDs to benchmark against (e.g., `openrouter/anthropic/claude-sonnet-4.6`)
+- **Models** — model IDs to benchmark against (e.g., `openrouter/anthropic/claude-sonnet-4-6`)
 - **SKILL.md location** — path to your existing documentation or guidance file
 - **Discovery sources** — source files for tree-sitter to parse (e.g., `src/cli.ts`, `src/index.ts`)
 - **Max tasks** — upper bound on generated benchmark tasks (default: 20)
@@ -71,7 +77,7 @@ npx skill-optimizer init --answers answers.json
 {
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
-  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
+  "models": ["openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4o"],
   "maxTasks": 20,
   "maxIterations": 5,
   "entryFile": "src/cli.ts"

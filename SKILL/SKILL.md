@@ -64,4 +64,4 @@ If you are in an **unconfigured project** (context detection case 3), start with
 
 **Safety boundary** — The optimizer never modifies your original SKILL.md. It creates versioned copies in `.skill-optimizer/skill-v{N}.md` and only accepts mutations that improve scores without dropping any model below the floor. It does not modify tracked source files, but the generated artifacts appear under `.skill-optimizer/` — add that directory to your `.gitignore`.
 
-**OpenRouter** — All LLM calls go through [OpenRouter](https://openrouter.ai). You need one API key (`OPENROUTER_API_KEY`) for everything — benchmarking and optimization.
+**LLM routing** — By default (`format: "pi"`), all benchmark calls route through [OpenRouter](https://openrouter.ai) and need `OPENROUTER_API_KEY`. You can also call providers directly: `format: "anthropic"` uses the Anthropic API directly (`ANTHROPIC_API_KEY`), and `format: "openai"` uses the OpenAI API directly (`OPENAI_API_KEY`), with optional Codex browser-login auth via `authMode: "codex"`. The model ID prefix must match the format — see `references/config.md` for the full mapping.
