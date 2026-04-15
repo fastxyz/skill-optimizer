@@ -62,9 +62,9 @@ const VerdictConfigSchema = z.object({
 });
 
 const BenchmarkConfigSchema = z.object({
-  format: z.enum(['pi', 'openai', 'anthropic']).optional().describe('LLM transport format: pi, openai, or anthropic'),
+  format: z.enum(['pi', 'openai', 'anthropic']).optional().describe('LLM transport format: "pi" routes through OpenRouter/Pi (use openrouter/* or openai/* model refs); "openai" calls the OpenAI API directly (supports Codex auth); "anthropic" calls the Anthropic API directly'),
   authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
-  apiKeyEnv: z.string().optional().describe('Env var name for the API key (default OPENROUTER_API_KEY)'),
+  apiKeyEnv: z.string().optional().describe('Env var name for the API key (default: OPENROUTER_API_KEY for format:pi, OPENAI_API_KEY for format:openai, ANTHROPIC_API_KEY for format:anthropic)'),
   timeout: z.number().int().positive().optional().describe('Milliseconds per model call (default 240000)'),
   models: z.array(ModelConfigSchema).describe('Models to benchmark — at least one required'),
   taskGeneration: TaskGenerationConfigSchema.optional().describe('Automatic task generation config'),
