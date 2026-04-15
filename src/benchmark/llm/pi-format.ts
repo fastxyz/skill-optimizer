@@ -1,5 +1,5 @@
 import { Type } from '@mariozechner/pi-ai';
-import type { Context, Model, AssistantMessage, SimpleStreamOptions, Tool as PiTool } from '@mariozechner/pi-ai';
+import type { Api, Context, Model, AssistantMessage, SimpleStreamOptions, Tool as PiTool } from '@mariozechner/pi-ai';
 import { complete, completeSimple } from '@mariozechner/pi-ai';
 
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
@@ -23,7 +23,7 @@ interface PiCallWithToolsParams extends PiCallParams {
 }
 
 interface ResolvedPiRequest {
-  model: Model<any>;
+  model: Model<Api>;
   auth: {
     apiKey?: string;
     headers?: Record<string, string>;
@@ -39,8 +39,8 @@ type PiImplementationSet = {
       apiKeyOverride?: string;
     },
   ): Promise<ResolvedPiRequest>;
-  completeSimple(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
-  complete(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
+  completeSimple(model: Model<Api>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
+  complete(model: Model<Api>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
 };
 
 let piImplementationsForTest: PiImplementationSet | null = null;
@@ -212,7 +212,7 @@ function toPiTool(tool: McpToolDefinition): PiTool {
   return {
     name: tool.function.name,
     description: tool.function.description ?? '',
-    parameters: Type.Unsafe((tool.function.parameters ?? { type: 'object', properties: {}, required: [] }) as any),
+    parameters: Type.Unsafe(tool.function.parameters ?? { type: 'object', properties: {}, required: [] }),
   };
 }
 

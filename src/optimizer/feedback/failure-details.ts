@@ -19,8 +19,8 @@ export function extractFailureDetails(results: TaskResult[]): FailureDetail[] {
     if (r.metrics.taskPassed) continue;
 
     const actual = r.extractedCalls.map((c) => ({
-      action: (c as unknown as { method: string }).method ?? (c as unknown as { name: string }).name ?? '',
-      args: ((c as unknown as { args?: Record<string, unknown> }).args) ?? {},
+      action: c.method,
+      args: c.args,
     }));
 
     if (r.error) {

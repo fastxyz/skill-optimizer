@@ -27,8 +27,8 @@ export function loadSurfaceSnapshotFile(snapshotPath: string): SurfaceSnapshot {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
-  } catch (error: any) {
-    throw new Error(`Invalid surface snapshot file: ${snapshotPath} (invalid JSON: ${error.message})`);
+  } catch (error) {
+    throw new Error(`Invalid surface snapshot file: ${snapshotPath} (invalid JSON: ${error instanceof Error ? error.message : String(error)})`);
   }
 
   if (isLegacySurfaceSnapshot(parsed)) {

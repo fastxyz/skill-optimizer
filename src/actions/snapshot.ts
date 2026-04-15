@@ -151,8 +151,8 @@ export function loadActionSnapshotFile(snapshotPath: string): ActionSnapshotArti
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
-  } catch (error: any) {
-    invalidSnapshot(snapshotPath, `invalid JSON: ${error.message}`);
+  } catch (error) {
+    invalidSnapshot(snapshotPath, `invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (!parsed || typeof parsed !== 'object') {
     invalidSnapshot(snapshotPath, 'expected object root');

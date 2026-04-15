@@ -107,8 +107,8 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
 
   if (!response.ok) {
     const text = await response.text();
-    const err = new Error(`Anthropic API error ${response.status}: ${text}`);
-    (err as any).status = response.status;
+    const err = new Error(`Anthropic API error ${response.status}: ${text}`) as Error & { status: number };
+    err.status = response.status;
     throw err;
   }
 

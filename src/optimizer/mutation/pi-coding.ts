@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, basename } from 'node:path';
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
 import { buildMutationContext } from '../feedback/mutation-context.js';
@@ -35,7 +36,7 @@ export class PiCodingMutationExecutor {
 
     await session.prompt(buildMutationPrompt(context));
 
-    const messages = session.state.messages as unknown[];
+    const messages = session.state.messages;
     const toolActivity = extractToolActivity(messages);
     const assistantText = extractLatestAssistantText(messages);
 
@@ -147,9 +148,7 @@ function buildMutationPrompt(context: MutationContext): string {
   ].join('\n');
 }
 
-function extractLatestAssistantText(messages: unknown): string | null {
-  if (!Array.isArray(messages)) return null;
-
+function extractLatestAssistantText(messages: AgentMessage[]): string | null {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index] as {
       role?: string;
@@ -175,9 +174,7 @@ function extractLatestAssistantText(messages: unknown): string | null {
   return null;
 }
 
-function extractToolActivity(messages: unknown): string[] {
-  if (!Array.isArray(messages)) return [];
-
+function extractToolActivity(messages: AgentMessage[]): string[] {
   const lines: string[] = [];
   for (const message of messages as Array<{
     role?: string;
