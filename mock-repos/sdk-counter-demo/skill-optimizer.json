@@ -17,14 +17,14 @@
     "apiKeyEnv": "OPENROUTER_API_KEY",
     "models": [
       { "id": "openrouter/openai/gpt-4o-mini", "name": "GPT-4o mini", "tier": "low" },
-      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude 4.6", "tier": "mid" }
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude 4.6", "tier": "mid" }
     ],
     "verdict": { "perModelFloor": 0.6, "targetWeightedAverage": 0.7 },
     "taskGeneration": { "enabled": true, "maxTasks": 8, "seed": 1, "outputDir": "./.skill-optimizer" }
   },
   "optimize": {
     "enabled": true,
-    "model": "openrouter/anthropic/claude-sonnet-4.6",
+    "model": "openrouter/anthropic/claude-sonnet-4-6",
     "apiKeyEnv": "OPENROUTER_API_KEY",
     "allowedPaths": ["SKILL.md"],
     "validation": [],

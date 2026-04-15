@@ -17,7 +17,7 @@ export function toBenchmarkConfig(project: ResolvedProjectConfig): BenchmarkConf
     cli: project.target.cli,
     mcp: project.target.mcp,
     skill: project.target.skill as SkillConfig | undefined,
-    tasks: project.benchmark.tasks ?? '__generated__',
+    tasks: '__generated__',
     llm: {
       format: project.benchmark.format,
       baseUrl: project.benchmark.baseUrl,
@@ -65,7 +65,7 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
       mode: optimize.mode,
       maxIterations: optimize.maxIterations,
       stabilityWindow: optimize.stabilityWindow,
-      minOverallPassDelta: optimize.minImprovement,
+      minImprovement: optimize.minImprovement,
       taskGeneration: {
         enabled: project.benchmark.taskGeneration.enabled,
         maxGenerated: project.benchmark.taskGeneration.maxTasks,

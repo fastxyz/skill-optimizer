@@ -161,7 +161,7 @@ function makeManifest(): OptimizeManifest {
       mode: 'stable-surface' as any,
       maxIterations: 5,
       stabilityWindow: 2,
-      minOverallPassDelta: 0.01,
+      minImprovement: 0.01,
       taskGeneration: {
         enabled: false,
         maxGenerated: 10,
@@ -580,7 +580,7 @@ await test('runOptimizeLoop: applies defaults to partially specified manifests',
   };
 
   const result = await runOptimizeLoop(manifest, deps);
-  assertEqual(result.iterations[0]?.accepted, true, 'default minOverallPassDelta should still allow acceptance');
+  assertEqual(result.iterations[0]?.accepted, true, 'default minImprovement should still allow acceptance');
 });
 
 await test('runOptimizeLoop: rejects requireCleanGit=false even for programmatic manifests', async () => {

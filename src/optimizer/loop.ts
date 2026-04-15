@@ -281,7 +281,7 @@ export async function runOptimizeLoop(
       const accepted = accept(beforeReport, afterReport, resolvedManifest.optimizer.models, {
         perModelFloor: resolvedManifest.optimizer.perModelFloor,
         targetWeightedAverage: resolvedManifest.optimizer.targetWeightedAverage,
-        minImprovement: resolvedManifest.optimizer.minOverallPassDelta,
+        minImprovement: resolvedManifest.optimizer.minImprovement,
       });
 
       if (accepted) {
@@ -310,7 +310,7 @@ export async function runOptimizeLoop(
         console.log(
           `[optimize] Rejected iteration ${index}: gates not satisfied ` +
             `(weighted ${beforeAvg.toFixed(1)}% -> ${afterAvg.toFixed(1)}%; ` +
-            `min improvement ${(resolvedManifest.optimizer.minOverallPassDelta * 100).toFixed(1)} pts; ` +
+            `min improvement ${(resolvedManifest.optimizer.minImprovement * 100).toFixed(1)} pts; ` +
             `per-model floor ${(resolvedManifest.optimizer.perModelFloor * 100).toFixed(1)}%).`,
         );
         console.log('[optimize] Restoring checkpoint.');
@@ -507,7 +507,7 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
     optimizer: {
       maxIterations: unresolved.optimizer?.maxIterations ?? 5,
       stabilityWindow: unresolved.optimizer?.stabilityWindow ?? 2,
-      minOverallPassDelta: unresolved.optimizer?.minOverallPassDelta ?? 0.02,
+      minImprovement: unresolved.optimizer?.minImprovement ?? 0.02,
       taskGeneration: {
         enabled: unresolved.optimizer?.taskGeneration?.enabled ?? false,
         maxGenerated: unresolved.optimizer?.taskGeneration?.maxGenerated ?? 10,
