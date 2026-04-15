@@ -20,9 +20,8 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   },
   "benchmark": {
     "format": "pi",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -45,9 +44,8 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   },
   "benchmark": {
     "format": "pi",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -69,9 +67,8 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   },
   "benchmark": {
     "format": "pi",
-    "apiKeyEnv": "OPENROUTER_API_KEY",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -96,11 +93,13 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `format` | No | `"pi"` | Benchmark format (uses OpenRouter via pi-ai) |
-| `apiKeyEnv` | No | `"OPENROUTER_API_KEY"` | Environment variable name holding the API key |
-| `models[].id` | Yes | — | OpenRouter model ID (e.g., `"openrouter/anthropic/claude-sonnet-4.6"`) |
+| `format` | No | `"pi"` | `"pi"` — route through OpenRouter (default); `"openai"` — call OpenAI API directly; `"anthropic"` — call Anthropic API directly |
+| `authMode` | No | `"env"` | `"env"` — read key from env var (default); `"codex"` — read from `~/.codex/auth.json` (OpenAI only); `"auto"` — try env first, fall back to codex for OpenAI |
+| `apiKeyEnv` | No | provider default | Env var holding the API key. Defaults: `OPENROUTER_API_KEY` for `pi`, `OPENAI_API_KEY` for `openai`, `ANTHROPIC_API_KEY` for `anthropic` |
+| `baseUrl` | No | — | Override the API base URL (e.g. for a custom OpenAI-compatible endpoint) |
+| `models[].id` | Yes | — | Model ID with provider prefix: `openrouter/<p>/<model>` (OpenRouter), `anthropic/<model>` (direct Anthropic), `openai/<model>` (direct OpenAI). Use hyphens in version segments for `openrouter/` and `anthropic/` (e.g. `claude-sonnet-4-6`, `gemini-2-5-flash`). |
 | `models[].name` | No | — | Human-readable label for output tables |
-| `models[].tier` | No | — | `"flagship"`, `"mid"`, or `"budget"` (informational only) |
+| `models[].tier` | No | — | `"flagship"`, `"mid"`, or `"low"` (informational only) |
 | `models[].weight` | No | `1.0` | Influence on weighted average (higher = counts more) |
 | `verdict.perModelFloor` | No | `0.6` | Minimum score each model must reach individually |
 | `verdict.targetWeightedAverage` | No | `0.7` | Minimum weighted average across all models |
@@ -114,10 +113,31 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
 |-------|----------|---------|-------------|
 | `enabled` | No | `true` | Whether optimization is allowed |
 | `mode` | No | `"stable-surface"` | `"stable-surface"` (reuse tasks) or `"surface-changing"` (regenerate per iteration) |
-| `model` | No | `"openrouter/anthropic/claude-opus-4.6"` | Which LLM writes mutations |
+| `model` | No | `"openrouter/anthropic/claude-opus-4-6"` | Which LLM writes mutations |
 | `maxIterations` | No | `5` | Maximum optimization rounds |
+| `minImprovement` | No | `0.02` | Minimum delta in weighted average required to accept a mutation |
 | `allowedPaths` | No | `["SKILL.md"]` | Files the mutation agent may edit |
 | `requireCleanGit` | No | `true` | Block optimizer if target repo has uncommitted changes |
+
+## Model ID and Auth Quick Guide
+
+The `benchmark.format` field controls which API receives requests. Pick the combination that matches your setup:
+
+| Format | Model ID prefix | Required env var | Notes |
+|--------|----------------|------------------|-------|
+| `"pi"` (default) | `openrouter/<provider>/<model>` | `OPENROUTER_API_KEY` | All providers via OpenRouter |
+| `"openai"` | `openai/<model>` | `OPENAI_API_KEY` | Direct OpenAI API |
+| `"openai"` + `authMode: "codex"` | `openai/<model>` | `~/.codex/auth.json` | Codex browser-login auth |
+| `"anthropic"` | `anthropic/<model>` | `ANTHROPIC_API_KEY` | Direct Anthropic API |
+
+**Codex auth** (`authMode: "codex"`) reads credentials from `~/.codex/auth.json` in this priority order:
+1. `tokens.access_token` — browser-login JWT (checked for expiry)
+2. `tokens.OPENAI_API_KEY` — static key nested under tokens
+3. `OPENAI_API_KEY` — root-level static key
+
+Codex auth only works with the OpenAI provider. For `openrouter/` or `anthropic/` models, use `authMode: "env"`.
+
+**`authMode: "auto"`** tries the env var first; for OpenAI models, falls back to `~/.codex/auth.json` if the env var is unset.
 
 ## Model Configuration Tips
 
@@ -147,7 +167,7 @@ Task generation is **coverage-guaranteed**: every in-scope action gets at least 
 | `E_INVALID_SURFACE` | `target.surface` is not cli/sdk/mcp | Use one of the three valid values |
 | `E_DIRTY_GIT` | Uncommitted changes in target repo | Commit or stash, or set `requireCleanGit: false` |
 | `E_EMPTY_SCOPE` | Scope filters matched no actions | Check your `include`/`exclude` patterns |
-| `E_MISSING_API_KEY` | `OPENROUTER_API_KEY` not set | `export OPENROUTER_API_KEY=sk-or-...` |
+| `E_MISSING_API_KEY` | API key env var not set | `export OPENROUTER_API_KEY=sk-or-...` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` for direct formats) |
 
 Full error reference with detailed descriptions: `docs/reference/errors.md`
 

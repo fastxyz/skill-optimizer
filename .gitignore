@@ -48,8 +48,10 @@ coverage/
 tmp/
 temp/
 
-# Superpowers planning artifacts
+# Superpowers planning artifacts and internal dev docs
 docs/superpowers/
+docs/plans/
+docs/specs/
 
 # Skill-optimizer generated artifacts
 .skill-optimizer/

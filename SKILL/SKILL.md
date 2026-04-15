@@ -62,6 +62,6 @@ If you are in an **unconfigured project** (context detection case 3), start with
 
 **Verdict gates** — Two thresholds must both pass for a benchmark to receive a PASS verdict: `perModelFloor` (each model individually meets a minimum score) and `targetWeightedAverage` (the weighted mean across all models meets a target). A single model below the floor fails the entire run.
 
-**Safety boundary** — The optimizer never modifies your original SKILL.md. It creates versioned copies in `.skill-optimizer/skill-v{N}.md` and only accepts mutations that improve scores without dropping any model below the floor. Your working tree stays clean.
+**Safety boundary** — The optimizer never modifies your original SKILL.md. It creates versioned copies in `.skill-optimizer/skill-v{N}.md` and only accepts mutations that improve scores without dropping any model below the floor. It does not modify tracked source files, but the generated artifacts appear under `.skill-optimizer/` — add that directory to your `.gitignore`.
 
 **OpenRouter** — All LLM calls go through [OpenRouter](https://openrouter.ai). You need one API key (`OPENROUTER_API_KEY`) for everything — benchmarking and optimization.

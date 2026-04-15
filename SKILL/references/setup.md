@@ -123,7 +123,7 @@ npx skill-optimizer doctor --fix --config <config-path>
 
 After successful setup:
 
-- **`skill-optimizer/skill-optimizer.json`** — main config file (commit this)
+- **`skill-optimizer.json`** — main config file (commit this); when created by `init`, the default location is `./skill-optimizer/skill-optimizer.json`
 - **`.skill-optimizer/`** — working directory for task artifacts, surface manifests, and versioned skill copies (gitignored)
 
 Your project is ready for benchmarking. Read `references/benchmark.md` for next steps.
