@@ -390,7 +390,8 @@ export async function checkConfig(
         ? `Run: export ${defaultEnvName}=... or sign in with Codex`
         : `Run: export ${defaultEnvName}=...`;
     issues.push({
-      code: 'api-key-not-set', severity: 'warning', field: 'benchmark.apiKeyEnv',
+      code: 'api-key-not-set', severity: 'warning',
+      field: authMode === 'codex' ? 'benchmark.authMode' : 'benchmark.apiKeyEnv',
       message: authMode === 'codex'
         ? 'Codex auth is enabled but no usable browser-login access token or OPENAI_API_KEY was found in ~/.codex/auth.json'
         : `No API key was found for authMode "${authMode}"`,
