@@ -3,21 +3,9 @@ import type { BenchmarkReport, ComparisonReport, TaskDelta, Delta } from './type
 
 /**
  * Load a benchmark report from a JSON file.
- *
- * Throws a clear error when the file uses the pre-1.x schema (field names
- * like `toolMatches` / `hallucinatedCalls`) so callers don't get a silent
- * undefined-access failure later.
  */
 export function loadReport(path: string): BenchmarkReport {
-  const report = JSON.parse(readFileSync(path, 'utf-8')) as BenchmarkReport;
-  const firstResult = report.results?.[0] as unknown as Record<string, unknown> | undefined;
-  if (firstResult && 'toolMatches' in firstResult) {
-    throw new Error(
-      `Report at ${path} uses the pre-1.x schema (field "toolMatches"). ` +
-      `Re-run the benchmark to generate a current-format report before comparing.`,
-    );
-  }
-  return report;
+  return JSON.parse(readFileSync(path, 'utf-8')) as BenchmarkReport;
 }
 
 /**

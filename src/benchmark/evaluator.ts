@@ -168,19 +168,19 @@ function matchExpectedValue(
 // ── Tool matching ──────────────────────────────────────────────────────────
 
 /**
- * Match extracted calls against expected tools.
+ * Match extracted calls against expected actions.
  * Returns ActionMatch[] with match details.
  *
- * Each extracted call can only be matched to ONE expected tool (greedy, first match wins).
+ * Each extracted call can only be matched to ONE expected action (greedy, first match wins).
  */
-export function matchTools(
-  expectedTools: ExpectedAction[],
+export function matchActions(
+  expectedActions: ExpectedAction[],
   extractedCalls: ExtractedCall[],
 ): ActionMatch[] {
   // Track which extracted call indices have already been consumed
   const usedIndices = new Set<number>();
 
-  return expectedTools.map((expected) => {
+  return expectedActions.map((expected) => {
     const expectedMethod = getExpectedActionName(expected);
     // If there are args to check, try to find a perfect match (method + args) first.
     // Otherwise, find the first unused extracted call that matches the method name.
@@ -439,7 +439,7 @@ export function evaluateTask(params: {
     extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, expectedActions);
   }
 
-  const toolMatches = matchTools(expectedActions, extractedCalls);
+  const actionMatches = matchActions(expectedActions, extractedCalls);
 
   const codePatternResults: Record<string, boolean> = {};
   let allCodePatternsPass = true;
@@ -469,7 +469,7 @@ export function evaluateTask(params: {
   }
 
   const expectedCount = expectedActions.length;
-  const matchedCount = toolMatches.filter((m) => m.matched).length;
+  const matchedCount = actionMatches.filter((m) => m.matched).length;
 
   // recall = matched / expected; 1.0 when there are no expectations
   const toolRecall = expectedCount === 0 ? 1.0 : matchedCount / expectedCount;
@@ -484,11 +484,11 @@ export function evaluateTask(params: {
     (expectedCount > 0 || matchedCount === 0) &&
     (!hasCodePatterns || allCodePatternsPass);
 
-  const methodsFoundCount = toolMatches.filter(m => m.methodFound).length;
+  const methodsFoundCount = actionMatches.filter(m => m.methodFound).length;
   const toolSelectionAccuracy = expectedCount === 0 ? 1.0 : methodsFoundCount / expectedCount;
 
   const argAccuracy = methodsFoundCount === 0 ? 1.0
-    : toolMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
+    : actionMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
 
   const allExtractedMethods = extractedCalls.map(c => c.method);
   const expectedMethods = new Set(expectedActions.map((action) => getExpectedActionName(action)));
@@ -501,11 +501,11 @@ export function evaluateTask(params: {
     }
   }
 
-  const unnecessaryCalls = allExtractedMethods.filter(
+  const unnecessaryActions = allExtractedMethods.filter(
     m => knownMethods.has(m) && !expectedMethods.has(m)
   );
 
-  const hallucinatedCalls = allExtractedMethods.filter(m => {
+  const hallucinatedActions = allExtractedMethods.filter(m => {
     if (knownMethods.has(m)) return false;
 
     if (surface === 'sdk') {
@@ -522,7 +522,7 @@ export function evaluateTask(params: {
   });
 
   const hallucinationRate = extractedCalls.length === 0 ? 0
-    : hallucinatedCalls.length / extractedCalls.length;
+    : hallucinatedActions.length / extractedCalls.length;
 
   return {
     task,
@@ -530,7 +530,7 @@ export function evaluateTask(params: {
     generatedCode,
     rawResponse,
     extractedCalls,
-    actionMatches: toolMatches,
+    actionMatches,
     codePatternResults: hasCodePatterns ? codePatternResults : undefined,
     metrics: {
       toolPrecision,
@@ -538,8 +538,8 @@ export function evaluateTask(params: {
       taskPassed,
       toolSelectionAccuracy,
       argAccuracy,
-      unnecessaryActions: unnecessaryCalls,
-      hallucinatedActions: hallucinatedCalls,
+      unnecessaryActions,
+      hallucinatedActions,
       hallucinationRate,
     },
     llmLatencyMs,

@@ -1,6 +1,6 @@
 import { extractFromToolCalls } from '../src/benchmark/extractors/mcp-extractor.js';
 import { extract } from '../src/benchmark/extractors/index.js';
-import { evaluateTask, matchTools } from '../src/benchmark/evaluator.js';
+import { evaluateTask, matchActions } from '../src/benchmark/evaluator.js';
 import type {
   ExtractedCall,
   LLMResponse,
@@ -101,9 +101,9 @@ await test('extractFromToolCalls: undefined toolCalls', () => {
   assertEqual(calls.length, 0, 'should return empty array when toolCalls is undefined');
 });
 
-// ── Group 2: matchTools (arg validation) ──────────────────────────────────
+// ── Group 2: matchActions (arg validation) ──────────────────────────────────
 
-await test('matchTools: regex arg matching', () => {
+await test('matchActions: regex arg matching', () => {
   const expectedTools: ExpectedAction[] = [
     { name: 'send_tokens', args: { to: '/fast1.+/' } },
   ];
@@ -112,14 +112,14 @@ await test('matchTools: regex arg matching', () => {
     { method: 'send_tokens', args: { to: 'fast1abc123def' }, line: 0, raw: '' },
   ];
 
-  const matches = matchTools(expectedTools, extractedCalls);
+  const matches = matchActions(expectedTools, extractedCalls);
 
   assertEqual(matches.length, 1, 'should return 1 ActionMatch');
   assert(matches[0].methodFound === true, 'methodFound should be true');
   assert(matches[0].argsCorrect === true, 'argsCorrect should be true — regex /fast1.+/ should match "fast1abc123def"');
 });
 
-await test('matchTools: dynamic sentinel passes', () => {
+await test('matchActions: dynamic sentinel passes', () => {
   const expectedTools: ExpectedAction[] = [
     { name: 'get_balance', args: { address: '<dynamic>' } },
   ];
@@ -128,7 +128,7 @@ await test('matchTools: dynamic sentinel passes', () => {
     { method: 'get_balance', args: { address: 'literally_anything' }, line: 0, raw: '' },
   ];
 
-  const matches = matchTools(expectedTools, extractedCalls);
+  const matches = matchActions(expectedTools, extractedCalls);
 
   assertEqual(matches.length, 1, 'should return 1 ActionMatch');
   assert(matches[0].methodFound === true, 'methodFound should be true');

@@ -77,7 +77,7 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 - Prefer small changes in the existing architecture over broad refactors.
 - When updating config or project types, also update the README examples and any scaffolding in `src/benchmark/init.ts` if needed.
 - When changing optimizer behavior, verify both the loop and the unified project defaults still agree.
-- Code-first surface discovery is now active for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifests/declared surface metadata still exist as transitional internal fallbacks, but new public examples should prefer code-first discovery.
+- Code-first surface discovery is the preferred mode for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifest files (`target.cli.commands`, `target.mcp.tools`, `target.discovery.fallbackManifest`) are supported for projects that cannot use code-first discovery.
 - Be careful around mock repo references: code may support template names that are not currently present in the working tree.
 
 ## Testing Guidance
