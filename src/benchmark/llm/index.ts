@@ -67,7 +67,6 @@ export function createLLMClient(config: LLMConfig): LLMClient {
   return {
     async chat(modelId, system, user) {
       const openAICredential = resolveOpenAICredential();
-      const useCodexBridgeForOpenAI = config.format === 'openai' && openAICredential?.source === 'codex';
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatPi({
@@ -80,7 +79,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
-      if (useCodexBridgeForOpenAI) {
+      if (openAICredential?.source === 'codex') {
         return chatPi({
           timeout,
           modelId: toOpenAIProviderModelRef(modelId),
@@ -113,7 +112,6 @@ export function createLLMClient(config: LLMConfig): LLMClient {
     },
     async chatWithTools(modelId, system, user, tools) {
       const openAICredential = resolveOpenAICredential();
-      const useCodexBridgeForOpenAI = config.format === 'openai' && openAICredential?.source === 'codex';
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatWithToolsPi({
@@ -127,7 +125,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
-      if (useCodexBridgeForOpenAI) {
+      if (openAICredential?.source === 'codex') {
         return chatWithToolsPi({
           timeout,
           modelId: toOpenAIProviderModelRef(modelId),
@@ -163,7 +161,6 @@ export function createLLMClient(config: LLMConfig): LLMClient {
     },
     async chatAgentLoop(modelId, system, user, tools, executor, maxTurns = 5) {
       const openAICredential = resolveOpenAICredential();
-      const useCodexBridgeForOpenAI = config.format === 'openai' && openAICredential?.source === 'codex';
       const resolvedModelId = shouldStripPrefix ? stripProviderPrefix(modelId) : modelId;
       if (config.format === 'pi') {
         return chatAgentLoopPi({
@@ -179,7 +176,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
-      if (useCodexBridgeForOpenAI) {
+      if (openAICredential?.source === 'codex') {
         return chatAgentLoopPi({
           timeout,
           modelId: toOpenAIProviderModelRef(modelId),
