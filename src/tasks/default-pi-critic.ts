@@ -6,6 +6,7 @@ import type { CriticDeps } from '../verdict/recommendations.js';
 export interface DefaultPiCriticOptions {
   provider: string;
   model: string;
+  authMode?: import('../runtime/pi/auth.js').PiAuthMode;
   apiKeyEnv?: string;
   timeoutMs?: number;
   headers?: Record<string, string>;
@@ -15,6 +16,7 @@ export function createDefaultPiCritic(options: DefaultPiCriticOptions): CriticDe
   return {
     async complete(input) {
       const resolved = await resolvePiModel(options.provider, options.model, {
+        authMode: options.authMode,
         apiKeyEnv: options.apiKeyEnv,
       });
 

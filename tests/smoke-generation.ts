@@ -322,13 +322,16 @@ await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', asyn
 
     const benchmark = JSON.parse(readFileSync(frozen.benchmarkPath, 'utf-8')) as {
       target: { skill: { source: string; cache: boolean } };
-      benchmark: { tasks: string; surfaceSnapshot: string };
+      benchmark: { authMode?: string; tasks: string; surfaceSnapshot: string };
+      optimize?: unknown;
     };
 
     assert(benchmark.target.skill.source.startsWith('/'), 'target.skill.source should be absolute');
     assertEqual(benchmark.target.skill.cache, false, 'target.skill.cache should be preserved');
+    assertEqual(benchmark.benchmark.authMode, 'env', 'benchmark authMode should be preserved in generated config');
     assertEqual(benchmark.benchmark.tasks, frozen.tasksPath, 'tasks should point at generated tasks path');
     assertEqual(benchmark.benchmark.surfaceSnapshot, frozen.snapshotPath, 'surface snapshot should be pinned in generated config');
+    assertEqual(benchmark.optimize, undefined, 'generated benchmark config should omit optimize-only settings');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }

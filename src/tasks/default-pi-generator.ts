@@ -10,6 +10,7 @@ type ThinkingLevel = NonNullable<SimpleStreamOptions['reasoning']>;
 export interface DefaultPiGeneratorOptions {
   provider: string;
   model: string;
+  authMode?: import('../runtime/pi/auth.js').PiAuthMode;
   apiKeyEnv?: string;
   timeoutMs?: number;
   headers?: Record<string, string>;
@@ -20,6 +21,7 @@ export function createDefaultPiTaskGenerator(options: DefaultPiGeneratorOptions)
   return {
     async complete(input) {
       const resolved = await resolvePiModel(options.provider, options.model, {
+        authMode: options.authMode,
         apiKeyEnv: options.apiKeyEnv,
       });
 

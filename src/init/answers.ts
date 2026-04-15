@@ -16,8 +16,9 @@ export interface WizardAnswers {
 }
 
 const DEFAULT_MODELS = [
-  'openrouter/openai/gpt-4o',
-  'openrouter/google/gemini-2.0-flash-001',
+  'openrouter/anthropic/claude-sonnet-4-6',
+  'openrouter/deepseek/deepseek-v3-2',
+  'openrouter/google/gemini-2-5-flash',
 ];
 
 export function buildDefaultAnswers(surface: 'sdk' | 'cli' | 'mcp' = 'sdk', repoPath?: string): WizardAnswers {

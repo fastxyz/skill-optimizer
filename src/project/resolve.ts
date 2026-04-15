@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import type { ProjectConfig, ResolvedProjectConfig } from './types.js';
 
 const DEFAULT_BENCHMARK_FORMAT = 'pi';
+const DEFAULT_AUTH_MODE = 'env';
 const DEFAULT_TIMEOUT = 240_000;
 const DEFAULT_OUTPUT_DIR = 'benchmark-results';
 const DEFAULT_GENERATION_OUTPUT_DIR = '.skill-optimizer';
@@ -97,6 +98,7 @@ export function resolveProjectConfig(config: ProjectConfig, configPath: string):
     benchmark: {
       format: config.benchmark.format ?? DEFAULT_BENCHMARK_FORMAT,
       baseUrl: config.benchmark.baseUrl,
+      authMode: config.benchmark.authMode ?? DEFAULT_AUTH_MODE,
       apiKeyEnv: config.benchmark.apiKeyEnv,
       timeout: config.benchmark.timeout ?? DEFAULT_TIMEOUT,
       headers: config.benchmark.headers,
@@ -123,6 +125,7 @@ export function resolveProjectConfig(config: ProjectConfig, configPath: string):
           enabled: config.optimize.enabled ?? true,
           mode: config.optimize.mode ?? 'stable-surface',
           model: config.optimize.model ?? config.benchmark.models[0]!.id,
+          authMode: config.optimize.authMode ?? config.benchmark.authMode ?? DEFAULT_AUTH_MODE,
           apiKeyEnv: config.optimize.apiKeyEnv ?? config.benchmark.apiKeyEnv,
           thinkingLevel: config.optimize.thinkingLevel ?? 'medium',
           allowedPaths: [...(config.optimize.allowedPaths ?? [])],

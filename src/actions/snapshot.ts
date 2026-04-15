@@ -37,12 +37,16 @@ function validateActionArgs(snapshotPath: string, actionIndex: number, args: unk
     if (candidate.description !== undefined && typeof candidate.description !== 'string') {
       invalidSnapshot(snapshotPath, `${path}.description must be a string when provided`);
     }
+    if (candidate.schema !== undefined && (!candidate.schema || typeof candidate.schema !== 'object' || Array.isArray(candidate.schema))) {
+      invalidSnapshot(snapshotPath, `${path}.schema must be an object when provided`);
+    }
 
     return {
       name: candidate.name,
       required: candidate.required,
       type: candidate.type,
       description: candidate.description,
+      schema: candidate.schema as Record<string, unknown> | undefined,
     };
   });
 }
@@ -81,6 +85,28 @@ function validateCatalogActions(snapshotPath: string, actions: unknown): ActionD
   });
 }
 
+function normalizeSchemaValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(normalizeSchemaValue);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const normalizedEntries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, childValue]) => {
+      if (key === 'required' && Array.isArray(childValue) && childValue.every((entry) => typeof entry === 'string')) {
+        return [key, [...childValue].sort()] as const;
+      }
+
+      return [key, normalizeSchemaValue(childValue)] as const;
+    });
+
+  return Object.fromEntries(normalizedEntries);
+}
+
 export function normalizeActionArgSchema(args: ActionArgSchema[]): ActionArgSchema[] {
   return [...args]
     .map((arg) => ({
@@ -88,6 +114,7 @@ export function normalizeActionArgSchema(args: ActionArgSchema[]): ActionArgSche
       required: Boolean(arg.required),
       type: arg.type,
       description: arg.description,
+      schema: arg.schema ? normalizeSchemaValue(arg.schema) as Record<string, unknown> : undefined,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

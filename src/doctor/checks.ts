@@ -1,6 +1,7 @@
 import type { ResolvedProjectConfig } from '../project/types.js';
 import type { Issue } from '../project/validate.js';
 import { discoverActionsOnly, resolveScope } from '../tasks/index.js';
+import { requireConfiguredApiKey } from '../runtime/pi/index.js';
 
 /**
  * Tier-2: discover actions and verify scope + maxTasks.
@@ -63,21 +64,46 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
  */
 export async function checkModelReachability(project: ResolvedProjectConfig): Promise<Issue[]> {
   const issues: Issue[] = [];
-  const apiKey = process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'];
-  if (!apiKey) return issues; // already reported by checkConfig
 
   // Only PI format uses OpenRouter; skip reachability for other formats
   if (project.benchmark.format && project.benchmark.format !== 'pi') {
     issues.push({
       code: 'reachability-skipped', severity: 'info', field: 'benchmark.format',
-      message: `Skipping reachability check (--check-models only supports format "pi" for now)`,
+      message: `Skipping reachability check — model probing is only implemented for openrouter/* model IDs via the OpenRouter API`,
       fixable: false,
     });
     return issues;
   }
 
-  for (let i = 0; i < project.benchmark.models.length; i++) {
-    const model = project.benchmark.models[i]!;
+  const openrouterEntries = project.benchmark.models
+    .map((model, i) => ({ model, i }))
+    .filter(({ model }) => model.id.startsWith('openrouter/'));
+  const skippedCount = project.benchmark.models.length - openrouterEntries.length;
+
+  if (skippedCount > 0) {
+    issues.push({
+      code: 'reachability-skipped', severity: 'info', field: 'benchmark.models',
+      message: `Skipping reachability for ${skippedCount} non-OpenRouter model(s) (only OpenRouter models can be probed)`,
+      fixable: false,
+    });
+  }
+
+  if (openrouterEntries.length === 0) {
+    return issues;
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = requireConfiguredApiKey({
+      provider: 'openrouter',
+      authMode: project.benchmark.authMode,
+      apiKeyEnv: project.benchmark.apiKeyEnv,
+    });
+  } catch {
+    return issues; // already reported by checkConfig
+  }
+
+  for (const { model, i } of openrouterEntries) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
