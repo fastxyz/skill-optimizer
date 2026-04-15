@@ -30,7 +30,7 @@ For direct OpenAI runs you can also use your local Codex browser login instead o
     "format": "pi",
     "authMode": "codex",
     "models": [
-      { "id": "openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
+      { "id": "openai/gpt-5-4", "name": "GPT-5.4", "tier": "flagship" }
     ]
   }
 }
@@ -184,7 +184,7 @@ The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent`. Open
 export OPENROUTER_API_KEY=sk-or-...
 ```
 
-**Using Codex auth**: Set `benchmark.authMode` (and optionally `optimize.authMode`) to `"codex"` or `"auto"` and use direct OpenAI model refs such as `openai/gpt-5.4`. Codex auth only applies to the `openai` provider and reads either a browser-login access token or `OPENAI_API_KEY` from `~/.codex/auth.json`. Alternatively, set `benchmark.format` to `"openai"` with `authMode: "codex"` and `openai/...` model IDs — the client bridges to the Pi/Codex path automatically.
+**Using Codex auth**: Set `benchmark.authMode` (and optionally `optimize.authMode`) to `"codex"` or `"auto"` and use direct OpenAI model refs such as `openai/gpt-5-4`. Codex auth only applies to the `openai` provider and reads either a browser-login access token or `OPENAI_API_KEY` from `~/.codex/auth.json`. Alternatively, set `benchmark.format` to `"openai"` with `authMode: "codex"` and `openai/...` model IDs — the client bridges to the Pi/Codex path automatically.
 
 **Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 
