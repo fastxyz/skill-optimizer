@@ -659,6 +659,37 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
   }
 });
 
+await test('resolveApiKey: auto mode prefers env var over codex token when both present', async () => {
+  const originalHome = process.env.HOME;
+  const originalEnv = process.env.OPENAI_API_KEY;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-auto-priority-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify({ exp: futureExp })).toString('base64url'),
+    'sig',
+  ].join('.');
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: jwt } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+  process.env.OPENAI_API_KEY = 'env-api-key';
+  try {
+    const result = resolveApiKey({ provider: 'openai', authMode: 'auto' });
+    assertEqual(result, 'env-api-key', 'auto mode should prefer env var over codex token');
+  } finally {
+    if (originalHome === undefined) { delete process.env.HOME; } else { process.env.HOME = originalHome; }
+    if (originalEnv === undefined) { delete process.env.OPENAI_API_KEY; } else { process.env.OPENAI_API_KEY = originalEnv; }
+  }
+});
+
 await test('pi format: agent loop feeds tool results back with original tool call ids', async () => {
   const toolCallIds: string[] = [];
   let callCount = 0;

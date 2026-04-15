@@ -69,7 +69,7 @@ export async function checkModelReachability(project: ResolvedProjectConfig): Pr
   if (project.benchmark.format && project.benchmark.format !== 'pi') {
     issues.push({
       code: 'reachability-skipped', severity: 'info', field: 'benchmark.format',
-      message: `Skipping reachability check (--check-models only supports format "pi" for now)`,
+      message: `Skipping reachability check — model probing is only implemented for openrouter/* model IDs via the OpenRouter API`,
       fixable: false,
     });
     return issues;

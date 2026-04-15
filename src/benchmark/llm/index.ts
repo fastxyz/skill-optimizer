@@ -79,6 +79,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
+      // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
       if (openAICredential?.source === 'codex') {
         return chatPi({
           timeout,
@@ -125,6 +126,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
+      // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
       if (openAICredential?.source === 'codex') {
         return chatWithToolsPi({
           timeout,
@@ -176,6 +178,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           headers: config.headers,
         });
       }
+      // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
       if (openAICredential?.source === 'codex') {
         return chatAgentLoopPi({
           timeout,
