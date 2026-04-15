@@ -436,7 +436,7 @@ await test('openai format: codex auth bridges through pi with openai provider re
   }
 });
 
-await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiKeyEnv) to pi call', async () => {
+await test('openai format: codex bridge passes authMode:codex (not apiKeyOverride) to pi call', async () => {
   const originalHome = process.env.HOME;
   const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
   const os = await import('node:os');
@@ -497,9 +497,8 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
     });
     await client.chat('gpt-5.4', 'sys', 'user');
 
-    assertEqual(capturedApiKeyOverride, jwt, 'codex bridge should pass pre-resolved JWT as apiKeyOverride');
-    assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
-    assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
+    assertEqual(capturedAuthMode, 'codex', 'codex bridge should pass authMode:codex to pi for correct provider routing');
+    assert(capturedApiKeyOverride === undefined, `codex bridge should NOT pass apiKeyOverride to pi (would break source:'codex' routing signal) (got: ${capturedApiKeyOverride})`);
   } finally {
     if (originalHome === undefined) {
       delete process.env.HOME;
@@ -510,7 +509,7 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
   }
 });
 
-await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiKeyEnv) to pi call for chatWithTools', async () => {
+await test('openai format: codex bridge passes authMode:codex (not apiKeyOverride) to pi call for chatWithTools', async () => {
   const originalHome = process.env.HOME;
   const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
   const os = await import('node:os');
@@ -571,9 +570,8 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
     });
     await client.chatWithTools('gpt-5.4', 'sys', 'user', sampleTools);
 
-    assertEqual(capturedApiKeyOverride, jwt, 'codex bridge should pass pre-resolved JWT as apiKeyOverride (chatWithTools)');
-    assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
-    assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
+    assertEqual(capturedAuthMode, 'codex', 'codex bridge should pass authMode:codex to pi for correct provider routing (chatWithTools)');
+    assert(capturedApiKeyOverride === undefined, `codex bridge should NOT pass apiKeyOverride to pi (chatWithTools) (got: ${capturedApiKeyOverride})`);
   } finally {
     if (originalHome === undefined) {
       delete process.env.HOME;
@@ -584,7 +582,7 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
   }
 });
 
-await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiKeyEnv) to pi call for chatAgentLoop', async () => {
+await test('openai format: codex bridge passes authMode:codex (not apiKeyOverride) to pi call for chatAgentLoop', async () => {
   const originalHome = process.env.HOME;
   const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
   const os = await import('node:os');
@@ -646,9 +644,8 @@ await test('openai format: codex bridge passes apiKeyOverride (not authMode/apiK
     const dummyExecutor = async () => 'result';
     await client.chatAgentLoop('gpt-5.4', 'sys', 'user', sampleTools, dummyExecutor);
 
-    assertEqual(capturedApiKeyOverride, jwt, 'codex bridge should pass pre-resolved JWT as apiKeyOverride (chatAgentLoop)');
-    assert(capturedAuthMode === undefined, `codex bridge should NOT pass authMode to pi (got: ${capturedAuthMode})`);
-    assert(capturedApiKeyEnv === undefined, `codex bridge should NOT pass apiKeyEnv to pi (got: ${capturedApiKeyEnv})`);
+    assertEqual(capturedAuthMode, 'codex', 'codex bridge should pass authMode:codex to pi for correct provider routing (chatAgentLoop)');
+    assert(capturedApiKeyOverride === undefined, `codex bridge should NOT pass apiKeyOverride to pi (chatAgentLoop) (got: ${capturedApiKeyOverride})`);
   } finally {
     if (originalHome === undefined) {
       delete process.env.HOME;

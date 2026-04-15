@@ -81,12 +81,17 @@ export function createLLMClient(config: LLMConfig): LLMClient {
       }
       // openAICredential is only non-undefined when config.format === 'openai' (see resolveOpenAICredential)
       if (openAICredential?.source === 'codex') {
+        // Pass authMode:'codex' so Pi re-reads ~/.codex/auth.json and sets source:'codex',
+        // which is required for resolvePiModel to route to the openai-codex provider
+        // (synthesizeOpenAICodexModel guards on provider === 'openai-codex'). Using
+        // apiKeyOverride here would return source:'override' and break that routing.
         return chatPi({
           timeout,
           modelId: toOpenAIProviderModelRef(modelId),
           system,
           user,
-          apiKeyOverride: openAICredential?.apiKey,
+          authMode: 'codex',
+          apiKeyEnv: config.apiKeyEnv,
           headers: config.headers,
         });
       }
@@ -134,7 +139,8 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           system,
           user,
           tools,
-          apiKeyOverride: openAICredential?.apiKey,
+          authMode: 'codex',
+          apiKeyEnv: config.apiKeyEnv,
           headers: config.headers,
         });
       }
@@ -188,7 +194,8 @@ export function createLLMClient(config: LLMConfig): LLMClient {
           tools,
           executor,
           maxTurns,
-          apiKeyOverride: openAICredential?.apiKey,
+          authMode: 'codex',
+          apiKeyEnv: config.apiKeyEnv,
           headers: config.headers,
         });
       }
