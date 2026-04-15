@@ -66,12 +66,19 @@ export async function resolvePiModel(
   modelName: string,
   options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
-  // Guard: direct Anthropic provider + OpenRouter key = guaranteed 401.
-  // Users who want Claude should use openrouter/anthropic/claude-* instead.
+  // Guard: direct-provider model + OpenRouter key = guaranteed 401.
+  // Catches stale scaffolded configs that had apiKeyEnv:"OPENROUTER_API_KEY" and were
+  // later updated to use a direct openai/ or anthropic/ model without fixing the key.
   if (provider === 'anthropic' && options?.apiKeyEnv === 'OPENROUTER_API_KEY') {
     throw new Error(
       `Model "${provider}/${modelName}" routes through the Anthropic API directly and requires ANTHROPIC_API_KEY. ` +
       `To use Claude via OpenRouter, change the model ID to "openrouter/anthropic/${modelName}".`,
+    );
+  }
+  if (provider === 'openai' && options?.apiKeyEnv === 'OPENROUTER_API_KEY') {
+    throw new Error(
+      `Model "${provider}/${modelName}" routes through the OpenAI API directly and requires OPENAI_API_KEY. ` +
+      `To use this model via OpenRouter, change the model ID to "openrouter/openai/${modelName}".`,
     );
   }
 
