@@ -5,7 +5,7 @@ Thanks for contributing! This project is a small, opinionated tool — changes s
 ## Local workflow
 
 ```bash
-git clone https://github.com/bucurdavid/skill-optimizer
+git clone https://github.com/fastxyz/skill-optimizer
 cd skill-optimizer
 npm install
 npm run typecheck

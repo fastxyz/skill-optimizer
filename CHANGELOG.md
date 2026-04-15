@@ -16,9 +16,9 @@ The following public API exports have been removed. Update imports to use the ca
 | `toLegacyOptimizeManifest` | removed with no replacement |
 | `SurfaceSnapshotArg` | removed with no replacement |
 
-`TaskResult` fields renamed: `toolMatches` → `actionMatches`, `hallucinatedCalls` → `hallucinatedActions` (on `metrics`), `unnecessaryCalls` → `unnecessaryActions` (on `metrics`). Existing report JSON files using the old field names will be rejected by `loadReport` with a clear error — re-run the benchmark to generate a current-format report.
+`TaskResult` fields renamed: `toolMatches` → `actionMatches`, `hallucinatedCalls` → `hallucinatedActions` (on `metrics`), `unnecessaryCalls` → `unnecessaryActions` (on `metrics`). `loadReport` does not validate old field names — old report JSON files may produce unexpected output in detail views. Re-run the benchmark to generate a current-format report.
 
-The config file name `skill-benchmark.json` is no longer auto-detected. Rename to `skill-optimizer.json`.
+The config file `skill-benchmark.json` is no longer auto-detected. Rename it to `skill-optimizer.json`.
 
 ### Fixed
 
