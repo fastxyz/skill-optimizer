@@ -48,7 +48,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
     });
   }
 
-  const resolveDirectApiKey = (provider: 'openai' | 'anthropic', openAICredential?: ReturnType<typeof resolveOpenAICredential>): string | undefined =>
+  const resolveDirectApiKey = (provider: 'openai' | 'anthropic', openAICredential?: ReturnType<typeof resolveOpenAICredential>): string =>
     provider === 'openai' && openAICredential?.apiKey
       ? openAICredential.apiKey
       : requireConfiguredApiKey({
