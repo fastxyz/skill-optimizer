@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 
 export interface WizardAnswers {
-  surface: 'sdk' | 'cli' | 'mcp';
+  surface: 'sdk' | 'cli' | 'mcp' | 'prompt';
   repoPath: string;
   models: string[];
   maxTasks: number;
@@ -20,7 +20,7 @@ const DEFAULT_MODELS = [
   'openrouter/google/gemini-2.0-flash-001',
 ];
 
-export function buildDefaultAnswers(surface: 'sdk' | 'cli' | 'mcp' = 'sdk', repoPath?: string): WizardAnswers {
+export function buildDefaultAnswers(surface: 'sdk' | 'cli' | 'mcp' | 'prompt' = 'sdk', repoPath?: string): WizardAnswers {
   return {
     surface,
     repoPath: repoPath ?? process.cwd(),
@@ -33,8 +33,8 @@ export function buildDefaultAnswers(surface: 'sdk' | 'cli' | 'mcp' = 'sdk', repo
 
 export function readAnswersFile(filePath: string): WizardAnswers {
   const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as Partial<WizardAnswers>;
-  if (!raw.surface || !['sdk', 'cli', 'mcp'].includes(raw.surface)) {
-    throw new Error(`answers file must have surface: sdk | cli | mcp (got: ${JSON.stringify(raw.surface)})`);
+  if (!raw.surface || !['sdk', 'cli', 'mcp', 'prompt'].includes(raw.surface)) {
+    throw new Error(`answers file must have surface: sdk | cli | mcp | prompt (got: ${JSON.stringify(raw.surface)})`);
   }
   if (!raw.repoPath) {
     throw new Error('answers file must have repoPath');

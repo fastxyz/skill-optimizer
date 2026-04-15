@@ -128,7 +128,10 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   let knownMethods: Set<string>;
   let cliCommands: ReturnType<typeof loadCliCommands> | undefined = undefined;
   let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
-  if (config.surface === 'sdk') {
+  if (config.surface === 'prompt') {
+    // Prompt surface: no tool/action definitions — evaluation is content-based.
+    knownMethods = new Set<string>();
+  } else if (config.surface === 'sdk') {
     // Derive from task expected actions + optional sdk.apiSurface
     const fromTasks = new Set<string>();
     for (const task of tasks) {
@@ -157,7 +160,9 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
 
   // 4. Log known definitions (already loaded in step 3)
-  if (config.surface === 'mcp' && mcpToolDefs) {
+  if (config.surface === 'prompt') {
+    console.log('[prompt] Content-based evaluation — no action definitions needed');
+  } else if (config.surface === 'mcp' && mcpToolDefs) {
     const sourceLabel = config.surfaceSnapshot ? 'surface snapshot' : config.mcp?.tools ?? 'MCP manifest';
     console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${sourceLabel}`);
   } else if (config.surface === 'cli' && cliCommands) {
@@ -297,47 +302,53 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       let generatedCode: string | null = null;
       let bindings: Map<string, string> | undefined;
 
-      try {
-        const extractionConfig = config.surface === 'cli' && cliCommands
-          ? {
-              ...config,
-              cli: {
-                ...config.cli,
-                commandDefinitions: cliCommands,
-              },
+      if (config.surface === 'prompt') {
+        // Prompt surface: no extraction — evaluation is content-based.
+        // The raw text response is the output; no tool calls or code blocks to parse.
+        console.log(`  [${slug}] Prompt response: ${rawResponse.length} chars`);
+      } else {
+        try {
+          const extractionConfig = config.surface === 'cli' && cliCommands
+            ? {
+                ...config,
+                cli: {
+                  ...config.cli,
+                  commandDefinitions: cliCommands,
+                },
+              }
+            : config;
+
+          const extracted = await extract(llmResponse!, extractionConfig as BenchmarkConfig);
+          extractedCalls = extracted.calls;
+          generatedCode = extracted.generatedCode;
+          bindings = extracted.bindings;
+
+          if (config.surface === 'sdk') {
+            const sdkLanguage = config.sdk?.language ?? 'typescript';
+            if (generatedCode) {
+              console.log(`  [${slug}] ${sdkLanguage} code extracted: ${generatedCode.length} chars`);
+            } else if (!error) {
+              console.log(`  [${slug}] WARNING: No ${sdkLanguage} code block found`);
+              error = error ?? `No ${sdkLanguage} code block in response`;
             }
-          : config;
-
-        const extracted = await extract(llmResponse!, extractionConfig as BenchmarkConfig);
-        extractedCalls = extracted.calls;
-        generatedCode = extracted.generatedCode;
-        bindings = extracted.bindings;
-
-        if (config.surface === 'sdk') {
-          const sdkLanguage = config.sdk?.language ?? 'typescript';
-          if (generatedCode) {
-            console.log(`  [${slug}] ${sdkLanguage} code extracted: ${generatedCode.length} chars`);
-          } else if (!error) {
-            console.log(`  [${slug}] WARNING: No ${sdkLanguage} code block found`);
-            error = error ?? `No ${sdkLanguage} code block in response`;
           }
-        }
 
-        if (config.surface === 'cli') {
-          if (generatedCode) {
-            console.log(`  [${slug}] Command block extracted: ${generatedCode.length} chars`);
-          } else if (!error) {
-            console.log(`  [${slug}] WARNING: No shell command block found`);
-            error = error ?? 'No shell command block in response';
+          if (config.surface === 'cli') {
+            if (generatedCode) {
+              console.log(`  [${slug}] Command block extracted: ${generatedCode.length} chars`);
+            } else if (!error) {
+              console.log(`  [${slug}] WARNING: No shell command block found`);
+              error = error ?? 'No shell command block in response';
+            }
           }
-        }
 
-        if (extractedCalls.length > 0) {
-          console.log(`  [${slug}] Extracted ${extractedCalls.length} calls: ${extractedCalls.map(c => c.method).join(', ')}`);
+          if (extractedCalls.length > 0) {
+            console.log(`  [${slug}] Extracted ${extractedCalls.length} calls: ${extractedCalls.map(c => c.method).join(', ')}`);
+          }
+        } catch (err) {
+          console.error(`  [${slug}] Extraction error: ${err instanceof Error ? err.message : err}`);
+          error = error ?? `Extraction failed: ${err instanceof Error ? err.message : err}`;
         }
-      } catch (err) {
-        console.error(`  [${slug}] Extraction error: ${err instanceof Error ? err.message : err}`);
-        error = error ?? `Extraction failed: ${err instanceof Error ? err.message : err}`;
       }
 
       // Evaluate

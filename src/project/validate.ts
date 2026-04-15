@@ -44,8 +44,8 @@ export async function checkConfig(
 
   const { target, benchmark, optimize } = cfg;
 
-  if (target.surface !== 'sdk' && target.surface !== 'cli' && target.surface !== 'mcp') {
-    err('invalid-surface', 'target.surface', '"target.surface" must be sdk, cli, or mcp');
+  if (target.surface !== 'sdk' && target.surface !== 'cli' && target.surface !== 'mcp' && target.surface !== 'prompt') {
+    err('invalid-surface', 'target.surface', '"target.surface" must be sdk, cli, mcp, or prompt');
   }
 
   if (target.skill !== undefined) {
@@ -105,6 +105,12 @@ export async function checkConfig(
     }
     if (!hasManifest && !hasCodeSources) {
       err('missing-mcp-surface', 'target', 'MCP targets need discovery.sources, target.mcp.tools, or target.discovery.fallbackManifest');
+    }
+  }
+
+  if (target.surface === 'prompt') {
+    if (target.skill === undefined) {
+      err('missing-prompt-skill', 'target.skill', 'Prompt targets require target.skill (path to the markdown file)');
     }
   }
 

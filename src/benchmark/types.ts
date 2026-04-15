@@ -23,7 +23,7 @@ export interface TokenUsage {
 
 // === Config (loaded from benchmark.config.json) ===
 
-export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp';
+export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp' | 'prompt';
 export type SdkLanguage = 'typescript' | 'python' | 'rust';
 
 export interface BenchmarkConfig {
@@ -74,6 +74,10 @@ export interface CliCommandDefinition {
 
 export interface McpSurfaceConfig {
   tools: string;                   // path to tools.json (OpenAI function calling format)
+}
+
+export interface PromptTargetConfig {
+  // No additional config needed — discovery reads from target.skill
 }
 
 // Backward-compatible aliases retained for internal usage.

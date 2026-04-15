@@ -418,7 +418,7 @@ export function evaluateTask(params: {
   error?: string;
   knownMethods: Set<string>;
   bindings?: Map<string, string>;  // variable → source function/class from extractor
-  surface: 'sdk' | 'cli' | 'mcp';
+  surface: 'sdk' | 'cli' | 'mcp' | 'prompt';
 }): TaskResult {
   const {
     task,
