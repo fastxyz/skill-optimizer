@@ -17,7 +17,7 @@ export function toBenchmarkConfig(project: ResolvedProjectConfig): BenchmarkConf
     cli: project.target.cli,
     mcp: project.target.mcp,
     skill: project.target.skill as SkillConfig | undefined,
-    tasks: '__generated__',
+    tasks: project.benchmark.tasks ?? '__generated__',
     llm: {
       format: project.benchmark.format,
       baseUrl: project.benchmark.baseUrl,

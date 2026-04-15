@@ -17,7 +17,7 @@ const TRUNCATED_SUFFIX = '\n\n[... truncated]';
  */
 export function truncateToolResult(result: string): string {
   if (result.length <= MAX_TOOL_RESULT_CHARS) return result;
-  return result.slice(0, MAX_TOOL_RESULT_CHARS) + TRUNCATED_SUFFIX;
+  return result.slice(0, MAX_TOOL_RESULT_CHARS - TRUNCATED_SUFFIX.length) + TRUNCATED_SUFFIX;
 }
 
 export function isAbortError(err: unknown): boolean {
