@@ -99,7 +99,12 @@ After making changes to your SKILL.md, compare before and after:
 npx skill-optimizer compare --baseline report-before.json --current report-after.json
 ```
 
-This shows per-model and per-task deltas so you can see exactly what improved and what regressed.
+This shows:
+- Per-model score deltas (e.g. `Claude Sonnet: 0.75 → 0.90 (+0.15)`)
+- Per-task deltas — which tasks improved, which regressed
+- Overall weighted average change
+
+**Finding the report files:** The benchmark writes its report JSON to the `output.dir` configured in your `skill-optimizer.json` (default: `benchmark-results/`). Each run creates a timestamped file there.
 
 ## 8. Cost Awareness
 
