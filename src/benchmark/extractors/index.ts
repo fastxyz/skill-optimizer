@@ -51,10 +51,3 @@ export async function extract(
   const { calls, bindings } = await extractSdkFromCode(generatedCode, sdkConfig.language);
   return { calls, generatedCode, bindings };
 }
-
-// Re-export for direct access
-export { extractCodeBlock, extractSdkCodeBlock } from './code-extractor.js';
-export { extractShellBlock, extractFromCliMarkdown, parseShellCommands } from './cli-extractor.js';
-export { extractFromCode } from './code-analyzer.js';
-export { extractFromToolCalls } from './mcp-extractor.js';
-export { extractSdkFromCode, getSdkAdapter } from './sdk/registry.js';

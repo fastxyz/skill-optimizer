@@ -13,7 +13,7 @@ import type { SimpleStreamOptions } from '@mariozechner/pi-ai';
 import { resolvePiModel } from '../runtime/pi/index.js';
 import type { PiAuthMode } from '../runtime/pi/auth.js';
 
-export interface PiSimpleCompleteOptions {
+interface PiSimpleCompleteOptions {
   provider: string;
   model: string;
   authMode?: PiAuthMode;
@@ -23,7 +23,7 @@ export interface PiSimpleCompleteOptions {
   reasoning?: NonNullable<SimpleStreamOptions['reasoning']>;
 }
 
-export interface PiSimpleCompleteInput {
+interface PiSimpleCompleteInput {
   system: string;
   prompt: string;
 }

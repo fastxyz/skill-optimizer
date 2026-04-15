@@ -4,7 +4,7 @@ import { chatAnthropic, chatWithToolsAnthropic, chatAgentLoopAnthropic } from '.
 import { chatPi, chatWithToolsPi, chatAgentLoopPi } from './pi-format.js';
 import { requireConfiguredApiKey, resolveApiCredential } from '../../runtime/pi/index.js';
 
-export interface LLMClient {
+interface LLMClient {
   /** Regular chat — LLM returns text output (SDK/CLI surfaces) */
   chat(modelId: string, system: string, user: string): Promise<LLMResponse>;
   /** Chat with tools — LLM returns structured tool_calls (MCP surface) */

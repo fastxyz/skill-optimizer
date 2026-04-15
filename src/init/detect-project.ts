@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import type { WizardAnswers } from './answers.js';
 
-export interface DetectedProject {
+interface DetectedProject {
   surface: 'sdk' | 'cli' | 'mcp';
   name: string;
   repoPath: string;

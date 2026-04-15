@@ -449,7 +449,7 @@ function extractCallExpression(
 
 // ── Generic extraction (no config hints) ───────────────────────────────────
 
-export interface RawExtraction {
+interface RawExtraction {
   calls: ExtractedCall[];
   bindings: Map<string, string>;  // variable → source function/class name
 }

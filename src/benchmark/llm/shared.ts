@@ -8,7 +8,7 @@
 import type { LLMResponse } from '../types.js';
 
 /** Maximum tool-result characters forwarded to the model in agent loops. */
-export const MAX_TOOL_RESULT_CHARS = 50_000;
+const MAX_TOOL_RESULT_CHARS = 50_000;
 const TRUNCATED_SUFFIX = '\n\n[... truncated]';
 
 /**

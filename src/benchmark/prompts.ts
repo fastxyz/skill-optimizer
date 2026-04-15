@@ -1,8 +1,8 @@
 import type { FetchedSkill, TaskDefinition, SdkLanguage } from './types.js';
 
-export type PromptSurface = 'sdk' | 'cli' | 'mcp';
+type PromptSurface = 'sdk' | 'cli' | 'mcp';
 
-export interface PromptOptions {
+interface PromptOptions {
   surface: PromptSurface;
   agentic?: boolean;
   shell?: 'bash' | 'sh';
