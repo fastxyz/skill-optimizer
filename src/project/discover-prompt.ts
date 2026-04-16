@@ -324,5 +324,31 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
     }
   }
 
+  // Fallback: no ## sections were found — extract from whole content.
+  if (sections.length === 0) {
+    const fallbackInstructions = extractInstructions(content);
+    for (const instruction of fallbackInstructions) {
+      addCapability({
+        name: slugify(instruction.slice(0, 60)) || 'instruction',
+        description: instruction,
+        section: content,
+        type: 'instruction',
+      });
+    }
+    // Last resort: use the first non-empty content line as a single capability.
+    // Only do this for non-empty content; empty files should still return [] so
+    // buildPromptSurfaceSnapshot's 0-capability guard fires correctly.
+    if (capabilities.length === 0 && content.trim().length > 0) {
+      const firstLine = content.trim().split('\n').find(l => l.trim().length > 0) ?? 'skill';
+      const cleaned = firstLine.replace(/^#+\s*/, '').trim();
+      addCapability({
+        name: slugify(cleaned) || 'skill',
+        description: cleaned || 'Skill capability',
+        section: content,
+        type: 'instruction',
+      });
+    }
+  }
+
   return capabilities.map(capabilityToAction);
 }

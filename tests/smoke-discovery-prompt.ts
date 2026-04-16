@@ -261,5 +261,21 @@ await test('discoverPromptCapabilities: strips YAML frontmatter before scanning'
   if (actions.length === 0) throw new Error('should still find Phase 1 capability');
 });
 
+// Bug 4: heading-less files
+await test('discoverPromptCapabilities: handles heading-less instruction-only files', () => {
+  const content = [
+    '# Deployment Skill',
+    '',
+    'This skill deploys services to production.',
+    '',
+    '- Ask for the service name and environment',
+    '- Generate the deployment manifest',
+    '- Validate the configuration before applying',
+    '- Run the deployment command',
+  ].join('\n');
+  const actions = discoverPromptCapabilities(content);
+  assert(actions.length > 0, `should extract at least one capability from bullet list, got ${actions.length}`);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
