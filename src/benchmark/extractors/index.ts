@@ -16,7 +16,7 @@ export async function extract(
   config: BenchmarkConfig,
 ): Promise<{ calls: ExtractedCall[]; generatedCode: string | null; bindings?: Map<string, string> }> {
   const extended = config as BenchmarkConfig & {
-    surface?: 'sdk' | 'cli' | 'mcp';
+    surface?: 'sdk' | 'cli' | 'mcp' | 'prompt';
     mode?: 'code' | 'mcp';
     sdk?: unknown;
     cli?: { commandDefinitions?: Array<{ command: string }> };
@@ -27,6 +27,11 @@ export async function extract(
   const knownCommands = Array.isArray(extended.cli?.commandDefinitions)
     ? extended.cli.commandDefinitions.map((definition) => definition.command)
     : undefined;
+
+  if (surface === 'prompt') {
+    // Prompt surface: no extraction — response is plain text, not tool calls or code.
+    return { calls: [], generatedCode: null };
+  }
 
   if (surface === 'mcp' || extended.mode === 'mcp') {
     const calls = extractFromToolCalls(response);

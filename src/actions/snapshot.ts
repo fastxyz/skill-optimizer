@@ -171,8 +171,8 @@ export function loadActionSnapshotFile(snapshotPath: string): ActionSnapshotArti
   }
 
   const catalog = candidate.catalog as Partial<ActionCatalog>;
-  if (catalog.surface !== 'sdk' && catalog.surface !== 'cli' && catalog.surface !== 'mcp') {
-    invalidSnapshot(snapshotPath, 'catalog.surface must be one of sdk|cli|mcp');
+  if (catalog.surface !== 'sdk' && catalog.surface !== 'cli' && catalog.surface !== 'mcp' && catalog.surface !== 'prompt') {
+    invalidSnapshot(snapshotPath, 'catalog.surface must be one of sdk|cli|mcp|prompt');
   }
   const validatedActions = validateCatalogActions(snapshotPath, catalog.actions);
 

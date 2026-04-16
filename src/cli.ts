@@ -124,10 +124,10 @@ export function positionals(args: string[]): string[] {
 
 function printUsage(): void {
   console.log(`
-Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
+Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP/prompt guidance
 
 Usage:
-  skill-optimizer init [sdk|cli|mcp]            Interactive wizard — scaffold config for the given surface
+  skill-optimizer init [sdk|cli|mcp|prompt]      Interactive wizard — scaffold config for the given surface
   skill-optimizer init [surface] --yes          Accept all defaults non-interactively
   skill-optimizer init --answers <file.json>    Load wizard answers from a JSON file (CI mode)
   skill-optimizer init --auto                   Auto-detect surface from CWD and pre-fill wizard
@@ -179,6 +179,7 @@ Examples:
   skill-optimizer init cli
   skill-optimizer init sdk
   skill-optimizer init mcp
+  skill-optimizer init prompt
   skill-optimizer import-commands --from ./src/cli.ts
   skill-optimizer import-commands --from fast-cli --scrape
   skill-optimizer doctor --config ./skill-optimizer.json
@@ -250,9 +251,9 @@ async function main(): Promise<void> {
 
   // ── Init mode ────────────────────────────────────────────────────────────────
   if (command === 'init') {
-    const surfaceArg = pos[1] as 'sdk' | 'cli' | 'mcp' | undefined;
-    if (surfaceArg && !['sdk', 'cli', 'mcp'].includes(surfaceArg)) {
-      console.error(`ERROR: Unknown surface '${surfaceArg}'. Must be: sdk | cli | mcp`);
+    const surfaceArg = pos[1] as 'sdk' | 'cli' | 'mcp' | 'prompt' | undefined;
+    if (surfaceArg && !['sdk', 'cli', 'mcp', 'prompt'].includes(surfaceArg)) {
+      console.error(`ERROR: Unknown surface '${surfaceArg}'. Must be: sdk | cli | mcp | prompt`);
       process.exit(1);
     }
     const answersFlag = getFlag(args, '--answers');

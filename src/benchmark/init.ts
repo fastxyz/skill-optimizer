@@ -1,7 +1,7 @@
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' = 'sdk'): void {
+export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' | 'prompt' = 'sdk'): void {
   const generatedDir = resolve(targetDir, '.skill-optimizer');
   mkdirSync(generatedDir, { recursive: true });
 
@@ -108,7 +108,7 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
   console.log('  3. Run: skill-optimizer optimize --config ./.skill-optimizer/skill-optimizer.json');
 }
 
-function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
+function buildConfig(surface: 'sdk' | 'cli' | 'mcp' | 'prompt'): object {
   const commonBenchmark = {
     format: 'pi',
     timeout: 240000,
@@ -169,6 +169,19 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
         cli: {
           commands: './cli-commands.json',
         },
+      },
+      benchmark: commonBenchmark,
+      optimize: commonOptimize,
+    };
+  }
+
+  if (surface === 'prompt') {
+    return {
+      name: 'my-prompt',
+      target: {
+        surface: 'prompt',
+        repoPath: '..',
+        skill: '../SKILL.md',
       },
       benchmark: commonBenchmark,
       optimize: commonOptimize,

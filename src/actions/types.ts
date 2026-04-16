@@ -1,4 +1,4 @@
-export type ActionSurface = 'sdk' | 'cli' | 'mcp';
+export type ActionSurface = 'sdk' | 'cli' | 'mcp' | 'prompt';
 
 export interface ActionArgSchema {
   name: string;

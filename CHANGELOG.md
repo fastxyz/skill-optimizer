@@ -20,6 +20,9 @@ The following public API exports have been removed. Update imports to use the ca
 
 The config file `skill-benchmark.json` is no longer auto-detected. Rename it to `skill-optimizer.json`.
 
+### Added
+- **prompt surface type** — benchmark and optimize prompt templates, Claude Code skills, and agent instructions. Discovers phases and capabilities from markdown, evaluates output quality with content-based criteria.
+
 ### Fixed
 
 - **benchmark:** Strip provider prefix from model ID when using direct `anthropic` or `openai` formats. Previously, `anthropic/claude-sonnet-4-6` was sent as-is to the Anthropic API, which expects `claude-sonnet-4-6`. The `pi` format is unaffected.

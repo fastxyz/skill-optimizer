@@ -118,6 +118,19 @@ function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): obje
     };
   }
 
+  if (surface === 'prompt') {
+    return {
+      name: projectName,
+      target: {
+        surface: 'prompt',
+        repoPath: relRepo,
+        skill: skillConfigPath,
+      },
+      benchmark: commonBenchmark,
+      optimize: commonOptimize,
+    };
+  }
+
   // mcp
   return {
     name: projectName,

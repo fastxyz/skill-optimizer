@@ -1,6 +1,6 @@
 import type { FetchedSkill, TaskDefinition, SdkLanguage } from './types.js';
 
-type PromptSurface = 'sdk' | 'cli' | 'mcp';
+export type PromptSurface = 'sdk' | 'cli' | 'mcp' | 'prompt';
 
 interface PromptOptions {
   surface: PromptSurface;
@@ -36,6 +36,15 @@ export function buildSystemPrompt(
   const guidanceSection = skill
     ? `\n\nOptional guidance context (SKILL.md):\n--- GUIDANCE ---\n${skill.content}\n--- END GUIDANCE ---`
     : '';
+
+  if (options.surface === 'prompt') {
+    // For prompt surface, the skill IS the system prompt.
+    // If skill content is available, use it directly; otherwise use a generic wrapper.
+    if (skill) {
+      return skill.content;
+    }
+    return `You are a helpful assistant for ${sdkName}. Follow the instructions and complete the task.`;
+  }
 
   if (options.surface === 'mcp') {
     return (
@@ -84,6 +93,10 @@ export function buildTaskPrompt(
   task: TaskDefinition,
   options: PromptOptions,
 ): string {
+  if (options.surface === 'prompt') {
+    return task.prompt;
+  }
+
   if (options.surface === 'mcp') {
     return (
       `Task: ${task.prompt}\n\n` +

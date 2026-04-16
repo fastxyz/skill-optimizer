@@ -113,9 +113,25 @@ npx skill-optimizer init --answers answers.json
 | `benchmark.models` | Models to benchmark | Model IDs with provider prefix: `openrouter/<provider>/<model>` (via OpenRouter), `anthropic/<model>` (direct Anthropic), `openai/<model>` (direct OpenAI) |
 | `benchmark.authMode` | How model auth is resolved | `env` (default), `codex`, or `auto` |
 
+### Prompt templates / Claude Code skills
+
+Benchmark how well models follow your prompt templates:
+
+```bash
+skill-optimizer init prompt
+skill-optimizer benchmark
+```
+
+The prompt surface discovers phases and capabilities from your SKILL.md,
+generates scenario-based tasks, and evaluates output quality — not just
+tool calls. It scores responses on required sections, format patterns,
+forbidden keywords, and structural elements (code blocks, numbered lists,
+tables). This lets you optimize prompt templates the same way you optimize
+SDK/CLI/MCP guidance.
+
 ## How it works
 
-1. **Discover** callable surface (SDK methods / CLI commands / MCP tools) via tree-sitter or a manifest.
+1. **Discover** callable surface (SDK methods / CLI commands / MCP tools / prompt phases) via tree-sitter, manifest, or markdown parsing.
 2. **Scope** the surface with `target.scope.include` / `target.scope.exclude` globs.
 3. **Generate tasks** — one prompt per in-scope action, coverage-guaranteed.
 4. **Benchmark** — every configured model attempts every task; static evaluator checks action calls + args.
