@@ -87,12 +87,30 @@ function normalizeTaskDefinition(
 
   const expected_actions = rawExpectedActions.map((rawAction, actionIndex) => normalizeExpectedAction(rawAction, resolvedPath, index, actionIndex));
 
+  const rawVerify = Array.isArray(task.verify) ? task.verify : undefined;
+  if (rawVerify !== undefined) {
+    for (let i = 0; i < rawVerify.length; i++) {
+      if (!rawVerify[i] || typeof rawVerify[i] !== 'object') {
+        throw new Error(`Tasks file ${resolvedPath}: task ${task.id} verify[${i}] must be an object`);
+      }
+    }
+  }
+
+  const rawFetches = Array.isArray(task.expected_fetches) ? task.expected_fetches : undefined;
+  if (rawFetches !== undefined) {
+    for (let i = 0; i < rawFetches.length; i++) {
+      if (typeof rawFetches[i] !== 'string' || !(rawFetches[i] as string).trim()) {
+        throw new Error(`Tasks file ${resolvedPath}: task ${task.id} expected_fetches[${i}] must be a non-empty string`);
+      }
+    }
+  }
+
   return {
     id: task.id,
     prompt: task.prompt,
     expected_actions,
-    verify: Array.isArray(task.verify) ? (task.verify as TaskDefinition['verify']) : undefined,
-    expected_fetches: Array.isArray(task.expected_fetches) ? (task.expected_fetches as string[]) : undefined,
+    verify: rawVerify as TaskDefinition['verify'] | undefined,
+    expected_fetches: rawFetches as string[] | undefined,
   };
 }
 

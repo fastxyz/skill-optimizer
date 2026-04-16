@@ -186,6 +186,10 @@ export async function checkConfig(
   }
 
 
+  if (benchmark.taskGeneration?.enabled !== true && !benchmark.tasks) {
+    err('missing-tasks', 'benchmark.tasks', '"benchmark.tasks" is required when task generation is disabled');
+  }
+
   if (benchmark.taskGeneration?.maxTasks !== undefined && (!Number.isInteger(benchmark.taskGeneration.maxTasks) || benchmark.taskGeneration.maxTasks <= 0)) {
     err('invalid-max-tasks', 'benchmark.taskGeneration.maxTasks', '"benchmark.taskGeneration.maxTasks" must be a positive integer');
   }
