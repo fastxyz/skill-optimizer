@@ -74,13 +74,32 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
 }
 ```
 
+### Prompt surface
+
+```json
+{
+  "name": "my-skill-doc",
+  "target": {
+    "surface": "prompt",
+    "repoPath": "/path/to/my-project",
+    "skill": "./SKILL.md"
+  },
+  "benchmark": {
+    "format": "pi",
+    "models": [
+      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
+    ]
+  }
+}
+```
+
 ## Field-by-Field Reference
 
 ### `target` — What You're Benchmarking
 
 | Field | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `surface` | Yes | — | `"cli"`, `"sdk"`, or `"mcp"` |
+| `surface` | Yes | — | `"cli"`, `"sdk"`, `"mcp"`, or `"prompt"` |
 | `repoPath` | Yes | — | Absolute or config-relative path to your project root |
 | `skill` | Yes | — | Path to your SKILL.md or guidance doc, relative to `repoPath` |
 | `discovery.mode` | No | `"auto"` | `"auto"` (tree-sitter) or `"manifest"` (hand-written JSON) |
@@ -164,7 +183,7 @@ Task generation is **coverage-guaranteed**: every in-scope action gets at least 
 | Code | Meaning | Fix |
 |------|---------|-----|
 | `E_MISSING_SKILL` | `target.skill` file not found | Create the file or fix the path in config |
-| `E_INVALID_SURFACE` | `target.surface` is not cli/sdk/mcp | Use one of the three valid values |
+| `E_INVALID_SURFACE` | `target.surface` is not cli/sdk/mcp/prompt | Use one of the four valid values |
 | `E_DIRTY_GIT` | Uncommitted changes in target repo | Commit or stash, or set `requireCleanGit: false` |
 | `E_EMPTY_SCOPE` | Scope filters matched no actions | Check your `include`/`exclude` patterns |
 | `E_MISSING_API_KEY` | API key env var not set | `export OPENROUTER_API_KEY=sk-or-...` (or `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` for direct formats) |

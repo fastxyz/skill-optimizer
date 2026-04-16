@@ -1,6 +1,6 @@
 {
   "name": "skill-optimizer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Benchmark and optimizer for evaluating SDK, CLI, and MCP guidance with static action matching.",
   "license": "MIT",
   "author": "Pi2 Labs",

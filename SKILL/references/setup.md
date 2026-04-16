@@ -35,15 +35,16 @@ npx skill-optimizer --help
 
 ## 2. Determine Your Surface Type
 
-skill-optimizer supports three surface types. Pick the one that matches your project:
+skill-optimizer supports four surface types. Pick the one that matches your project:
 
 | Surface | Your project exposes... | Examples |
 |---------|------------------------|----------|
 | `cli` | CLI commands or a binary | Yargs, Commander, @optique/core, argparse, Click, Clap |
 | `sdk` | Library methods users call in code | TypeScript/Python/Rust SDKs |
 | `mcp` | MCP tool handlers | MCP servers with `server.tool()` definitions |
+| `prompt` | Prompt templates or agent skill docs | SKILL.md files, Claude Code skills, agent instructions |
 
-If unsure: does your user run commands in a terminal (`cli`), import your package and call functions (`sdk`), or connect an AI agent to your tool server (`mcp`)?
+If unsure: does your user run commands in a terminal (`cli`), import your package and call functions (`sdk`), connect an AI agent to your tool server (`mcp`), or follow a prompt template / skill document (`prompt`)?
 
 ## 3. Run the Init Wizard
 

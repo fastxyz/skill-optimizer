@@ -1,17 +1,17 @@
 ---
 name: skill-optimizer
 description: >
-  Benchmark and optimize SDK, CLI, and MCP documentation so every LLM model
-  can reliably call the right actions with correct arguments. Use when setting
-  up skill-optimizer for a project, running benchmarks, interpreting results,
-  optimizing SKILL.md files, or diagnosing configuration issues. Also use when
-  working inside the skill-optimizer repository itself — for running against
-  mock repos, testing changes, or understanding the codebase.
+  Benchmark and optimize SDK, CLI, MCP, and prompt documentation so every LLM
+  model can reliably call the right actions with correct arguments. Use when
+  setting up skill-optimizer for a project, running benchmarks, interpreting
+  results, optimizing SKILL.md files, or diagnosing configuration issues. Also
+  use when working inside the skill-optimizer repository itself — for running
+  against mock repos, testing changes, or understanding the codebase.
 ---
 
 # skill-optimizer
 
-Benchmark your SDK / CLI / MCP docs against multiple LLMs, measure whether they call the right actions with the right arguments, and iteratively rewrite your guidance until a quality floor is met across every model.
+Benchmark your SDK / CLI / MCP / prompt docs against multiple LLMs, measure whether they call the right actions with the right arguments, and iteratively rewrite your guidance until a quality floor is met across every model.
 
 ## Context Detection
 
@@ -27,7 +27,7 @@ Before doing anything, figure out where you are:
 
 | Task | Command |
 |------|---------|
-| Init config | `npx skill-optimizer init cli\|sdk\|mcp` |
+| Init config | `npx skill-optimizer init cli\|sdk\|mcp\|prompt` |
 | Init (non-interactive) | `npx skill-optimizer init cli --yes` |
 | Import CLI commands | `npx skill-optimizer import-commands --from ./src/cli.ts` |
 | Import (binary scrape) | `npx skill-optimizer import-commands --from my-cli --scrape` |
@@ -56,7 +56,7 @@ If you are in an **unconfigured project** (context detection case 3), start with
 
 ## Key Concepts
 
-**Surfaces** — The callable interface of your project: SDK methods, CLI commands, or MCP tools. Skill-optimizer discovers these via tree-sitter code analysis or from a hand-written manifest file.
+**Surfaces** — The callable interface of your project: SDK methods, CLI commands, MCP tools, or prompt templates. Skill-optimizer discovers these via tree-sitter code analysis, manifest files, or markdown parsing.
 
 **Static evaluation** — Benchmark evaluation never executes generated code. Actions are extracted from model responses via pattern matching and compared structurally against expected calls. This makes benchmarks safe and repeatable.
 
