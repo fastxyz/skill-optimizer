@@ -35,8 +35,11 @@ function getRejectionReason(
     return `duplicate task id "${task.id}"`;
   }
 
-  // Prompt surface tasks have no actions — they're evaluated on content, not tool calls.
+  // Prompt surface tasks must have expected_actions: [] — evaluated on content, not tool calls.
   if (surface === 'prompt') {
+    if (expectedActions.length > 0) {
+      return `prompt task "${task.id}" must have empty expected_actions, got ${expectedActions.length}`;
+    }
     return null;
   }
 
