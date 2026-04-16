@@ -97,7 +97,7 @@ npx skill-optimizer init --answers answers.json
   "models": [
     "openrouter/anthropic/claude-sonnet-4.6",
     "openrouter/deepseek/deepseek-v3.2",
-    "openrouter/google/gemini-2-5-flash",
+    "openrouter/google/gemini-2.5-flash",
     "openrouter/qwen/qwen3.5-397b-a17b",
     "openrouter/moonshotai/kimi-k2.5",
     "openrouter/z-ai/glm-5.1",
@@ -127,7 +127,7 @@ Benchmark how well models follow your prompt templates:
 
 ```bash
 skill-optimizer init prompt
-skill-optimizer benchmark
+skill-optimizer run
 ```
 
 The prompt surface discovers phases and capabilities from your SKILL.md,
