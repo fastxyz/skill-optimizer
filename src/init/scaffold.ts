@@ -124,7 +124,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
         repoPath: relRepo,
         skill: skillConfigPath,
       },
-      benchmark: { ...commonBenchmark, format: 'anthropic' },
+      benchmark: commonBenchmark,
       optimize: commonOptimize,
     };
   }

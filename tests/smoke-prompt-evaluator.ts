@@ -193,9 +193,7 @@ await test('empty response -> score 0', () => {
     forbiddenKeywords: ['error'],
   };
 
-  // The evaluator has a fast path for empty content: returns score 1.0
-  // (vacuously true) when no checks fire. But with criteria, the sections
-  // won't be found in an empty string, so section score = 0.
+  // With required sections set, an empty string scores 0 on section checks.
   const resultEmpty = evaluatePromptResponse('', criteria);
   // Empty string: heading regex won't match, so sections score = 0
   assertInRange(resultEmpty.categoryScores.sections, 0, 0, 'empty response should have section score 0');
