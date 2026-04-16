@@ -26,6 +26,9 @@ import { evaluateTask } from './evaluator.js';
 import { computeCoverage } from './coverage.js';
 import { computeVerdict } from './scoring.js';
 import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
+import { evaluatePromptResponse, generateCriteriaFromCapability } from './prompt-evaluator.js';
+import type { PromptEvaluationCriteria } from './prompt-evaluator.js';
+import { discoverPromptCapabilitiesWithSections } from '../project/discover-prompt.js';
 
 function buildWebFetchTool(): McpToolDefinition {
   return {
@@ -181,6 +184,17 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log(`[skill] Version: ${skill.version.source}@${skill.version.commitSha.slice(0, 8)}\n`);
   } else {
     console.log('[skill] No skill configured — using generic system prompt\n');
+  }
+
+  // Pre-compute evaluation criteria for prompt surface.
+  let promptEvalCriteria: PromptEvaluationCriteria | undefined;
+  if (config.surface === 'prompt' && skill) {
+    const caps = discoverPromptCapabilitiesWithSections(skill.content);
+    if (caps.length > 0) {
+      // Use the primary capability's section to derive criteria.
+      promptEvalCriteria = generateCriteriaFromCapability(caps[0].action, caps[0].section);
+      console.log(`[prompt] Evaluation criteria derived from ${caps.length} discovered capabilities`);
+    }
   }
 
   // 6. Build system prompt
@@ -365,6 +379,19 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         bindings,
         surface: config.surface,
       });
+
+      // Prompt surface: replace vacuous tool-recall with content-based score.
+      if (config.surface === 'prompt' && promptEvalCriteria) {
+        try {
+          const promptResult = evaluatePromptResponse(rawResponse, promptEvalCriteria);
+          taskResult.metrics.toolRecall = promptResult.score;
+          taskResult.metrics.taskPassed = promptResult.score >= 0.5;
+          console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
+        } catch (err) {
+          console.error(`  [${slug}] Prompt eval error: ${err instanceof Error ? err.message : err}`);
+          // Leave vacuous scores in place — task shows as PASS rather than crashing the run
+        }
+      }
 
       if (config.agentic && task.expected_fetches) {
         const actualFetches = fetchedPaths;

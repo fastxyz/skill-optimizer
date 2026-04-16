@@ -253,24 +253,29 @@ function capabilityToAction(cap: PromptCapability): ActionDefinition {
   };
 }
 
+export interface PromptCapabilityWithSection {
+  action: ActionDefinition;
+  /** Raw markdown body text of the section this capability was extracted from. */
+  section: string;
+}
+
 /**
- * Discover capabilities from a markdown prompt/skill file.
- * Parses headings, imperative instructions, code-block output formats,
- * and decision-point logic into ActionDefinition[] compatible with the
- * benchmark runner.
+ * Discover capabilities from a markdown prompt/skill file, returning each
+ * capability paired with its raw section body text.
  */
-export function discoverPromptCapabilities(skillContent: string): ActionDefinition[] {
+export function discoverPromptCapabilitiesWithSections(
+  skillContent: string,
+): PromptCapabilityWithSection[] {
   const content = stripFrontmatter(skillContent);
   const sections = splitSections(content);
-  const capabilities: PromptCapability[] = [];
+  const result: PromptCapabilityWithSection[] = [];
   const seenNames = new Set<string>();
 
-  function addCapability(cap: PromptCapability): void {
-    // Deduplicate by slugified name.
-    const slug = slugify(cap.name);
-    if (seenNames.has(slug)) return;
-    seenNames.add(slug);
-    capabilities.push(cap);
+  function addWithSection(cap: PromptCapability): void {
+    const key = slugify(cap.name);
+    if (seenNames.has(key)) return;
+    seenNames.add(key);
+    result.push({ action: capabilityToAction(cap), section: cap.section });
   }
 
   for (const section of sections) {
@@ -278,7 +283,7 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
     if (section.isPhase && section.phaseNumber !== undefined) {
       const phaseName = `phase_${section.phaseNumber}_${slugify(section.heading.replace(/^(?:phase|step)\s+\d+[:\s—–-]*/i, ''))}`;
       const firstSentence = section.body.split(/[.!?\n]/)[0]?.trim() ?? section.heading;
-      addCapability({
+      addWithSection({
         name: phaseName,
         description: firstSentence || section.heading,
         section: section.body,
@@ -290,7 +295,7 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
     const instructions = extractInstructions(section.body);
     for (const instruction of instructions) {
       const instructionName = `${slugify(section.heading)}_${slugify(instruction.slice(0, 60))}`;
-      addCapability({
+      addWithSection({
         name: instructionName,
         description: instruction,
         section: section.body,
@@ -304,7 +309,7 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
       const snippet = outputs[i]!;
       const outputName = `${slugify(section.heading)}_output${outputs.length > 1 ? `_${i + 1}` : ''}`;
       const preview = snippet.split('\n')[0]?.trim().slice(0, 80) ?? 'code block';
-      addCapability({
+      addWithSection({
         name: outputName,
         description: `Expected output format: ${preview}`,
         section: snippet,
@@ -315,7 +320,7 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
     // 4. Decision-point capabilities.
     if (hasDecisionPoints(section.body)) {
       const decisionName = `${slugify(section.heading)}_decision`;
-      addCapability({
+      addWithSection({
         name: decisionName,
         description: `Decision point in "${section.heading}" — evaluate conditional logic`,
         section: section.body,
@@ -328,7 +333,7 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
   if (sections.length === 0) {
     const fallbackInstructions = extractInstructions(content);
     for (const instruction of fallbackInstructions) {
-      addCapability({
+      addWithSection({
         name: slugify(instruction.slice(0, 60)) || 'instruction',
         description: instruction,
         section: content,
@@ -338,10 +343,10 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
     // Last resort: use the first non-empty content line as a single capability.
     // Only do this for non-empty content; empty files should still return [] so
     // buildPromptSurfaceSnapshot's 0-capability guard fires correctly.
-    if (capabilities.length === 0 && content.trim().length > 0) {
+    if (result.length === 0 && content.trim().length > 0) {
       const firstLine = content.trim().split('\n').find(l => l.trim().length > 0) ?? 'skill';
       const cleaned = firstLine.replace(/^#+\s*/, '').trim();
-      addCapability({
+      addWithSection({
         name: slugify(cleaned) || 'skill',
         description: cleaned || 'Skill capability',
         section: content,
@@ -350,5 +355,15 @@ export function discoverPromptCapabilities(skillContent: string): ActionDefiniti
     }
   }
 
-  return capabilities.map(capabilityToAction);
+  return result;
+}
+
+/**
+ * Discover capabilities from a markdown prompt/skill file.
+ * Parses headings, imperative instructions, code-block output formats,
+ * and decision-point logic into ActionDefinition[] compatible with the
+ * benchmark runner.
+ */
+export function discoverPromptCapabilities(skillContent: string): ActionDefinition[] {
+  return discoverPromptCapabilitiesWithSections(skillContent).map(({ action }) => action);
 }

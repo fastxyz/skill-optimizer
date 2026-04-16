@@ -1,11 +1,11 @@
 import { discoverTaskSurface } from './discover.js';
 import { freezeTaskArtifacts } from './freeze.js';
-import { generateCandidateTasksWithCoverage } from './generate.js';
+import { generateCandidateTasks, generateCandidateTasksWithCoverage } from './generate.js';
 import { groundTasks } from './ground.js';
 import { resolveScope } from './scope.js';
 import { computeCoverage } from './coverage.js';
 
-import type { GenerateTasksForProjectResult, TaskGeneratorDeps } from './types.js';
+import type { GenerateTasksForProjectResult, GeneratedTask, TaskGeneratorDeps } from './types.js';
 import { buildSurfaceSnapshot } from '../project/index.js';
 import type { ResolvedProjectConfig } from '../project/types.js';
 import type { SurfaceSnapshotAction } from '../project/types.js';
@@ -70,13 +70,25 @@ export async function generateTasksForProject(
   // Coverage matching only reads action.name so key=name is always correct here.
   const inScopeActions = inScope.map((a) => ({ key: a.name, ...a }));
   const outOfScopeActions = outOfScope.map((a) => ({ key: a.name, ...a }));
-  const { tasks: generated } = await generateCandidateTasksWithCoverage(
-    filteredSurface,
-    { maxTasks: params.maxTasks, seed: params.seed },
-    params.deps,
-    inScopeActions,
-    outOfScopeActions,
-  );
+
+  let generated: GeneratedTask[];
+  if (filteredSurface.snapshot.surface === 'prompt') {
+    // Prompt surface: tasks have expected_actions:[] and are evaluated on content.
+    // Coverage enforcement does not apply — skip the retry/coverage-gap loop.
+    generated = await generateCandidateTasks(
+      filteredSurface,
+      { maxTasks: params.maxTasks, seed: params.seed },
+      params.deps,
+    );
+  } else {
+    ({ tasks: generated } = await generateCandidateTasksWithCoverage(
+      filteredSurface,
+      { maxTasks: params.maxTasks, seed: params.seed },
+      params.deps,
+      inScopeActions,
+      outOfScopeActions,
+    ));
+  }
   console.log(`[optimize] Model proposed ${generated.length} tasks.`);
 
   console.log('[optimize] Grounding generated tasks against the discovered surface snapshot...');
