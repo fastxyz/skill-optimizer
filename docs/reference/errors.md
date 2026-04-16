@@ -220,4 +220,4 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 
 **How to fix:**
 - Check the full error message and stack trace above for details
-- File an issue at https://github.com/bucurdavid/skill-optimizer/issues with the full output
+- File an issue at https://github.com/fastxyz/skill-optimizer/issues with the full output

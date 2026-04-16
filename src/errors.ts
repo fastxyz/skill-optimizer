@@ -214,7 +214,7 @@ export const ERRORS = {
     message: 'An unexpected error occurred',
     fix: [
       'Check the full error message and stack trace above for details',
-      'File an issue at https://github.com/bucurdavid/skill-optimizer/issues with the full output',
+      'File an issue at https://github.com/fastxyz/skill-optimizer/issues with the full output',
     ],
   },
 } as const satisfies Record<string, ErrorDef>;
