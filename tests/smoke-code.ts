@@ -736,7 +736,7 @@ await test('checkConfig: model ID missing openrouter/ prefix → fixable error',
   assert(err!.hint?.includes('openrouter/z-ai/glm-5.1'), `hint should show corrected ID, got: ${err!.hint}`);
 });
 
-await test('checkConfig: model ID with dot version → fixable warning', async () => {
+await test('checkConfig: openrouter/ model ID with dot version → no warning (dots preserved)', async () => {
   const { checkConfig } = await import('../src/project/validate.js');
   const config = {
     name: 'test',
@@ -749,10 +749,7 @@ await test('checkConfig: model ID with dot version → fixable warning', async (
   };
   const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
   const warn = issues.find(i => i.code === 'model-id-bad-format');
-  assert(warn !== undefined, 'expected model-id-bad-format issue');
-  assert(warn!.severity === 'warning', 'should be warning severity');
-  assert(warn!.fixable === true, 'model-id-bad-format should be fixable');
-  assert(warn!.hint?.includes('4-6'), `hint should show hyphen version, got: ${warn!.hint}`);
+  assert(warn === undefined, 'openrouter/ model IDs with dots must not trigger model-id-bad-format — dots are preserved verbatim');
 });
 
 await test('checkConfig: direct openai model IDs do not get OpenRouter dot-version warning', async () => {
@@ -858,7 +855,7 @@ await test('applyFixes: adds openrouter/ prefix to model IDs', async () => {
   assertEqual(models[1]!.id, 'openrouter/openai/gpt-4o', 'already-prefixed ID should be unchanged');
 });
 
-await test('applyFixes: normalises dot versions in model IDs', async () => {
+await test('applyFixes: preserves dots in openrouter/ model IDs (not rewritten)', async () => {
   const { applyFixes } = await import('../src/project/fix.js');
   const { checkConfig } = await import('../src/project/validate.js');
   const rawJson = {
@@ -873,7 +870,7 @@ await test('applyFixes: normalises dot versions in model IDs', async () => {
   const issues = await checkConfig(rawJson as any, '/fake/skill-optimizer.json');
   const fixed = applyFixes(rawJson as any, issues, '/fake');
   const models = (fixed.benchmark as any).models as Array<{ id: string }>;
-  assertEqual(models[0]!.id, 'openrouter/anthropic/claude-sonnet-4-6', 'dots should be replaced with hyphens');
+  assertEqual(models[0]!.id, 'openrouter/anthropic/claude-sonnet-4.6', 'openrouter/ dots must be preserved — not rewritten');
 });
 
 await test('applyFixes: does not mutate input', async () => {
@@ -960,7 +957,7 @@ await test('doctor --fix: corrects model ID in-place', async () => {
 
     const fixed = JSON.parse(readFileSync(configPath, 'utf-8')) as { benchmark: { models: Array<{ id: string }> } };
     // Fixed-point loop applies both prefix and dot-normalisation fixes in sequence
-    assertEqual(fixed.benchmark.models[0]!.id, 'openrouter/z-ai/glm-5-1', '--fix should write corrected model ID');
+    assertEqual(fixed.benchmark.models[0]!.id, 'openrouter/z-ai/glm-5.1', '--fix should add openrouter/ prefix but preserve dots');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
