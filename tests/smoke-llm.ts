@@ -1276,12 +1276,12 @@ await test('anthropic format: leaves openrouter/-prefixed model ID unchanged', a
   }) as any;
 
   const client = createLLMClient(anthropicConfig);
-  await client.chat('openrouter/anthropic/claude-sonnet-4-6', 'system', 'user');
+  await client.chat('openrouter/anthropic/claude-sonnet-4.6', 'system', 'user');
 
   assert(capturedBody !== null, 'fetch should have been called');
   assertEqual(
     capturedBody.model,
-    'openrouter/anthropic/claude-sonnet-4-6',
+    'openrouter/anthropic/claude-sonnet-4.6',
     'openrouter/ prefix should be left intact — not silently stripped',
   );
 });
