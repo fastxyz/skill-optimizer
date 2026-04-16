@@ -801,7 +801,7 @@ await test('checkConfig: codex auth rejects non-openai optimize model', async ()
     },
     optimize: {
       authMode: 'codex' as const,
-      model: 'openrouter/anthropic/claude-sonnet-4-6',
+      model: 'openrouter/anthropic/claude-sonnet-4.6',
       allowedPaths: ['SKILL.md'],
     },
   };
@@ -823,7 +823,7 @@ await test('checkConfig: inherited codex auth rejects non-openai optimize model'
       tasks: './tasks.json',
     },
     optimize: {
-      model: 'openrouter/anthropic/claude-sonnet-4-6',
+      model: 'openrouter/anthropic/claude-sonnet-4.6',
       allowedPaths: ['SKILL.md'],
     },
   };
