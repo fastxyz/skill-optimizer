@@ -48,7 +48,7 @@ export class PiCodingMutationExecutor {
       throw new Error(
         `Orchestrator model "${modelRef}" produced no output (no tool calls, no text response). ` +
         `The model may be too weak for coding-orchestrator tasks or the API call failed silently. ` +
-        `Try a more capable model such as openrouter/anthropic/claude-sonnet-4-6.`,
+        `Try a more capable model such as openrouter/anthropic/claude-sonnet-4.6.`,
       );
     }
 

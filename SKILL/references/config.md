@@ -21,7 +21,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   "benchmark": {
     "format": "pi",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -45,7 +45,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   "benchmark": {
     "format": "pi",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -68,7 +68,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   "benchmark": {
     "format": "pi",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -87,7 +87,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
   "benchmark": {
     "format": "pi",
     "models": [
-      { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
+      { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
     ]
   }
 }
@@ -116,7 +116,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
 | `authMode` | No | `"env"` | `"env"` — read key from env var (default); `"codex"` — read from `~/.codex/auth.json` (OpenAI only); `"auto"` — try env first, fall back to codex for OpenAI |
 | `apiKeyEnv` | No | provider default | Env var holding the API key. Defaults: `OPENROUTER_API_KEY` for `pi`, `OPENAI_API_KEY` for `openai`, `ANTHROPIC_API_KEY` for `anthropic` |
 | `baseUrl` | No | — | Override the API base URL (e.g. for a custom OpenAI-compatible endpoint) |
-| `models[].id` | Yes | — | Model ID with provider prefix: `openrouter/<p>/<model>` (OpenRouter), `anthropic/<model>` (direct Anthropic), `openai/<model>` (direct OpenAI). Use hyphens in version segments for `openrouter/` and `anthropic/` (e.g. `claude-sonnet-4-6`, `gemini-2-5-flash`). |
+| `models[].id` | Yes | — | Model ID with provider prefix: `openrouter/<p>/<model>` (OpenRouter — dots in version segments, e.g. `openrouter/anthropic/claude-sonnet-4.6`), `anthropic/<model>` (direct Anthropic — hyphens, e.g. `anthropic/claude-sonnet-4-6`), `openai/<model>` (direct OpenAI — dots, e.g. `openai/gpt-5.4`). |
 | `models[].name` | No | — | Human-readable label for output tables |
 | `models[].tier` | No | — | `"flagship"`, `"mid"`, or `"low"` (informational only) |
 | `models[].weight` | No | `1.0` | Influence on weighted average (higher = counts more) |
@@ -132,7 +132,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
 |-------|----------|---------|-------------|
 | `enabled` | No | `true` | Whether optimization is allowed |
 | `mode` | No | `"stable-surface"` | `"stable-surface"` (reuse tasks) or `"surface-changing"` (regenerate per iteration) |
-| `model` | No | `"openrouter/anthropic/claude-opus-4-6"` | Which LLM writes mutations |
+| `model` | No | `"openrouter/anthropic/claude-opus-4.6"` | Which LLM writes mutations |
 | `maxIterations` | No | `5` | Maximum optimization rounds |
 | `minImprovement` | No | `0.02` | Minimum delta in weighted average required to accept a mutation |
 | `allowedPaths` | No | `["SKILL.md"]` | Files the mutation agent may edit |

@@ -91,18 +91,26 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 Model IDs use a provider-prefixed format. The prefix determines how the request is routed:
 
 ```
-openrouter/<provider>/<model-slug>   — routed through OpenRouter (format: "pi")
-anthropic/<model-slug>               — direct Anthropic API    (format: "anthropic")
-openai/<model-slug>                  — direct OpenAI API       (format: "openai")
+openrouter/<provider>/<model-slug>   — routed through OpenRouter
+anthropic/<model-slug>               — direct Anthropic API
+openai/<model-slug>                  — direct OpenAI API
 ```
 
-**Version segments use hyphens, not dots**, regardless of provider. Examples:
-- `openrouter/anthropic/claude-sonnet-4-6` ✓ (not `claude-sonnet-4.6`)
-- `openrouter/google/gemini-2-5-flash` ✓ (not `gemini-2.5-flash`)
-- `openrouter/deepseek/deepseek-v3-2` ✓ (not `deepseek-v3.2`)
-- `openai/gpt-5-4` ✓ (not `openai/gpt-5.4`)
+**For `openrouter/` model IDs, preserve the exact slug from OpenRouter's catalog** — these are passed verbatim to OpenRouter's API and must match exactly, including dots in version numbers:
+- `openrouter/anthropic/claude-sonnet-4.6` ✓ (dots — OpenRouter's catalog format)
+- `openrouter/openai/gpt-5.4` ✓ (dots)
+- `openrouter/deepseek/deepseek-v3.2` ✓ (dots)
+- `openrouter/google/gemini-2.5-flash` ✓
 
-`src/project/validate.ts` warns on dot-notation version segments for all non-`openai/` model IDs (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. (OpenAI's own slugs use dots in some cases, so `openai/` is exempt.) When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, always use hyphens in the model ID path.
+**For `anthropic/` direct-API model IDs, use hyphens** — Anthropic's own API slugs use hyphens:
+- `anthropic/claude-sonnet-4-6` ✓ (hyphens)
+- `anthropic/claude-opus-4-6` ✓ (hyphens)
+
+**For `openai/` direct-API model IDs, use dots in version segments** — OpenAI's API slugs use dots:
+- `openai/gpt-5.4` ✓ (dot)
+- `openai/gpt-4.1` ✓ (dot)
+
+`src/project/validate.ts` warns on dot-notation for `anthropic/` model IDs only (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. Both `openai/` and `openrouter/` are fully exempt from any dot→hyphen rewriting. When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, copy the slug exactly from the OpenRouter catalog for `openrouter/` models.
 
 Display names (`name:` / `label:` fields) are human-readable and should keep dots (e.g. `'Claude Sonnet 4.6'`, `'Gemini 2.5 Flash'`).
 

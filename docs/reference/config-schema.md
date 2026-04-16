@@ -34,7 +34,7 @@ Paths in the config are relative to the config file location.
 | `benchmark.output.dir` | `string` | — | Directory where reports are saved (default "benchmark-results/") |
 | `benchmark.verdict.perModelFloor` | `number` | — | Minimum per-model pass fraction for PASS verdict (default 0.6) |
 | `benchmark.verdict.targetWeightedAverage` | `number` | — | Minimum weighted average across all models for PASS (default 0.7) |
-| `optimize.model` | `string` | — | Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4-6 |
+| `optimize.model` | `string` | — | Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4.6 |
 | `optimize.authMode` | `"env" | "codex" | "auto"` | — | How to resolve optimizer credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback |
 | `optimize.apiKeyEnv` | `string` | — | Env var for the optimizer API key |
 | `optimize.thinkingLevel` | `"off" | "minimal" | "low" | "medium" | "high" | "xhigh"` | — | Reasoning depth for mutation calls (default "medium") |

@@ -177,17 +177,10 @@ assert.strictEqual(typeof _a.surface, 'string');
 {
   const { MODEL_PRESETS } = await import('../src/init/wizard.js');
   assert.strictEqual(MODEL_PRESETS.length, 23, `Expected 23 presets, got ${MODEL_PRESETS.length}`);
-  assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets should be openrouter/ IDs');
-
-  // Model ID paths must use hyphens in version segments, not dots.
-  // validate.ts flags digit.digit as 'model-id-bad-format' and fix.ts auto-corrects them.
-  // Display names (label/name fields) are exempt — they keep dots for readability.
-  const dotVersionPattern = /\d+\.\d+/;
-  const bad = MODEL_PRESETS.filter(p => dotVersionPattern.test(p.value));
-  assert.strictEqual(
-    bad.length, 0,
-    `Model ID paths must use hyphens not dots in version segments. Fix: ${bad.map(p => p.value).join(', ')}`,
-  );
+  // openrouter/ IDs use slugs from the OpenRouter catalog verbatim — dots in version segments
+  // are valid and must not be rewritten to hyphens. validate.ts exempts openrouter/ from the
+  // 'model-id-bad-format' check.
+  assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets must be openrouter/ IDs');
 }
 
 // detectProject: TypeScript SDK (package.json with main, no bin)
