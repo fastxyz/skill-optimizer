@@ -8,7 +8,7 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 
 ## How it works — at a glance
 
-![Optimizer Loop](docs/images/optimizer-loop.png)
+![Optimizer Loop](docs/images/optimizer-loop.svg)
 
 `skill-optimizer run` benchmarks your callable surface against multiple LLMs — it discovers actions, generates tasks, calls each model, and statically evaluates action recall and argument accuracy to produce a PASS/FAIL verdict (exit 0/1) usable in CI.
 
