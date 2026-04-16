@@ -11,8 +11,6 @@ function getScriptKind(filePath: string): ts.ScriptKind {
 }
 
 function walkChainUp(node: ts.Node, def: CliCommandDefinition): void {
-  // node.parent is the PropertyAccessExpression (the `.command`/`.description`/etc access)
-  // node.parent.parent is the next CallExpression in the chain
   const propAccess = node.parent;
   if (!propAccess || !ts.isPropertyAccessExpression(propAccess)) return;
   const nextCall = propAccess.parent;
@@ -31,7 +29,6 @@ function walkChainUp(node: ts.Node, def: CliCommandDefinition): void {
     if (!def.options) def.options = [];
     def.options.push({ name: flagStr, description: desc, takesValue });
   }
-  // Continue walking up the chain
   walkChainUp(nextCall, def);
 }
 

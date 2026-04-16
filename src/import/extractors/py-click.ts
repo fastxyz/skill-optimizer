@@ -92,7 +92,6 @@ function walkTree(node: Parser.SyntaxNode, source: string): CliCommandDefinition
     }
   }
 
-  // Recurse into children
   for (const child of node.children) {
     results.push(...walkTree(child, source));
   }

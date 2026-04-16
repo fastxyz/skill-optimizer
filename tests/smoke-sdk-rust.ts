@@ -85,9 +85,9 @@ await test('rust: factory methods on instances resolve through evaluator binding
   const task = {
     id: 'rust-factory-binding',
     prompt: 'send a payment',
-    expected_tools: [
-      { method: 'FastClient.new', args: { _positional_0: 'testnet' } },
-      { method: 'FastWallet.send', args: { to: 'fast1abc', amount: '5' } },
+    expected_actions: [
+      { name: 'FastClient.new', args: { _positional_0: 'testnet' } },
+      { name: 'FastWallet.send', args: { to: 'fast1abc', amount: '5' } },
     ],
   };
   const result = evaluateTask({

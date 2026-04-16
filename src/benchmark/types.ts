@@ -3,6 +3,7 @@ import type {
   ActionAttempt,
   ActionCatalog,
   ActionDefinition,
+  ActionSurface,
 } from '../actions/types.js';
 
 // === Core ===
@@ -23,7 +24,8 @@ export interface TokenUsage {
 
 // === Config (loaded from benchmark.config.json) ===
 
-export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp' | 'prompt';
+/** Canonical surface type — same union as ActionSurface in actions/types. */
+export type BenchmarkSurface = ActionSurface;
 export type SdkLanguage = 'typescript' | 'python' | 'rust';
 
 export interface BenchmarkConfig {
@@ -45,13 +47,8 @@ export interface SdkSurfaceConfig {
   language: SdkLanguage;
   style?: 'sdk';                   // defaults to 'sdk' if omitted
   // Optional: explicit API surface for coverage/hallucination reporting only.
-  // If omitted, derived automatically from task expected_tools.
+  // If omitted, derived automatically from task expected_actions.
   apiSurface?: string[];
-  // Deprecated fields — kept for backward compat, no longer required
-  classes?: string[];
-  functions?: string[];
-  functionReturns?: Record<string, string>;
-  methods?: string[];
 }
 
 export interface CliSurfaceConfig {
@@ -75,10 +72,6 @@ export interface CliCommandDefinition {
 export interface McpSurfaceConfig {
   tools: string;                   // path to tools.json (OpenAI function calling format)
 }
-
-// Backward-compatible aliases retained for internal usage.
-export type CodeModeConfig = SdkSurfaceConfig;
-export type McpModeConfig = McpSurfaceConfig;
 
 export interface SkillConfig {
   source: string;                  // "github:org/repo/path", "./file.md", "https://url"
@@ -139,13 +132,9 @@ export interface FetchedSkill {
 // === Task Definition (loaded from tasks.json) ===
 
 export interface ExpectedAction {
-  name?: string;                   // Unified action name (SDK method, CLI command, or MCP tool)
-  method?: string;                 // Transitional alias for older internal code paths
+  name: string;                    // Unified action name (SDK method, CLI command, or MCP tool)
   args?: Record<string, unknown>;  // expected arg values (supports nested objects/arrays, strings, regexes, sentinels)
 }
-
-// Transitional alias retained while internal code paths migrate.
-export type ExpectedTool = ExpectedAction;
 
 export interface TaskVerification {
   code_pattern?: string;           // regex pattern to match in generated code
@@ -154,8 +143,7 @@ export interface TaskVerification {
 export interface TaskDefinition {
   id: string;
   prompt: string;
-  expected_actions?: ExpectedAction[];
-  expected_tools?: ExpectedAction[]; // transitional alias populated by the loader
+  expected_actions: ExpectedAction[];
   verify?: TaskVerification[];
   expected_fetches?: string[];
 }
@@ -194,17 +182,13 @@ export interface ActionMatch {
   }>;
 }
 
-// Transitional alias retained while internal code paths migrate.
-export type ToolMatch = ActionMatch;
-
 export interface TaskResult {
   task: TaskDefinition;
   model: ModelConfig;
   generatedCode: string | null;
   rawResponse: string;
   extractedCalls: ExtractedCall[];
-  actionMatches?: ActionMatch[];
-  toolMatches: ActionMatch[]; // transitional alias
+  actionMatches: ActionMatch[];
   codePatternResults?: Record<string, boolean>;
   metrics: {
     toolPrecision: number;
@@ -212,10 +196,8 @@ export interface TaskResult {
     taskPassed: boolean;
     toolSelectionAccuracy: number;
     argAccuracy: number;
-    unnecessaryActions?: string[];
-    unnecessaryCalls: string[]; // transitional alias
-    hallucinatedActions?: string[];
-    hallucinatedCalls: string[]; // transitional alias
+    unnecessaryActions: string[];
+    hallucinatedActions: string[];
     hallucinationRate: number;
     fetchRecall?: number;
     fetchPrecision?: number;
@@ -233,8 +215,6 @@ export interface MethodCoverage {
   tasksCovering: string[];
   covered: boolean;
 }
-
-export type SurfaceActionArg = ActionArgSchema;
 
 export type SurfaceAction = Omit<ActionDefinition, 'key'>;
 
@@ -311,11 +291,11 @@ export interface BenchmarkReport {
 }
 
 export function getExpectedActionName(action: ExpectedAction): string {
-  return action.name || action.method || '';
+  return action.name;
 }
 
 export function getExpectedActions(task: TaskDefinition): ExpectedAction[] {
-  return task.expected_actions ?? task.expected_tools ?? [];
+  return task.expected_actions;
 }
 
 // === Comparison ===

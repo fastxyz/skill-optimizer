@@ -29,11 +29,11 @@ export function buildPassingFailingDiff(results: TaskResult[]): PassingFailingDi
       failing_models: failing.map((r) => r.model.name),
       passing_calls: passing.map((r) => ({
         model: r.model.name,
-        actions: r.extractedCalls.map((c) => (c as unknown as { method: string }).method ?? ''),
+        actions: r.extractedCalls.map((c) => c.method),
       })),
       failing_calls: failing.map((r) => ({
         model: r.model.name,
-        actions: r.extractedCalls.map((c) => (c as unknown as { method: string }).method ?? ''),
+        actions: r.extractedCalls.map((c) => c.method),
       })),
     });
   }

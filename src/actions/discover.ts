@@ -1,4 +1,4 @@
-import { loadCliCommands, loadMcpTools } from '../benchmark/config.js';
+import { loadCliCommands, loadMcpTools } from './loaders.js';
 import type { ResolvedProjectConfig } from '../project/types.js';
 import type { ActionCatalog } from './types.js';
 import { readCliActionsFromSources } from './readers/cli.js';

@@ -34,10 +34,6 @@ export function applyFixes(
       }
     }
 
-    if (issue.code === 'deprecated-tasks-field') {
-      const benchmark = result.benchmark as Record<string, unknown> | undefined;
-      if (benchmark) delete benchmark.tasks;
-    }
   }
 
   return result;

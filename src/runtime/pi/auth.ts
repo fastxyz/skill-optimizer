@@ -101,14 +101,6 @@ export function requireConfiguredApiKey(options: PiAuthOptions): string {
   throw new Error(`Missing API key env var: ${envName}`);
 }
 
-export function requireApiKeyFromEnv(apiKeyEnv: string): string {
-  const apiKey = process.env[apiKeyEnv];
-  if (!apiKey) {
-    throw new Error(`Missing API key env var: ${apiKeyEnv}`);
-  }
-  return apiKey;
-}
-
 function readCodexApiKey(provider: string): ResolvedApiCredential {
   if (provider !== 'openai') {
     return {};

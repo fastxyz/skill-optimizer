@@ -25,7 +25,7 @@ export interface OptimizePolicy {
   mode?: 'stable-surface' | 'surface-changing';
   maxIterations?: number;
   stabilityWindow?: number;
-  minOverallPassDelta?: number;
+  minImprovement?: number;
   taskGeneration?: OptimizeTaskGenerationConfig;
   perModelFloor?: number;
   targetWeightedAverage?: number;
@@ -65,7 +65,7 @@ export interface ResolvedOptimizeManifest {
     mode: 'stable-surface' | 'surface-changing';
     maxIterations: number;
     stabilityWindow: number;
-    minOverallPassDelta: number;
+    minImprovement: number;
     taskGeneration: {
       enabled: boolean;
       maxGenerated: number;

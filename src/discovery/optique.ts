@@ -12,7 +12,8 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import ts from 'typescript';
 
-import type { DiscoveredAction, DiscoveredActionArg } from './types.js';
+import type { ActionArgSchema } from '../actions/types.js';
+import type { DiscoveredAction } from './types.js';
 
 export function discoverOptiqueActionsFromFile(filePath: string): DiscoveredAction[] {
   if (!existsSync(filePath)) {
@@ -156,12 +157,12 @@ function resolveExpr(expr: ts.Expression, constants: Map<string, ts.Expression>)
 function extractArgsFromObjectCall(
   objectCall: ts.CallExpression,
   constants: Map<string, ts.Expression>,
-): DiscoveredActionArg[] {
+): ActionArgSchema[] {
   if (objectCall.arguments.length === 0) return [];
   const objLiteral = unwrap(objectCall.arguments[0]);
   if (!ts.isObjectLiteralExpression(objLiteral)) return [];
 
-  const result: DiscoveredActionArg[] = [];
+  const result: ActionArgSchema[] = [];
   for (const prop of objLiteral.properties) {
     if (!ts.isPropertyAssignment(prop)) continue;
     const key = ts.isIdentifier(prop.name) ? prop.name.text : null;
@@ -182,7 +183,7 @@ function parseArgCall(
   expr: ts.Expression,
   constants: Map<string, ts.Expression>,
   forceOptional: boolean,
-): DiscoveredActionArg | null {
+): ActionArgSchema | null {
   const node = unwrap(expr);
   if (!ts.isCallExpression(node)) return null;
 
@@ -213,7 +214,7 @@ function parseArgCall(
 function extractOption(
   call: ts.CallExpression,
   constants: Map<string, ts.Expression>,
-): DiscoveredActionArg | null {
+): ActionArgSchema | null {
   if (call.arguments.length === 0) return null;
   const name = extractStringLiteral(call.arguments[0]);
   if (!name) return null;

@@ -37,7 +37,6 @@ export async function generateTasksForProject(
   const surface = await discoverTaskSurface(params.configPath);
   console.log(`[optimize] Loaded ${surface.snapshot.surface} surface with ${surface.snapshot.actions.length} actions.`);
 
-  // Apply scope filter
   const { inScope, outOfScope } = resolveScope(surface.snapshot.actions, surface.project.target.scope);
   if (inScope.length === 0) {
     console.warn(
@@ -56,7 +55,6 @@ export async function generateTasksForProject(
     );
   }
 
-  // Replace snapshot actions with in-scope only (for generation context)
   const filteredSurface = {
     ...surface,
     snapshot: {
@@ -97,7 +95,7 @@ export async function generateTasksForProject(
     throw new Error('Task generation produced zero valid tasks after grounding');
   }
 
-  // Recompute coverage from kept tasks only — pre-grounding coverage is stale if tasks were rejected.
+  // Recompute from kept tasks only — pre-grounding coverage may include rejected tasks.
   const taskCoverage = computeCoverage(inScopeActions, grounded.kept, outOfScopeActions);
   console.log(`[optimize] Grounded ${grounded.kept.length} tasks, rejected ${grounded.rejected.length}.`);
   console.log('[optimize] Benchmark tasks:');

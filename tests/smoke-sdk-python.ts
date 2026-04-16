@@ -78,9 +78,9 @@ await test('python: factory methods do not mislabel returned instance type', asy
   const task = {
     id: 'python-factory-binding',
     prompt: 'send a payment',
-    expected_tools: [
-      { method: 'FastClient.constructor', args: { _positional_0: 'testnet' } },
-      { method: 'FastWallet.send', args: { to: 'fast1abc' } },
+    expected_actions: [
+      { name: 'FastClient.constructor', args: { _positional_0: 'testnet' } },
+      { name: 'FastWallet.send', args: { to: 'fast1abc' } },
     ],
   };
   const result = evaluateTask({

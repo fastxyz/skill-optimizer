@@ -118,7 +118,7 @@ async function testFullLoopReachesPass(): Promise<void> {
     optimizer: {
       maxIterations: 3,
       stabilityWindow: 3, // large window so we don't stop early on stable
-      minOverallPassDelta: 0.0,  // accept any improvement (even 0 delta)
+      minImprovement: 0.0,  // accept any improvement (even 0 delta)
       perModelFloor: 0,
       targetWeightedAverage: 0,
       models: [

@@ -222,7 +222,7 @@ function collectRustCalls(root: Parser.SyntaxNode, bindings: BindingMap, literal
   return sortCalls(calls);
 }
 
-export async function extractRustSdk(code: string): Promise<RawSdkExtraction> {
+async function extractRustSdk(code: string): Promise<RawSdkExtraction> {
   const parser = await getSdkParser('rust');
   const tree = parser.parse(code);
   const root = tree.rootNode;

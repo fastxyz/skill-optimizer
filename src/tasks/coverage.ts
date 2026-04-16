@@ -3,8 +3,7 @@ import type { GeneratedTask } from './types.js';
 import type { CoverageReport } from '../benchmark/types.js';
 
 function actionNamesOf(task: GeneratedTask): string[] {
-  const list = task.expected_actions ?? task.expected_tools ?? [];
-  return list.map((a) => a.name ?? a.method ?? '').filter(Boolean);
+  return task.expected_actions.map((a) => a.name).filter(Boolean);
 }
 
 export function computeCoverage(

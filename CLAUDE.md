@@ -4,7 +4,7 @@
 
 `skill-optimizer` measures whether LLMs pick the right SDK methods, CLI commands, or MCP tools from docs and task prompts, and can run a benchmark-driven optimization loop over an allowed target repo.
 
-The repo now has four important layers:
+The repo has five layers:
 
 - `src/project/`: unified `skill-optimizer.json` config loading, validation, and path resolution
 - `src/runtime/pi/`: shared Pi auth/model/runtime helpers
@@ -77,7 +77,7 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 - Prefer small changes in the existing architecture over broad refactors.
 - When updating config or project types, also update the README examples and any scaffolding in `src/benchmark/init.ts` if needed.
 - When changing optimizer behavior, verify both the loop and the unified project defaults still agree.
-- Code-first surface discovery is now active for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifests/declared surface metadata still exist as transitional internal fallbacks, but new public examples should prefer code-first discovery.
+- Code-first surface discovery is the preferred mode for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifest files (`target.cli.commands`, `target.mcp.tools`, `target.discovery.fallbackManifest`) are supported for projects that cannot use code-first discovery.
 - Be careful around mock repo references: code may support template names that are not currently present in the working tree.
 
 ## Testing Guidance
@@ -102,7 +102,7 @@ openai/<model-slug>                  — direct OpenAI API       (format: "opena
 - `openrouter/deepseek/deepseek-v3-2` ✓ (not `deepseek-v3.2`)
 - `openai/gpt-5-4` ✓ (not `openai/gpt-5.4`)
 
-`src/project/validate.ts` warns on dot-notation version segments for `openrouter/` model IDs (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, always use hyphens in the model ID path.
+`src/project/validate.ts` warns on dot-notation version segments for all non-`openai/` model IDs (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. (OpenAI's own slugs use dots in some cases, so `openai/` is exempt.) When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, always use hyphens in the model ID path.
 
 Display names (`name:` / `label:` fields) are human-readable and should keep dots (e.g. `'Claude Sonnet 4.6'`, `'Gemini 2.5 Flash'`).
 

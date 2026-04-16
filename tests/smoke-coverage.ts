@@ -16,8 +16,7 @@ function mkTask(id: string, actions: string[]): GeneratedTask {
   return {
     id,
     prompt: `do ${id}`,
-    expected_actions: actions.map((name) => ({ name, method: name })),
-    expected_tools: actions.map((name) => ({ name, method: name })),
+    expected_actions: actions.map((name) => ({ name })),
   };
 }
 

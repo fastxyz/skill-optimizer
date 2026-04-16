@@ -19,8 +19,8 @@ export function extractFailureDetails(results: TaskResult[]): FailureDetail[] {
     if (r.metrics.taskPassed) continue;
 
     const actual = r.extractedCalls.map((c) => ({
-      action: (c as unknown as { method: string }).method ?? (c as unknown as { name: string }).name ?? '',
-      args: ((c as unknown as { args?: Record<string, unknown> }).args) ?? {},
+      action: c.method,
+      args: c.args,
     }));
 
     if (r.error) {
@@ -36,7 +36,7 @@ export function extractFailureDetails(results: TaskResult[]): FailureDetail[] {
       continue;
     }
 
-    const matches = r.actionMatches ?? r.toolMatches;
+    const matches = r.actionMatches;
     for (const m of matches) {
       const expectedName = getExpectedActionName(m.expected);
       // Cross-check whether the expected method actually appears in extracted calls,
@@ -72,7 +72,7 @@ export function extractFailureDetails(results: TaskResult[]): FailureDetail[] {
       }
     }
 
-    if (r.metrics.hallucinatedCalls?.length) {
+    if (r.metrics.hallucinatedActions.length > 0) {
       out.push({
         task_id: r.task.id,
         model_id: r.model.id,
@@ -80,7 +80,7 @@ export function extractFailureDetails(results: TaskResult[]): FailureDetail[] {
         expected_action: matches.map((m) => getExpectedActionName(m.expected)).join(', '),
         expected_args: {},
         actual_calls: actual,
-        mismatch_detail: `hallucinated: ${r.metrics.hallucinatedCalls.join(', ')}`,
+        mismatch_detail: `hallucinated: ${r.metrics.hallucinatedActions.join(', ')}`,
       });
     }
   }

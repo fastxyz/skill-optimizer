@@ -3,7 +3,8 @@ import { extname, resolve } from 'node:path';
 
 import ts from 'typescript';
 
-import type { DiscoveryOptions, DiscoveredAction, DiscoveredActionArg, SdkDiscoverySnapshot } from './types.js';
+import type { ActionArgSchema } from '../actions/types.js';
+import type { DiscoveryOptions, DiscoveredAction, SdkDiscoverySnapshot } from './types.js';
 
 export function discoverSdkSurfaceFromSources(sources: string[], options: DiscoveryOptions = {}): SdkDiscoverySnapshot {
   const baseDir = options.baseDir ?? process.cwd();
@@ -227,8 +228,8 @@ function actionFromFunctionDeclaration(functionDeclaration: ts.FunctionDeclarati
   };
 }
 
-function extractArgsFromParameters(parameters: ts.NodeArray<ts.ParameterDeclaration>): DiscoveredActionArg[] {
-  const args: DiscoveredActionArg[] = [];
+function extractArgsFromParameters(parameters: ts.NodeArray<ts.ParameterDeclaration>): ActionArgSchema[] {
+  const args: ActionArgSchema[] = [];
 
   for (const parameter of parameters) {
     if (!ts.isIdentifier(parameter.name)) {

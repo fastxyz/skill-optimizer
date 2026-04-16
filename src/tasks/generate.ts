@@ -1,5 +1,4 @@
 import type { ExpectedAction, CoverageReport } from '../benchmark/types.js';
-import { getExpectedActionName } from '../benchmark/types.js';
 
 import type { ActionDefinition } from '../actions/types.js';
 import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
@@ -186,7 +185,7 @@ function validateTask(task: unknown, index: number): GeneratedTask {
   }
 
   let rawExpectedActions = (
-    ['expected_actions', 'expected_tools', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
+    ['expected_actions', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
   )
     .map((key) => candidate[key])
     .find((v) => Array.isArray(v)) as unknown[] | undefined;
@@ -195,7 +194,6 @@ function validateTask(task: unknown, index: number): GeneratedTask {
   if (!rawExpectedActions) {
     const actionName =
       typeof candidate['action'] === 'string' ? candidate['action'] :
-      typeof candidate['method'] === 'string' ? candidate['method'] :
       typeof candidate['command'] === 'string' ? candidate['command'] : null;
     if (actionName && actionName.trim()) {
       rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
@@ -213,7 +211,6 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     id: taskId,
     prompt: taskPrompt,
     expected_actions,
-    expected_tools: expected_actions,
   };
 }
 
@@ -222,8 +219,8 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] must be an object`);
   }
 
-  const typed = action as { name?: unknown; method?: unknown; args?: unknown };
-  const name = typeof typed.name === 'string' ? typed.name : typeof typed.method === 'string' ? typed.method : null;
+  const typed = action as { name?: unknown; args?: unknown };
+  const name = typeof typed.name === 'string' ? typed.name : null;
   if (!name || name.trim() === '') {
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] must include a non-empty name`);
   }
@@ -232,14 +229,10 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] args must be an object when present`);
   }
 
-  const normalized: ExpectedAction = {
+  return {
     name,
-    method: name,
     args: typed.args as Record<string, unknown> | undefined,
   };
-  // Touch helper so transitional action alias stays normalized consistently.
-  getExpectedActionName(normalized);
-  return normalized;
 }
 
 export async function generateCandidateTasksWithCoverage(

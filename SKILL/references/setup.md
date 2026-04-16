@@ -141,5 +141,4 @@ Your project is ready for benchmarking. Read `references/benchmark.md` for next 
 | "Config not found" | Wrong path to `skill-optimizer.json` | Use `--config` with the full path |
 | "No actions discovered" | `discovery.sources` points at wrong files | Check paths are relative to `repoPath` |
 | "Skill file not found" | `target.skill` path is wrong | Path is relative to `repoPath` — verify it exists |
-| "Unknown config format" | File is named `skill-benchmark.json` | Rename to `skill-optimizer.json` |
 | "repoPath not found" | Relative path resolved wrong | Use absolute path, or make it relative to config file location |

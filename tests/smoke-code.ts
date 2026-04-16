@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 
 import { extractCodeBlock } from '../src/benchmark/extractors/code-extractor.js';
 import { extractSdkCodeBlock } from '../src/benchmark/extractors/code-extractor.js';
-import { extractFromCode, extractAllFromCode } from '../src/benchmark/extractors/code-analyzer.js';
+import { extractAllFromCode } from '../src/benchmark/extractors/code-analyzer.js';
 import { extract } from '../src/benchmark/extractors/index.js';
 import { evaluateTask } from '../src/benchmark/evaluator.js';
 import { computeCoverage } from '../src/benchmark/coverage.js';
@@ -54,7 +54,7 @@ function makeTask(id: string, methods: string[]): TaskDefinition {
   return {
     id,
     prompt: `Task ${id}`,
-    expected_tools: methods.map((method) => ({ method })),
+    expected_actions: methods.map((name) => ({ name })),
   };
 }
 
@@ -142,95 +142,99 @@ await test('loadConfig: rejects unsupported sdk language', async () => {
   }
 });
 
-// Group 2: extractFromCode (tree-sitter)
+// Group 2: extractAllFromCode (tree-sitter, no config hints needed)
 
-await test('extractFromCode: constructor call', async () => {
+await test('extractAllFromCode: constructor call', async () => {
   const code = 'const provider = new FastProvider("testnet");';
-  const calls = await extractFromCode(code, ['FastProvider', 'FastWallet']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 1, 'should find 1 call');
   assertEqual(calls[0].method, 'FastProvider.constructor', 'method should be FastProvider.constructor');
   assertEqual(calls[0].args['_positional_0'] as string, 'testnet', 'first positional arg should be "testnet"');
 });
 
-await test('extractFromCode: variable tracking', async () => {
+await test('extractAllFromCode: variable tracking (raw calls)', async () => {
   const code = [
     'const provider = new FastProvider("testnet");',
     'const wallet = await FastWallet.fromKeyfile(provider);',
     'const balance = await wallet.balance();',
   ].join('\n');
-  const calls = await extractFromCode(code, ['FastProvider', 'FastWallet']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 3, 'should find 3 calls');
-  // The 3rd call should resolve wallet → FastWallet via variable tracking
-  assertEqual(calls[2].method, 'FastWallet.balance', 'third call method should be FastWallet.balance');
+  // Raw extraction: wallet.balance is unresolved (resolution happens in evaluateTask with bindings)
+  assertEqual(calls[2].method, 'wallet.balance', 'third raw call method should be wallet.balance');
 });
 
-await test('extractFromCode: static method', async () => {
+await test('extractAllFromCode: static method', async () => {
   const code = 'const wallet = await FastWallet.fromKeyfile(provider, "merchant");';
-  const calls = await extractFromCode(code, ['FastProvider', 'FastWallet']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 1, 'should find 1 call');
   assertEqual(calls[0].method, 'FastWallet.fromKeyfile', 'method should be FastWallet.fromKeyfile');
   assertEqual(calls[0].args['_positional_1'] as string, 'merchant', 'second positional arg should be "merchant"');
 });
 
-await test('extractFromCode: object arguments', async () => {
+await test('extractAllFromCode: object arguments', async () => {
   const code = [
     'const provider = new FastProvider("testnet");',
     'const wallet = await FastWallet.fromKeyfile(provider);',
     'await wallet.send({ to: "fast1abc", amount: "5", token: "FAST" });',
   ].join('\n');
-  const calls = await extractFromCode(code, ['FastProvider', 'FastWallet']);
-  // Find the send call
-  const sendCall = calls.find((c) => c.method === 'FastWallet.send');
-  assert(sendCall !== undefined, 'should find a FastWallet.send call');
+  const { calls } = await extractAllFromCode(code);
+  // Raw extraction: wallet.send is unresolved
+  const sendCall = calls.find((c) => c.method === 'wallet.send');
+  assert(sendCall !== undefined, 'should find a wallet.send call (raw, unresolved)');
   assertEqual(sendCall!.args['to'] as string, 'fast1abc', 'to arg should be "fast1abc"');
   assertEqual(sendCall!.args['amount'] as string, '5', 'amount arg should be "5"');
   assertEqual(sendCall!.args['token'] as string, 'FAST', 'token arg should be "FAST"');
 });
 
-await test('extractFromCode: empty code returns empty array', async () => {
-  const calls = await extractFromCode('', ['FastProvider', 'FastWallet']);
+await test('extractAllFromCode: empty code returns empty arrays', async () => {
+  const { calls, bindings } = await extractAllFromCode('');
   assertEqual(calls.length, 0, 'should return empty array for empty code');
+  assertEqual(bindings.size, 0, 'should return empty bindings for empty code');
 });
 
-await test('extractFromCode: standalone function call', async () => {
+await test('extractAllFromCode: standalone function call', async () => {
   const code = `const result = await x402Pay({ url: 'https://api.example.com', wallet: { type: 'evm' } });`;
-  const calls = await extractFromCode(code, [], ['x402Pay']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 1, 'should find 1 call');
   assertEqual(calls[0].method, 'x402Pay', 'method should be x402Pay');
   assertEqual(calls[0].args['url'] as string, 'https://api.example.com', 'url arg');
 });
 
-await test('extractFromCode: function return tracking', async () => {
+await test('extractAllFromCode: bindings capture factory returns', async () => {
   const code = [
     `const f = fast({ network: 'testnet' });`,
     `await f.setup();`,
     `const balance = await f.balance({ token: 'FAST' });`,
   ].join('\n');
-  const calls = await extractFromCode(code, [], ['fast'], { fast: 'FastClient' });
+  const { calls, bindings } = await extractAllFromCode(code);
   assertEqual(calls.length, 3, 'should find 3 calls');
   assertEqual(calls[0].method, 'fast', 'first call should be fast');
   assertEqual(calls[0].args['network'] as string, 'testnet', 'network arg');
-  assertEqual(calls[1].method, 'FastClient.setup', 'second call should be FastClient.setup');
-  assertEqual(calls[2].method, 'FastClient.balance', 'third call should be FastClient.balance');
+  // Raw calls use variable names; bindings map f → fast
+  assertEqual(calls[1].method, 'f.setup', 'second raw call should be f.setup');
+  assertEqual(calls[2].method, 'f.balance', 'third raw call should be f.balance');
+  assertEqual(bindings.get('f'), 'fast', 'bindings should map f → fast');
   assertEqual(calls[2].args['token'] as string, 'FAST', 'token arg');
 });
 
-await test('extractFromCode: mixed classes and functions', async () => {
+await test('extractAllFromCode: mixed classes and functions', async () => {
   const code = [
     `const account = createEvmWallet('~/.evm/keys/default.json');`,
     `const allset = new AllSetProvider({ network: 'testnet' });`,
     `await allset.sendToFast({ chain: 'arbitrum', token: 'USDC', amount: '1000000' });`,
   ].join('\n');
-  const calls = await extractFromCode(code, ['AllSetProvider'], ['createEvmWallet']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 3, 'should find 3 calls');
   assertEqual(calls[0].method, 'createEvmWallet', 'first call should be createEvmWallet');
   assertEqual(calls[0].args['_positional_0'] as string, '~/.evm/keys/default.json', 'keyfile path arg');
   assertEqual(calls[1].method, 'AllSetProvider.constructor', 'second call should be AllSetProvider.constructor');
-  assertEqual(calls[2].method, 'AllSetProvider.sendToFast', 'third call should be AllSetProvider.sendToFast');
+  // Raw: allset.sendToFast (unresolved)
+  assertEqual(calls[2].method, 'allset.sendToFast', 'third raw call should be allset.sendToFast');
   assertEqual(calls[2].args['chain'] as string, 'arbitrum', 'chain arg');
 });
 
-await test('extractFromCode: standalone function with no classes', async () => {
+await test('extractAllFromCode: standalone function with no classes', async () => {
   const code = [
     `const result = await x402Pay({`,
     `  url: 'https://api.example.com/premium',`,
@@ -238,27 +242,27 @@ await test('extractFromCode: standalone function with no classes', async () => {
     `  verbose: true,`,
     `});`,
   ].join('\n');
-  const calls = await extractFromCode(code, [], ['x402Pay']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 1, 'should find 1 call');
   assertEqual(calls[0].method, 'x402Pay', 'method should be x402Pay');
   assertEqual(calls[0].args['url'] as string, 'https://api.example.com/premium', 'url arg');
   assertEqual(calls[0].args['verbose'] as boolean, true, 'verbose arg');
 });
 
-await test('extractFromCode: nested object arguments', async () => {
+await test('extractAllFromCode: nested object arguments', async () => {
   const code = [
     `const result = await x402Pay({`,
     `  url: 'https://api.example.com/premium',`,
     `  wallet: { type: 'evm', privateKey: '0x123', address: '0xabc' },`,
     `});`,
   ].join('\n');
-  const calls = await extractFromCode(code, [], ['x402Pay']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 1, 'should find 1 call');
   assertEqual((calls[0].args['wallet'] as Record<string, unknown>).type as string, 'evm', 'wallet.type arg');
   assertEqual((calls[0].args['wallet'] as Record<string, unknown>).address as string, '0xabc', 'wallet.address arg');
 });
 
-await test('extractFromCode: resolves identifier-backed nested arguments', async () => {
+await test('extractAllFromCode: resolves identifier-backed nested arguments', async () => {
   const code = [
     `const fastWallet = { type: 'fast', address: 'fast1abc', publicKey: 'pub', privateKey: 'priv' };`,
     `const evmWallet = { type: 'evm', address: '0xabc', privateKey: '0x123' };`,
@@ -267,7 +271,7 @@ await test('extractFromCode: resolves identifier-backed nested arguments', async
     `  wallet: [fastWallet, evmWallet],`,
     `});`,
   ].join('\n');
-  const calls = await extractFromCode(code, [], ['x402Pay']);
+  const { calls } = await extractAllFromCode(code);
   assertEqual(calls.length, 1, 'should find 1 call');
   const wallet = calls[0].args['wallet'] as unknown[];
   assertEqual((wallet[0] as Record<string, unknown>).type as string, 'fast', 'wallet[0].type arg');
@@ -395,7 +399,7 @@ await test('evaluateTask: hallucinated method → hallucinationRate > 0', () => 
     error: undefined,
     knownMethods: KNOWN_METHODS,
   });
-  assert(result.metrics.hallucinatedCalls.length > 0, 'hallucinatedCalls should be non-empty');
+  assert(result.metrics.hallucinatedActions.length > 0, 'hallucinatedActions should be non-empty');
   assert(result.metrics.hallucinationRate > 0, 'hallucinationRate should be > 0');
 });
 
@@ -424,9 +428,9 @@ await test('evaluateTask: nested expected args match recursively', () => {
   const task: TaskDefinition = {
     id: 'nested-args',
     prompt: 'Task nested',
-    expected_tools: [
+    expected_actions: [
       {
-        method: 'x402Pay',
+        name: 'x402Pay',
         args: {
           url: 'https://api.example.com/premium',
           wallet: {
@@ -466,9 +470,9 @@ await test('evaluateTask: nested expected args fail when nested field differs', 
   const task: TaskDefinition = {
     id: 'nested-args-fail',
     prompt: 'Task nested fail',
-    expected_tools: [
+    expected_actions: [
       {
-        method: 'x402Pay',
+        name: 'x402Pay',
         args: {
           wallet: {
             type: 'fast',
@@ -565,10 +569,10 @@ await test('evaluateTask: resolves raw calls via bindings + task expectations', 
   const task: TaskDefinition = {
     id: 'resolve-test',
     prompt: 'Test resolution',
-    expected_tools: [
-      { method: 'fast', args: { network: 'testnet' } },
-      { method: 'FastClient.setup' },
-      { method: 'FastClient.balance' },
+    expected_actions: [
+      { name: 'fast', args: { network: 'testnet' } },
+      { name: 'FastClient.setup' },
+      { name: 'FastClient.balance' },
     ],
   };
   const extractedCalls: ExtractedCall[] = [
@@ -597,9 +601,9 @@ await test('evaluateTask: resolves constructor-based bindings', () => {
   const task: TaskDefinition = {
     id: 'constructor-resolve',
     prompt: 'Test constructor',
-    expected_tools: [
-      { method: 'AllSetProvider.constructor', args: { network: 'testnet' } },
-      { method: 'AllSetProvider.sendToFast' },
+    expected_actions: [
+      { name: 'AllSetProvider.constructor', args: { network: 'testnet' } },
+      { name: 'AllSetProvider.sendToFast' },
     ],
   };
   const extractedCalls: ExtractedCall[] = [
@@ -767,25 +771,6 @@ await test('checkConfig: direct openai model IDs do not get OpenRouter dot-versi
   assert(warn === undefined, 'direct openai model IDs should not be warned as OpenRouter dot versions');
 });
 
-await test('checkConfig: deprecated benchmark.tasks field → fixable warning', async () => {
-  const { checkConfig } = await import('../src/project/validate.js');
-  const config = {
-    name: 'test',
-    target: { surface: 'cli' as const, discovery: { sources: ['./src/cli.ts'] } },
-    benchmark: {
-      format: 'pi' as const,
-      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT', tier: 'flagship' as const }],
-      tasks: './tasks.json',
-      taskGeneration: { enabled: true, maxTasks: 5 },
-    },
-  };
-  const issues = await checkConfig(config as any, '/fake/skill-optimizer.json');
-  const warn = issues.find(i => i.code === 'deprecated-tasks-field');
-  assert(warn !== undefined, 'expected deprecated-tasks-field issue');
-  assert(warn!.severity === 'warning', 'should be warning');
-  assert(warn!.fixable === true, 'deprecated-tasks-field should be fixable');
-});
-
 await test('checkConfig: codex auth rejects non-openai benchmark models', async () => {
   const { checkConfig } = await import('../src/project/validate.js');
   const config = {
@@ -889,24 +874,6 @@ await test('applyFixes: normalises dot versions in model IDs', async () => {
   const fixed = applyFixes(rawJson as any, issues, '/fake');
   const models = (fixed.benchmark as any).models as Array<{ id: string }>;
   assertEqual(models[0]!.id, 'openrouter/anthropic/claude-sonnet-4-6', 'dots should be replaced with hyphens');
-});
-
-await test('applyFixes: removes deprecated benchmark.tasks field', async () => {
-  const { applyFixes } = await import('../src/project/fix.js');
-  const { checkConfig } = await import('../src/project/validate.js');
-  const rawJson = {
-    name: 'test',
-    target: { surface: 'cli', discovery: { sources: ['./src/cli.ts'] } },
-    benchmark: {
-      format: 'pi',
-      models: [{ id: 'openrouter/openai/gpt-4o', name: 'GPT', tier: 'flagship' }],
-      tasks: './tasks.json',
-      taskGeneration: { enabled: true, maxTasks: 5 },
-    },
-  };
-  const issues = await checkConfig(rawJson as any, '/fake/skill-optimizer.json');
-  const fixed = applyFixes(rawJson as any, issues, '/fake');
-  assert(!(fixed.benchmark as any).tasks, 'deprecated tasks field should be removed');
 });
 
 await test('applyFixes: does not mutate input', async () => {

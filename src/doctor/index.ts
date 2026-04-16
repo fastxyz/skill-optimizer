@@ -8,7 +8,7 @@ import { checkDiscovery, checkModelReachability } from './checks.js';
 import { formatIssues, formatFixResult } from './format.js';
 import type { Issue } from '../project/validate.js';
 
-export interface DoctorOptions {
+interface DoctorOptions {
   staticOnly?: boolean;
   checkModels?: boolean;
   fix?: boolean;

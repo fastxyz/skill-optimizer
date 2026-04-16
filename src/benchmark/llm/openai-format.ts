@@ -1,5 +1,13 @@
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 import { createToolNameAliasCodec } from './tool-name-aliases.js';
+import {
+  isAbortError,
+  isRetryableError,
+  sleep,
+  truncateToolResult,
+  undefinedIfEmpty,
+  normalizeUsage,
+} from './shared.js';
 
 interface CallParams {
   baseUrl: string;
@@ -15,10 +23,6 @@ interface CallWithToolsParams extends CallParams {
   tools: McpToolDefinition[];
 }
 
-/**
- * Regular chat completion (code mode).
- * POST {baseUrl}/chat/completions
- */
 export async function chatOpenAI(params: CallParams): Promise<LLMResponse> {
   const body = {
     model: params.modelId,
@@ -31,10 +35,6 @@ export async function chatOpenAI(params: CallParams): Promise<LLMResponse> {
   return callWithRetry(params, body);
 }
 
-/**
- * Chat with tools (MCP mode).
- * POST {baseUrl}/chat/completions with tools array
- */
 export async function chatWithToolsOpenAI(params: CallWithToolsParams): Promise<LLMResponse> {
   const toolCodec = createToolNameAliasCodec(params.tools);
   const body = {
@@ -76,8 +76,8 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
 
   if (!response.ok) {
     const text = await response.text();
-    const err = new Error(`OpenAI API error ${response.status}: ${text}`);
-    (err as any).status = response.status;
+    const err = new Error(`OpenAI API error ${response.status}: ${text}`) as Error & { status: number };
+    err.status = response.status;
     throw err;
   }
 
@@ -139,8 +139,8 @@ export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMR
     { role: 'system', content: params.system },
     { role: 'user', content: params.user },
   ];
-  let allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-  let totalUsage = { prompt: 0, completion: 0, total: 0 };
+  const allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+  const totalUsage = { prompt: 0, completion: 0, total: 0 };
 
   for (let turn = 0; turn < params.maxTurns; turn++) {
     const body: Record<string, unknown> = {
@@ -153,7 +153,7 @@ export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMR
       totalUsage.total += response.usage.total;
     }
     if (!response.toolCalls || response.toolCalls.length === 0) {
-      return { content: response.content, toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
+      return { content: response.content, toolCalls: undefinedIfEmpty(allToolCalls), usage: normalizeUsage(totalUsage) };
     }
     allToolCalls.push(...response.toolCalls);
     messages.push({
@@ -167,19 +167,15 @@ export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMR
         },
       })),
     });
-    const MAX_TOOL_RESULT_CHARS = 50_000;
     for (let i = 0; i < response.toolCalls.length; i++) {
       const tc = response.toolCalls[i];
       let result: string;
       try { result = await params.executor(tc.name, tc.arguments); }
       catch (err) { result = `Error: ${err instanceof Error ? err.message : String(err)}`; }
-      if (result.length > MAX_TOOL_RESULT_CHARS) {
-        result = result.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n[... truncated]';
-      }
-      messages.push({ role: 'tool', tool_call_id: `call_${turn}_${i}`, content: result });
+      messages.push({ role: 'tool', tool_call_id: `call_${turn}_${i}`, content: truncateToolResult(result) });
     }
   }
-  return { content: '', toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
+  return { content: '', toolCalls: undefinedIfEmpty(allToolCalls), usage: normalizeUsage(totalUsage) };
 }
 
 async function callWithRetry(
@@ -187,43 +183,24 @@ async function callWithRetry(
   body: Record<string, unknown>,
   toCanonicalToolName: (name: string) => string = (name) => name,
 ): Promise<LLMResponse> {
+  const applyCodec = (response: LLMResponse): LLMResponse => {
+    if (!response.toolCalls || response.toolCalls.length === 0) return response;
+    return {
+      ...response,
+      toolCalls: response.toolCalls.map((toolCall) => ({
+        ...toolCall,
+        name: toCanonicalToolName(toolCall.name),
+      })),
+    };
+  };
+
   try {
-    const response = await doFetch(params, body);
-    if (!response.toolCalls || response.toolCalls.length === 0) {
-      return response;
-    }
-
-    return {
-      ...response,
-      toolCalls: response.toolCalls.map((toolCall) => ({
-        ...toolCall,
-        name: toCanonicalToolName(toolCall.name),
-      })),
-    };
+    return applyCodec(await doFetch(params, body));
   } catch (err) {
-    if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
-      throw err;
-    }
-    // Don't retry client errors (4xx) except 429 (rate limit)
-    if (err && typeof err === 'object' && 'status' in err) {
-      const status = (err as any).status;
-      if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
-        throw err;
-      }
-    }
+    if (isAbortError(err)) throw err;
+    if (!isRetryableError(err)) throw err;
     // Retry once after 3s
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
-    const response = await doFetch(params, body);
-    if (!response.toolCalls || response.toolCalls.length === 0) {
-      return response;
-    }
-
-    return {
-      ...response,
-      toolCalls: response.toolCalls.map((toolCall) => ({
-        ...toolCall,
-        name: toCanonicalToolName(toolCall.name),
-      })),
-    };
+    await sleep(3_000);
+    return applyCodec(await doFetch(params, body));
   }
 }

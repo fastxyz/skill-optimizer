@@ -50,7 +50,7 @@ function resolveModel(id: string): { id: string; name: string; tier: 'flagship' 
 }
 
 
-export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
+function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
   const targetPassRate = answers.targetPassRate ?? 0.8;
   const projectName = name ?? basename(repoPath);

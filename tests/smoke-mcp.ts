@@ -1,14 +1,14 @@
 import { extractFromToolCalls } from '../src/benchmark/extractors/mcp-extractor.js';
 import { extract } from '../src/benchmark/extractors/index.js';
-import { evaluateTask, matchTools } from '../src/benchmark/evaluator.js';
+import { evaluateTask, matchActions } from '../src/benchmark/evaluator.js';
 import type {
   ExtractedCall,
   LLMResponse,
   BenchmarkConfig,
   TaskDefinition,
-  ExpectedTool,
+  ExpectedAction,
   ModelConfig,
-  ToolMatch,
+  ActionMatch,
 } from '../src/benchmark/types.js';
 
 // ── Test harness ──────────────────────────────────────────────────────────
@@ -101,36 +101,36 @@ await test('extractFromToolCalls: undefined toolCalls', () => {
   assertEqual(calls.length, 0, 'should return empty array when toolCalls is undefined');
 });
 
-// ── Group 2: matchTools (arg validation) ──────────────────────────────────
+// ── Group 2: matchActions (arg validation) ──────────────────────────────────
 
-await test('matchTools: regex arg matching', () => {
-  const expectedTools: ExpectedTool[] = [
-    { method: 'send_tokens', args: { to: '/fast1.+/' } },
+await test('matchActions: regex arg matching', () => {
+  const expectedTools: ExpectedAction[] = [
+    { name: 'send_tokens', args: { to: '/fast1.+/' } },
   ];
 
   const extractedCalls: ExtractedCall[] = [
     { method: 'send_tokens', args: { to: 'fast1abc123def' }, line: 0, raw: '' },
   ];
 
-  const matches = matchTools(expectedTools, extractedCalls);
+  const matches = matchActions(expectedTools, extractedCalls);
 
-  assertEqual(matches.length, 1, 'should return 1 ToolMatch');
+  assertEqual(matches.length, 1, 'should return 1 ActionMatch');
   assert(matches[0].methodFound === true, 'methodFound should be true');
   assert(matches[0].argsCorrect === true, 'argsCorrect should be true — regex /fast1.+/ should match "fast1abc123def"');
 });
 
-await test('matchTools: dynamic sentinel passes', () => {
-  const expectedTools: ExpectedTool[] = [
-    { method: 'get_balance', args: { address: '<dynamic>' } },
+await test('matchActions: dynamic sentinel passes', () => {
+  const expectedTools: ExpectedAction[] = [
+    { name: 'get_balance', args: { address: '<dynamic>' } },
   ];
 
   const extractedCalls: ExtractedCall[] = [
     { method: 'get_balance', args: { address: 'literally_anything' }, line: 0, raw: '' },
   ];
 
-  const matches = matchTools(expectedTools, extractedCalls);
+  const matches = matchActions(expectedTools, extractedCalls);
 
-  assertEqual(matches.length, 1, 'should return 1 ToolMatch');
+  assertEqual(matches.length, 1, 'should return 1 ActionMatch');
   assert(matches[0].methodFound === true, 'methodFound should be true');
   // <dynamic> in expected acts as a wildcard — any value from the LLM is acceptable.
   assert(
@@ -153,9 +153,9 @@ await test('evaluateTask: MCP perfect match', () => {
   const task: TaskDefinition = {
     id: 'task-perfect',
     prompt: 'Create a wallet and check its balance',
-    expected_tools: [
-      { method: 'create_wallet' },
-      { method: 'get_balance' },
+    expected_actions: [
+      { name: 'create_wallet' },
+      { name: 'get_balance' },
     ],
   };
 
@@ -185,8 +185,8 @@ await test('evaluateTask: MCP hallucinated tool', () => {
   const task: TaskDefinition = {
     id: 'task-hallucination',
     prompt: 'Send some tokens',
-    expected_tools: [
-      { method: 'send_tokens' },
+    expected_actions: [
+      { name: 'send_tokens' },
     ],
   };
 
@@ -208,8 +208,8 @@ await test('evaluateTask: MCP hallucinated tool', () => {
   });
 
   assert(
-    result.metrics.hallucinatedCalls.includes('delete_everything'),
-    'hallucinatedCalls should include "delete_everything"',
+    result.metrics.hallucinatedActions.includes('delete_everything'),
+    'hallucinatedActions should include "delete_everything"',
   );
   assert(result.metrics.hallucinationRate > 0, 'hallucinationRate should be > 0');
 });

@@ -185,7 +185,8 @@ export async function checkConfig(
     err('invalid-format', 'benchmark.format', '"benchmark.format" must be pi, openai, or anthropic');
   }
 
-  if (!benchmark.taskGeneration?.enabled && !benchmark.tasks) {
+
+  if (benchmark.taskGeneration?.enabled !== true && !benchmark.tasks) {
     err('missing-tasks', 'benchmark.tasks', '"benchmark.tasks" is required when task generation is disabled');
   }
 
@@ -374,7 +375,6 @@ export async function checkConfig(
 
   // Check: API key env var / Codex auth
   const authMode = benchmark.authMode ?? 'env';
-  // Helper: push a missing-credential warning for a given provider
   function warnMissingApiKey(provider: string, effectiveAuthMode: typeof authMode, apiKeyEnv: string | undefined, fieldPrefix: 'benchmark' | 'optimize'): void {
     const defaultEnvName = apiKeyEnv
       ?? (provider === 'openai' ? 'OPENAI_API_KEY'
@@ -428,9 +428,8 @@ export async function checkConfig(
     if (!optimizeApiKey) warnMissingApiKey(optimizeProvider, optimizeAuthMode, optimizeApiKeyEnv, 'optimize');
   }
 
-  // Check: dirty git (injection-safe: fixed arg array, no shell)
-  // Skipped when called from within the optimizer benchmark loop — the loop manages
-  // git state itself via ensureReady (run once before the loop starts).
+  // Check: dirty git (uses a fixed arg array, not a shell string, to prevent injection)
+  // Skipped inside the optimizer loop — the loop manages git state itself via ensureReady.
   if (!opts?.skipDirtyGitCheck && optimize !== undefined && optimize.requireCleanGit !== false && target.repoPath) {
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     if (existsSync(absRepo)) {
@@ -457,27 +456,6 @@ export async function checkConfig(
         // Not a git repo or git unavailable — skip silently
       }
     }
-  }
-
-  // Check: deprecated benchmark.tasks field
-  if (benchmark.tasks !== undefined && benchmark.taskGeneration?.enabled === true) {
-    issues.push({
-      code: 'deprecated-tasks-field', severity: 'warning', field: 'benchmark.tasks',
-      message: '"benchmark.tasks" is set but task generation is enabled — the tasks field is deprecated',
-      hint: `Remove "tasks" from benchmark — task generation replaces it`,
-      fixable: true,
-    });
-  }
-
-  // Check: legacy skill-benchmark.json alongside skill-optimizer.json
-  const legacyPath = resolve(dirname(_configPath), 'skill-benchmark.json');
-  if (existsSync(legacyPath)) {
-    issues.push({
-      code: 'legacy-config-name', severity: 'warning', field: '(config file)',
-      message: `Found legacy "skill-benchmark.json" alongside "skill-optimizer.json"`,
-      hint: `Delete skill-benchmark.json — it is no longer used`,
-      fixable: false,
-    });
   }
 
   return issues;

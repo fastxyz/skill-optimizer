@@ -2,7 +2,7 @@ import type { McpToolDefinition } from '../types.js';
 
 const PROVIDER_TOOL_NAME_PATTERN = /[^a-zA-Z0-9_-]/g;
 
-export interface ToolNameAliasCodec {
+interface ToolNameAliasCodec {
   tools: McpToolDefinition[];
   toCanonical(name: string): string;
   toProvider(name: string): string;

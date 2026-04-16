@@ -1,12 +1,13 @@
-import type { Model } from '@mariozechner/pi-ai';
+import type { Api, Model } from '@mariozechner/pi-ai';
 import { getModel } from '@mariozechner/pi-ai';
 import { ModelRegistry } from '@mariozechner/pi-coding-agent';
 
 import { createPiAuthStorage, resolveApiCredential } from './auth.js';
+import type { PiAuthMode } from './auth.js';
 import { parseModelRef } from '../../project/types.js';
 
 export interface ResolvedPiModelRequest {
-  model: Model<any>;
+  model: Model<Api>;
   authStorage: ReturnType<typeof createPiAuthStorage>;
   modelRegistry: ReturnType<typeof ModelRegistry.create>;
   auth: {
@@ -17,7 +18,7 @@ export interface ResolvedPiModelRequest {
 
 export async function resolvePiModelByRef(
   modelRef: string,
-  options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
+  options?: { authMode?: PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
   const { provider, model } = parseModelRef(modelRef);
   return resolvePiModel(provider, model, options);
@@ -29,7 +30,7 @@ export async function resolvePiModelByRef(
  * it can use the "openai-completions" api type with openrouter.ai/api/v1 as the base URL.
  * The model ID passed to OpenRouter is the portion after "openrouter/" in the full ref.
  */
-function synthesizeOpenRouterModel(provider: string, modelName: string): Model<any> | undefined {
+function synthesizeOpenRouterModel(provider: string, modelName: string): Model<'openai-completions'> | undefined {
   if (provider !== 'openrouter') return undefined;
   return {
     id: modelName,
@@ -45,7 +46,7 @@ function synthesizeOpenRouterModel(provider: string, modelName: string): Model<a
   };
 }
 
-function synthesizeOpenAICodexModel(provider: string, modelName: string): Model<any> | undefined {
+function synthesizeOpenAICodexModel(provider: string, modelName: string): Model<'openai-codex-responses'> | undefined {
   if (provider !== 'openai-codex') return undefined;
   return {
     id: modelName,
@@ -64,7 +65,7 @@ function synthesizeOpenAICodexModel(provider: string, modelName: string): Model<
 export async function resolvePiModel(
   provider: string,
   modelName: string,
-  options?: { authMode?: import('./auth.js').PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
+  options?: { authMode?: PiAuthMode; apiKeyEnv?: string; apiKeyOverride?: string },
 ): Promise<ResolvedPiModelRequest> {
   // Guard: direct-provider model + OpenRouter key = guaranteed 401.
   // Catches stale scaffolded configs that had apiKeyEnv:"OPENROUTER_API_KEY" and were

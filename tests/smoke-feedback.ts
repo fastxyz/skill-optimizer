@@ -15,7 +15,7 @@ function mkResult(opts: {
   error?: string;
 }): TaskResult {
   return {
-    task: { id: opts.taskId, prompt: 'p', expected_actions: [opts.expected], expected_tools: [opts.expected] },
+    task: { id: opts.taskId, prompt: 'p', expected_actions: [opts.expected] },
     model: { id: opts.modelId, name: opts.modelName, tier: 'mid' },
     generatedCode: null,
     rawResponse: '',
@@ -27,15 +27,14 @@ function mkResult(opts: {
       argsCorrect: opts.passed,
       matched: opts.passed,
     }],
-    toolMatches: [],
     metrics: {
       toolPrecision: 0,
       toolRecall: 0,
       taskPassed: opts.passed,
       toolSelectionAccuracy: opts.passed ? 1 : 0,
       argAccuracy: opts.passed ? 1 : 0,
-      unnecessaryCalls: [],
-      hallucinatedCalls: opts.extracted?.filter((c) => c.name !== opts.expected.name).map((c) => c.name) ?? [],
+      unnecessaryActions: [],
+      hallucinatedActions: opts.extracted?.filter((c) => c.name !== opts.expected.name).map((c) => c.name) ?? [],
       hallucinationRate: 0,
     },
     llmLatencyMs: 0,

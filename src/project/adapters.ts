@@ -1,5 +1,5 @@
 import type { BenchmarkConfig, SkillConfig } from '../benchmark/types.js';
-import type { OptimizeManifest, ResolvedOptimizeManifest } from '../optimizer/types.js';
+import type { ResolvedOptimizeManifest } from '../optimizer/types.js';
 import type { ResolvedProjectConfig } from './types.js';
 import { parseModelRef } from './types.js';
 import { buildMcpToolDefinitionsFromSnapshot, buildSurfaceSnapshot } from './snapshot.js';
@@ -65,7 +65,7 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
       mode: optimize.mode,
       maxIterations: optimize.maxIterations,
       stabilityWindow: optimize.stabilityWindow,
-      minOverallPassDelta: optimize.minImprovement,
+      minImprovement: optimize.minImprovement,
       taskGeneration: {
         enabled: project.benchmark.taskGeneration.enabled,
         maxGenerated: project.benchmark.taskGeneration.maxTasks,
@@ -79,44 +79,6 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
     mutation: {
       provider: mutationModel.provider,
       model: mutationModel.model,
-      authMode: optimize.authMode,
-      apiKeyEnv: optimize.apiKeyEnv,
-      thinkingLevel: optimize.thinkingLevel,
-      reportContextMaxBytes: optimize.reportContextMaxBytes,
-    },
-  };
-}
-
-export function toLegacyOptimizeManifest(project: ResolvedProjectConfig): OptimizeManifest {
-  const optimize = project.optimize;
-  if (!optimize || !optimize.enabled) {
-    throw new Error(`Project ${project.configPath} does not have optimization enabled`);
-  }
-
-  return {
-    benchmarkConfig: project.configPath,
-    targetRepo: {
-      path: project.target.repoPath,
-      surface: project.target.surface,
-      allowedPaths: optimize.allowedPaths,
-      surfacePaths: getProjectSurfacePaths(project),
-      validation: optimize.validation,
-      requireCleanGit: optimize.requireCleanGit,
-    },
-    optimizer: {
-      mode: optimize.mode,
-      maxIterations: optimize.maxIterations,
-      stabilityWindow: optimize.stabilityWindow,
-      minOverallPassDelta: optimize.minImprovement,
-      taskGeneration: {
-        enabled: project.benchmark.taskGeneration.enabled,
-        maxGenerated: project.benchmark.taskGeneration.maxTasks,
-        seed: project.benchmark.taskGeneration.seed,
-        outputDir: project.benchmark.taskGeneration.outputDir,
-      },
-    },
-    mutation: {
-      ...parseModelRef(optimize.model),
       authMode: optimize.authMode,
       apiKeyEnv: optimize.apiKeyEnv,
       thinkingLevel: optimize.thinkingLevel,

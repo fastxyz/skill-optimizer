@@ -3,7 +3,7 @@ import { extractFailureDetails, type FailureDetail } from './failure-details.js'
 import { detectPatterns, type Pattern } from './patterns.js';
 import { buildPassingFailingDiff, type PassingFailingDiff } from './passing-failing-diff.js';
 
-export interface FeedbackPackage {
+interface FeedbackPackage {
   failureDetails: FailureDetail[];
   patterns: Pattern[];
   passingFailingDiffs: PassingFailingDiff[];

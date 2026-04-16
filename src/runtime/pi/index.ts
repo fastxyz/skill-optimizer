@@ -1,5 +1,4 @@
-export { createPiAuthStorage, requireApiKeyFromEnv, requireConfiguredApiKey, resolveApiCredential, resolveApiKey } from './auth.js';
-export { createReadOnlyBenchmarkModel } from './benchmark-agent.js';
+export { createPiAuthStorage, requireConfiguredApiKey, resolveApiCredential, resolveApiKey } from './auth.js';
 export { createCodingOrchestratorSession } from './coding-orchestrator.js';
 export { resolvePiModel, resolvePiModelByRef } from './models.js';
 

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { runBenchmark } from '../benchmark/runner.js';
 import type { BenchmarkReport } from '../benchmark/types.js';
 
-export interface BenchmarkAdapterRunOptions {
+interface BenchmarkAdapterRunOptions {
   outputDir: string;
   label: string;
   verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
@@ -12,7 +12,7 @@ export interface BenchmarkAdapterRunOptions {
   skillOverride?: string;
 }
 
-export interface BenchmarkAdapterRunResult {
+interface BenchmarkAdapterRunResult {
   report: BenchmarkReport;
   reportPath: string;
 }

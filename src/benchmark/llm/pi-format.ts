@@ -1,13 +1,14 @@
 import { Type } from '@mariozechner/pi-ai';
-import type { Context, Model, AssistantMessage, SimpleStreamOptions, Tool as PiTool } from '@mariozechner/pi-ai';
+import type { Api, Context, Model, AssistantMessage, SimpleStreamOptions, Tool as PiTool } from '@mariozechner/pi-ai';
 import { complete, completeSimple } from '@mariozechner/pi-ai';
 
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 import { resolvePiModelByRef } from '../../runtime/pi/index.js';
+import type { PiAuthMode } from '../../runtime/pi/auth.js';
 import { createToolNameAliasCodec } from './tool-name-aliases.js';
 
 interface PiCallParams {
-  authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+  authMode?: PiAuthMode;
   apiKeyOverride?: string;
   apiKeyEnv?: string;
   headers?: Record<string, string>;
@@ -22,7 +23,7 @@ interface PiCallWithToolsParams extends PiCallParams {
 }
 
 interface ResolvedPiRequest {
-  model: Model<any>;
+  model: Model<Api>;
   auth: {
     apiKey?: string;
     headers?: Record<string, string>;
@@ -33,13 +34,13 @@ type PiImplementationSet = {
   resolve(
     modelId: string,
     authOptions?: {
-      authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+      authMode?: PiAuthMode;
       apiKeyEnv?: string;
       apiKeyOverride?: string;
     },
   ): Promise<ResolvedPiRequest>;
-  completeSimple(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
-  complete(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
+  completeSimple(model: Model<Api>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
+  complete(model: Model<Api>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
 };
 
 let piImplementationsForTest: PiImplementationSet | null = null;
@@ -177,7 +178,7 @@ function getPiImplementations(): PiImplementationSet {
 async function resolvePiRequest(
   modelId: string,
   authOptions?: {
-    authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+    authMode?: PiAuthMode;
     apiKeyEnv?: string;
     apiKeyOverride?: string;
   },
@@ -211,7 +212,7 @@ function toPiTool(tool: McpToolDefinition): PiTool {
   return {
     name: tool.function.name,
     description: tool.function.description ?? '',
-    parameters: Type.Unsafe((tool.function.parameters ?? { type: 'object', properties: {}, required: [] }) as any),
+    parameters: Type.Unsafe(tool.function.parameters ?? { type: 'object', properties: {}, required: [] }),
   };
 }
 

@@ -1,4 +1,3 @@
-// src/errors.ts
 export interface ErrorDef {
   code: string;
   message: string;
@@ -28,8 +27,8 @@ export const ERRORS = {
     code: 'E_INVALID_SURFACE',
     message: 'Invalid surface value',
     fix: [
-      'Set target.surface to one of: sdk, cli, mcp',
-      'sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server',
+      'Set target.surface to one of: sdk, cli, mcp, prompt',
+      'sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server, prompt = prompt template / skill document',
     ],
   },
   E_MODELS_EMPTY: {
@@ -140,14 +139,6 @@ export const ERRORS = {
       'Get a key at https://openrouter.ai/keys',
     ],
   },
-  E_LEGACY_CONFIG: {
-    code: 'E_LEGACY_CONFIG',
-    message: 'Found skill-benchmark.json instead of skill-optimizer.json',
-    fix: [
-      'Rename skill-benchmark.json to skill-optimizer.json',
-      'See CHANGELOG.md for any field renames between versions',
-    ],
-  },
   // ── Discovery ─────────────────────────────────────────────────────────────
   E_DISCOVERY_EMPTY: {
     code: 'E_DISCOVERY_EMPTY',
@@ -223,7 +214,7 @@ export const ERRORS = {
     message: 'An unexpected error occurred',
     fix: [
       'Check the full error message and stack trace above for details',
-      'File an issue at https://github.com/bucurdavid/skill-optimizer/issues with the full output',
+      'File an issue at https://github.com/fastxyz/skill-optimizer/issues with the full output',
     ],
   },
 } as const satisfies Record<string, ErrorDef>;

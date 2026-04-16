@@ -30,7 +30,7 @@ function getRejectionReason(
   actions: Map<string, SurfaceSnapshot['actions'][number]>,
   surface: SurfaceSnapshot['surface'],
 ): string | null {
-  const expectedActions = task.expected_actions ?? task.expected_tools ?? [];
+  const expectedActions = task.expected_actions;
   if (seenIds.has(task.id)) {
     return `duplicate task id "${task.id}"`;
   }
@@ -43,7 +43,7 @@ function getRejectionReason(
     return null;
   }
 
-  if (!Array.isArray(expectedActions) || expectedActions.length === 0) {
+  if (expectedActions.length === 0) {
     return `task "${task.id}" has empty expected_actions`;
   }
 

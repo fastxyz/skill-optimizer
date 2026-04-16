@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 
 import ts from 'typescript';
 
-import type { CliDiscoverySnapshot, DiscoveryOptions, DiscoveredAction, DiscoveredActionArg } from './types.js';
+import type { ActionArgSchema } from '../actions/types.js';
+import type { CliDiscoverySnapshot, DiscoveryOptions, DiscoveredAction } from './types.js';
 import { discoverOptiqueActionsFromFile } from './optique.js';
 
 type LiteralPrimitive = string | number | boolean | null;
@@ -279,12 +280,12 @@ function toDiscoveredAction(commandEntry: LiteralObject, source: string): Discov
   };
 }
 
-function extractActionArgs(options: LiteralValue | undefined): DiscoveredActionArg[] {
+function extractActionArgs(options: LiteralValue | undefined): ActionArgSchema[] {
   if (!Array.isArray(options)) {
     return [];
   }
 
-  const args: DiscoveredActionArg[] = [];
+  const args: ActionArgSchema[] = [];
   for (const option of options) {
     if (!isLiteralObject(option)) {
       continue;

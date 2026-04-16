@@ -39,7 +39,7 @@ For direct OpenAI runs you can also use your local Codex browser login instead o
 **Step 1 — Scaffold config** (run from your project root):
 
 ```bash
-npx skill-optimizer init cli       # or: init sdk, init mcp
+npx skill-optimizer init cli       # or: init sdk, init mcp, init prompt
 ```
 
 The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `skill-optimizer/` directory:
@@ -110,7 +110,7 @@ npx skill-optimizer init --answers answers.json
 | `target.repoPath` | Root of the project being benchmarked | Absolute or relative path to your repo |
 | `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["../src/index.ts"]` or `["../src/server.ts"]` |
 | `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
-| `benchmark.models` | Models to benchmark | Valid [OpenRouter](https://openrouter.ai/models) model IDs |
+| `benchmark.models` | Models to benchmark | Model IDs with provider prefix: `openrouter/<provider>/<model>` (via OpenRouter), `anthropic/<model>` (direct Anthropic), `openai/<model>` (direct OpenAI) |
 | `benchmark.authMode` | How model auth is resolved | `env` (default), `codex`, or `auto` |
 
 ### Prompt templates / Claude Code skills
@@ -207,8 +207,6 @@ export OPENROUTER_API_KEY=sk-or-...
 **`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx skill-optimizer --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
 
 **Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
-
-**Legacy `skill-benchmark.json`**: Rename it to `skill-optimizer.json`. The loader will tell you if it finds the old name.
 
 ## Contributing
 
