@@ -1,7 +1,7 @@
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' = 'sdk'): void {
+export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' | 'cli' | 'mcp' | 'prompt' = 'sdk'): void {
   const generatedDir = resolve(targetDir, '.skill-optimizer');
   mkdirSync(generatedDir, { recursive: true });
 
@@ -108,9 +108,8 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
   console.log('  3. Run: skill-optimizer optimize --config ./.skill-optimizer/skill-optimizer.json');
 }
 
-function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
+function buildConfig(surface: 'sdk' | 'cli' | 'mcp' | 'prompt'): object {
   const commonBenchmark = {
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
     taskGeneration: {
@@ -119,8 +118,9 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
       outputDir: '.',
     },
     models: [
-      { id: 'openrouter/openai/gpt-4o', name: 'GPT-4o', tier: 'flagship' },
-      { id: 'openrouter/google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', tier: 'mid' },
+      { id: 'openrouter/anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'flagship' },
+      { id: 'openrouter/deepseek/deepseek-v3-2', name: 'DeepSeek V3.2', tier: 'flagship' },
+      { id: 'openrouter/google/gemini-2-5-flash', name: 'Gemini 2.5 Flash', tier: 'mid' },
     ],
     output: {
       dir: '../benchmark-results',
@@ -133,7 +133,6 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
 
   const commonOptimize = {
     model: 'openrouter/anthropic/claude-sonnet-4-6',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     allowedPaths: ['./SKILL.md'],
     validation: [],
     maxIterations: 5,
@@ -170,6 +169,19 @@ function buildConfig(surface: 'sdk' | 'cli' | 'mcp'): object {
         cli: {
           commands: './cli-commands.json',
         },
+      },
+      benchmark: commonBenchmark,
+      optimize: commonOptimize,
+    };
+  }
+
+  if (surface === 'prompt') {
+    return {
+      name: 'my-prompt',
+      target: {
+        surface: 'prompt',
+        repoPath: '..',
+        skill: '../SKILL.md',
       },
       benchmark: commonBenchmark,
       optimize: commonOptimize,

@@ -410,7 +410,7 @@ function extractCallExpression(
   const fnNode = node.childForFieldName('function');
   if (!fnNode) return null;
 
-  // NEW: standalone function call
+  // Standalone function call (e.g. x402Pay(...), fast(...))
   if (fnNode.type === 'identifier' && knownFunctions.has(fnNode.text)) {
     const method = fnNode.text;
     const argsNode = node.childForFieldName('arguments');
@@ -449,7 +449,7 @@ function extractCallExpression(
 
 // ── Generic extraction (no config hints) ───────────────────────────────────
 
-export interface RawExtraction {
+interface RawExtraction {
   calls: ExtractedCall[];
   bindings: Map<string, string>;  // variable → source function/class name
 }
@@ -580,33 +580,3 @@ export async function extractAllFromCode(code: string): Promise<RawExtraction> {
   return { calls, bindings };
 }
 
-// ── Legacy Public API (deprecated — use extractAllFromCode) ────────────────
-
-/**
- * @deprecated Use extractAllFromCode instead. This function requires config hints.
- */
-export async function extractFromCode(
-  code: string,
-  classes: string[],
-  functions: string[] = [],
-  functionReturns: Record<string, string> = {},
-): Promise<ExtractedCall[]> {
-  const sdkClasses = new Set(classes);
-  const knownFunctions = new Set(functions);
-  const fnReturns = new Map(Object.entries(functionReturns));
-  const p = await initParser();
-  const tree = p.parse(code);
-  const root = tree.rootNode;
-  const literalMap = collectLiteralBindings(root);
-
-  // First pass: collect variable bindings
-  const varMap = collectVariableBindings(root, sdkClasses, knownFunctions, fnReturns);
-
-  // Second pass: collect all calls
-  const calls = collectCalls(root, varMap, literalMap, code, sdkClasses, knownFunctions);
-
-  // Sort by line number
-  calls.sort((a, b) => a.line - b.line);
-
-  return calls;
-}

@@ -1,10 +1,11 @@
-export type ActionSurface = 'sdk' | 'cli' | 'mcp';
+export type ActionSurface = 'sdk' | 'cli' | 'mcp' | 'prompt';
 
 export interface ActionArgSchema {
   name: string;
   required: boolean;
   type?: string;
   description?: string;
+  schema?: Record<string, unknown>;
 }
 
 export interface ActionDefinition {

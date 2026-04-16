@@ -1,4 +1,12 @@
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
+import {
+  isAbortError,
+  isRetryableError,
+  sleep,
+  truncateToolResult,
+  undefinedIfEmpty,
+  normalizeUsage,
+} from './shared.js';
 
 interface CallParams {
   baseUrl: string;
@@ -24,7 +32,6 @@ interface AnthropicTool {
   };
 }
 
-/** Transform OpenAI-format McpToolDefinition to Anthropic tool format. */
 function toAnthropicTool(tool: McpToolDefinition): AnthropicTool {
   return {
     name: tool.function.name,
@@ -99,8 +106,8 @@ async function doFetch(params: CallParams, body: Record<string, unknown>): Promi
 
   if (!response.ok) {
     const text = await response.text();
-    const err = new Error(`Anthropic API error ${response.status}: ${text}`);
-    (err as any).status = response.status;
+    const err = new Error(`Anthropic API error ${response.status}: ${text}`) as Error & { status: number };
+    err.status = response.status;
     throw err;
   }
 
@@ -155,8 +162,8 @@ interface AgentLoopParams extends CallWithToolsParams {
 
 export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<LLMResponse> {
   const messages: Array<Record<string, unknown>> = [{ role: 'user', content: params.user }];
-  let allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
-  let totalUsage = { prompt: 0, completion: 0, total: 0 };
+  const allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+  const totalUsage = { prompt: 0, completion: 0, total: 0 };
 
   for (let turn = 0; turn < params.maxTurns; turn++) {
     const body: Record<string, unknown> = {
@@ -170,7 +177,7 @@ export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<L
       totalUsage.total += response.usage.total;
     }
     if (!response.toolCalls || response.toolCalls.length === 0) {
-      return { content: response.content, toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
+      return { content: response.content, toolCalls: undefinedIfEmpty(allToolCalls), usage: normalizeUsage(totalUsage) };
     }
     allToolCalls.push(...response.toolCalls);
     const assistantContent = [
@@ -178,21 +185,17 @@ export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<L
       ...response.toolCalls.map((tc, i) => ({ type: 'tool_use', id: `toolu_${turn}_${i}`, name: tc.name, input: tc.arguments })),
     ];
     messages.push({ role: 'assistant', content: assistantContent });
-    const MAX_TOOL_RESULT_CHARS = 50_000;
     const toolResults = [];
     for (let i = 0; i < response.toolCalls.length; i++) {
       const tc = response.toolCalls[i];
       let result: string;
       try { result = await params.executor(tc.name, tc.arguments); }
       catch (err) { result = `Error: ${err instanceof Error ? err.message : String(err)}`; }
-      if (result.length > MAX_TOOL_RESULT_CHARS) {
-        result = result.slice(0, MAX_TOOL_RESULT_CHARS) + '\n\n[... truncated]';
-      }
-      toolResults.push({ type: 'tool_result', tool_use_id: `toolu_${turn}_${i}`, content: result });
+      toolResults.push({ type: 'tool_result', tool_use_id: `toolu_${turn}_${i}`, content: truncateToolResult(result) });
     }
     messages.push({ role: 'user', content: toolResults });
   }
-  return { content: '', toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined, usage: totalUsage.total > 0 ? totalUsage : undefined };
+  return { content: '', toolCalls: undefinedIfEmpty(allToolCalls), usage: normalizeUsage(totalUsage) };
 }
 
 async function callWithRetry(
@@ -202,18 +205,10 @@ async function callWithRetry(
   try {
     return await doFetch(params, body);
   } catch (err) {
-    if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
-      throw err;
-    }
-    // Don't retry client errors (4xx) except 429 (rate limit)
-    if (err && typeof err === 'object' && 'status' in err) {
-      const status = (err as any).status;
-      if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429) {
-        throw err;
-      }
-    }
+    if (isAbortError(err)) throw err;
+    if (!isRetryableError(err)) throw err;
     // Retry once after 3s
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    await sleep(3_000);
     return doFetch(params, body);
   }
 }

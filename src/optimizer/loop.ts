@@ -141,15 +141,11 @@ export async function runOptimizeLoop(
       console.log(
         `[optimize] Changed files: ${changedFiles.length > 0 ? changedFiles.join(', ') : '(none)'}`,
       );
-      // When the mutation writes to a local skill file, the target repo must stay clean.
-      // The agent runs with cwd = targetRepo and can inadvertently write tracked files there.
-      // Restore the repo to the accepted checkpoint so any rogue writes are undone — only
-      // changes to the local skill file (outside the repo) are kept.
+      // In local-skill mode: restore the repo to undo any rogue writes the agent may have made
+      // (it runs with cwd=targetRepo), then skip scope validation (the local file is always in scope).
       if (localSkillPath) {
         await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
       }
-      // When the mutation writes to a local skill file (not the target repo),
-      // skip target-repo scope validation — the local file is always in scope.
       const scopeValidation = localSkillPath
         ? null
         : validateChangedFiles(changedFiles, resolvedManifest);
@@ -285,7 +281,7 @@ export async function runOptimizeLoop(
       const accepted = accept(beforeReport, afterReport, resolvedManifest.optimizer.models, {
         perModelFloor: resolvedManifest.optimizer.perModelFloor,
         targetWeightedAverage: resolvedManifest.optimizer.targetWeightedAverage,
-        minImprovement: resolvedManifest.optimizer.minOverallPassDelta,
+        minImprovement: resolvedManifest.optimizer.minImprovement,
       });
 
       if (accepted) {
@@ -314,7 +310,7 @@ export async function runOptimizeLoop(
         console.log(
           `[optimize] Rejected iteration ${index}: gates not satisfied ` +
             `(weighted ${beforeAvg.toFixed(1)}% -> ${afterAvg.toFixed(1)}%; ` +
-            `min improvement ${(resolvedManifest.optimizer.minOverallPassDelta * 100).toFixed(1)} pts; ` +
+            `min improvement ${(resolvedManifest.optimizer.minImprovement * 100).toFixed(1)} pts; ` +
             `per-model floor ${(resolvedManifest.optimizer.perModelFloor * 100).toFixed(1)}%).`,
         );
         console.log('[optimize] Restoring checkpoint.');
@@ -376,7 +372,7 @@ function summarizeTopFailures(report: BenchmarkReport, limit = 3): string[] {
     existing.failCount += 1;
     existing.models.add(result.model.name);
 
-    for (const match of result.actionMatches ?? result.toolMatches) {
+    for (const match of result.actionMatches) {
       if (!match.methodFound) {
         existing.missing.add(getExpectedActionName(match.expected));
       } else if (!match.argsCorrect) {
@@ -511,7 +507,7 @@ function resolveManifest(manifest: OptimizeManifest | ResolvedOptimizeManifest):
     optimizer: {
       maxIterations: unresolved.optimizer?.maxIterations ?? 5,
       stabilityWindow: unresolved.optimizer?.stabilityWindow ?? 2,
-      minOverallPassDelta: unresolved.optimizer?.minOverallPassDelta ?? 0.02,
+      minImprovement: unresolved.optimizer?.minImprovement ?? 0.02,
       taskGeneration: {
         enabled: unresolved.optimizer?.taskGeneration?.enabled ?? false,
         maxGenerated: unresolved.optimizer?.taskGeneration?.maxGenerated ?? 10,

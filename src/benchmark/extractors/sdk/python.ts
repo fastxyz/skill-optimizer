@@ -178,7 +178,7 @@ function collectPythonCalls(root: Parser.SyntaxNode, bindings: BindingMap, liter
   return sortCalls(calls);
 }
 
-export async function extractPythonSdk(code: string): Promise<RawSdkExtraction> {
+async function extractPythonSdk(code: string): Promise<RawSdkExtraction> {
   const parser = await getSdkParser('python');
   const tree = parser.parse(code);
   const root = tree.rootNode;

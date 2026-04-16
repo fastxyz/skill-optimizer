@@ -5,7 +5,7 @@ Thanks for contributing! This project is a small, opinionated tool — changes s
 ## Local workflow
 
 ```bash
-git clone https://github.com/bucurdavid/skill-optimizer
+git clone https://github.com/fastxyz/skill-optimizer
 cd skill-optimizer
 npm install
 npm run typecheck
@@ -35,11 +35,11 @@ All three commands must pass before opening a PR.
 
 ## Adding a surface type
 
-Follow the shape of existing discoverers in `src/project/snapshot.ts`. A surface discoverer returns `ActionDefinition[]`. Then:
+A surface discoverer returns `ActionDefinition[]`. To add one:
 
 1. Extend `BenchmarkSurface` in `src/benchmark/types.ts`.
 2. Add a branch to `src/project/validate.ts` and `src/project/resolve.ts`.
-3. Register the discoverer in `src/project/snapshot.ts`.
+3. Implement the new code-first discoverer in `src/actions/discover.ts`, then register it in `src/project/snapshot.ts` (the dispatcher that routes surfaces to discoverers).
 4. Add a discovery smoke test.
 
 ## Adding an LLM provider

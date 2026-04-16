@@ -33,20 +33,16 @@ export async function extractClap(filePath: string): Promise<CliCommandDefinitio
     const subIdx = source.indexOf(subcommandSearchStr, searchStart);
     if (subIdx === -1) break;
 
-    // Extract the block starting at the '(' of .subcommand(
-    const blockStart = subIdx + subcommandSearchStr.length - 1; // position of '('
+    const blockStart = subIdx + subcommandSearchStr.length - 1;
     const block = extractParenBlock(source, blockStart);
 
-    // Find Command::new("name") in this block
     const nameMatch = block.match(/Command\s*::\s*new\s*\(\s*"([^"]+)"\s*\)/);
     if (!nameMatch) { searchStart = subIdx + 1; continue; }
     const commandName = nameMatch[1]!;
 
-    // Find .about("description")
     const aboutMatch = block.match(/\.about\s*\(\s*"([^"]+)"\s*\)/);
     const description = aboutMatch ? aboutMatch[1] : undefined;
 
-    // Find options by scanning for .arg( calls in the block and extracting each arg's paren block
     const options: CliCommandOptionDefinition[] = [];
     const argSearchStr = '.arg(';
     let argSearchStart = 0;
@@ -54,11 +50,9 @@ export async function extractClap(filePath: string): Promise<CliCommandDefinitio
       const argIdx = block.indexOf(argSearchStr, argSearchStart);
       if (argIdx === -1) break;
 
-      // Extract the arg block starting at the '(' of .arg(
       const argBlockStart = argIdx + argSearchStr.length - 1;
       const argBlock = extractParenBlock(block, argBlockStart);
 
-      // Find .long("flag") within this arg block
       const longMatch = argBlock.match(/\.long\s*\(\s*"([^"]+)"\s*\)/);
       if (longMatch) {
         const longFlag = '--' + longMatch[1];

@@ -4,7 +4,7 @@
 
 `skill-optimizer` measures whether LLMs pick the right SDK methods, CLI commands, or MCP tools from docs and task prompts, and can run a benchmark-driven optimization loop over an allowed target repo.
 
-The repo now has four important layers:
+The repo has five layers:
 
 - `src/project/`: unified `skill-optimizer.json` config loading, validation, and path resolution
 - `src/runtime/pi/`: shared Pi auth/model/runtime helpers
@@ -77,7 +77,7 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 - Prefer small changes in the existing architecture over broad refactors.
 - When updating config or project types, also update the README examples and any scaffolding in `src/benchmark/init.ts` if needed.
 - When changing optimizer behavior, verify both the loop and the unified project defaults still agree.
-- Code-first surface discovery is now active for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifests/declared surface metadata still exist as transitional internal fallbacks, but new public examples should prefer code-first discovery.
+- Code-first surface discovery is the preferred mode for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifest files (`target.cli.commands`, `target.mcp.tools`, `target.discovery.fallbackManifest`) are supported for projects that cannot use code-first discovery.
 - Be careful around mock repo references: code may support template names that are not currently present in the working tree.
 
 ## Testing Guidance
@@ -85,6 +85,26 @@ npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-op
 - Run `npm run typecheck` after TypeScript changes.
 - Run `npm test` before finishing when behavior changes may affect extraction, evaluation, reporting, or optimizer flow.
 - For CLI-only or docs-only changes, at minimum verify `npx tsx src/cli.ts --help` still works if the touched docs reference CLI behavior.
+
+## Model ID Convention
+
+Model IDs use a provider-prefixed format. The prefix determines how the request is routed:
+
+```
+openrouter/<provider>/<model-slug>   — routed through OpenRouter (format: "pi")
+anthropic/<model-slug>               — direct Anthropic API    (format: "anthropic")
+openai/<model-slug>                  — direct OpenAI API       (format: "openai")
+```
+
+**Version segments use hyphens, not dots**, regardless of provider. Examples:
+- `openrouter/anthropic/claude-sonnet-4-6` ✓ (not `claude-sonnet-4.6`)
+- `openrouter/google/gemini-2-5-flash` ✓ (not `gemini-2.5-flash`)
+- `openrouter/deepseek/deepseek-v3-2` ✓ (not `deepseek-v3.2`)
+- `openai/gpt-5-4` ✓ (not `openai/gpt-5.4`)
+
+`src/project/validate.ts` warns on dot-notation version segments for all non-`openai/` model IDs (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. (OpenAI's own slugs use dots in some cases, so `openai/` is exempt.) When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, always use hyphens in the model ID path.
+
+Display names (`name:` / `label:` fields) are human-readable and should keep dots (e.g. `'Claude Sonnet 4.6'`, `'Gemini 2.5 Flash'`).
 
 ## Environment Notes
 

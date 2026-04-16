@@ -10,7 +10,7 @@ import {
   writeActionSnapshotFile,
 } from '../src/actions/snapshot.js';
 import { diffActionCatalog } from '../src/actions/diff.js';
-import { buildSurfaceSnapshot, loadProjectConfig, loadSurfaceSnapshotFile } from '../src/project/index.js';
+import { buildMcpToolDefinitionsFromSnapshot, buildSurfaceSnapshot, loadProjectConfig, loadSurfaceSnapshotFile } from '../src/project/index.js';
 import type { SurfaceSnapshot } from '../src/project/types.js';
 
 let passed = 0;
@@ -69,6 +69,40 @@ await test('snapshot write/load roundtrip includes artifact version', () => {
   }
 });
 
+await test('snapshot roundtrip preserves nested MCP arg schemas', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-actions-schema-'));
+  try {
+    const snapshotPath = join(root, 'actions.snapshot.json');
+    writeActionSnapshotFile(snapshotPath, {
+      surface: 'mcp',
+      actions: [
+        {
+          key: 'folders.update',
+          name: 'folders.update',
+          args: [
+            {
+              name: 'folderIds',
+              required: true,
+              type: 'array',
+              schema: {
+                type: 'array',
+                items: { type: 'integer' },
+                description: 'Folder ids to update',
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const loaded = loadActionSnapshotFile(snapshotPath);
+    const schema = loaded.catalog.actions[0].args[0].schema as { items?: { type?: string } };
+    assertEqual(schema.items?.type, 'integer', 'nested array items should survive snapshot roundtrip');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 await test('diffActionCatalog ignores arg reordering and catches schema changes', () => {
   const before = {
     surface: 'mcp' as const,
@@ -116,8 +150,8 @@ await test('diffActionCatalog ignores arg reordering and catches schema changes'
   assertEqual(changedDiff.changed.length, 1, 'required-flag changes should count as schema changes');
 });
 
-await test('surface snapshot compatibility mapping preserves legacy shape', () => {
-  const legacy: SurfaceSnapshot = {
+await test('fromSurfaceSnapshot maps SurfaceSnapshot action names to ActionCatalog keys', () => {
+  const snapshot: SurfaceSnapshot = {
     surface: 'cli',
     actions: [
       {
@@ -130,16 +164,16 @@ await test('surface snapshot compatibility mapping preserves legacy shape', () =
     ],
   };
 
-  const catalog = fromSurfaceSnapshot(legacy);
-  assertEqual(catalog.actions[0].key, 'wallet create', 'legacy action name should map to canonical key by default');
+  const catalog = fromSurfaceSnapshot(snapshot);
+  assertEqual(catalog.actions[0].key, 'wallet create', 'action name should map to canonical key');
 
   const roundtrip = toSurfaceSnapshot(catalog);
-  assertEqual(roundtrip.actions[0].name, 'wallet create', 'legacy action name should roundtrip');
-  assert(!('key' in roundtrip.actions[0]), 'legacy surface snapshot actions should not include key field');
+  assertEqual(roundtrip.actions[0].name, 'wallet create', 'action name should roundtrip via toSurfaceSnapshot');
+  assert(!('key' in roundtrip.actions[0]), 'SurfaceSnapshot actions should not include key field');
 });
 
-await test('fromSurfaceSnapshot trims keys so legacy conversions diff stably', () => {
-  const legacy: SurfaceSnapshot = {
+await test('fromSurfaceSnapshot trims whitespace from derived action keys', () => {
+  const snapshot: SurfaceSnapshot = {
     surface: 'mcp',
     actions: [
       {
@@ -152,8 +186,8 @@ await test('fromSurfaceSnapshot trims keys so legacy conversions diff stably', (
     ],
   };
 
-  const converted = fromSurfaceSnapshot(legacy);
-  assertEqual(converted.actions[0].key, 'wallet.send', 'legacy conversion should trim derived canonical keys');
+  const converted = fromSurfaceSnapshot(snapshot);
+  assertEqual(converted.actions[0].key, 'wallet.send', 'action name whitespace should be trimmed to derive canonical key');
 
   const normalized = {
     surface: 'mcp' as const,
@@ -330,7 +364,7 @@ await test('loadActionSnapshotFile includes path on invalid JSON', () => {
   }
 });
 
-await test('buildSurfaceSnapshot returns expected legacy snapshot fields from discovery fixture', async () => {
+await test('buildSurfaceSnapshot returns surface snapshot from code-first discovery fixture', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-bridge-'));
   try {
     const sourcePath = join(root, 'server.ts');
@@ -384,33 +418,47 @@ await test('buildSurfaceSnapshot returns expected legacy snapshot fields from di
     assertEqual(actual.actions[0].args.length, 1, 'snapshot should include tool args');
     assertEqual(actual.actions[0].args[0].name, 'label', 'arg name should match discovered schema');
     assertEqual(actual.actions[0].args[0].required, true, 'required arg flag should be preserved');
-    assert(!('key' in actual.actions[0]), 'legacy snapshot action should not expose canonical key field');
+    assert(!('key' in actual.actions[0]), 'SurfaceSnapshot action should not expose the key field');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-await test('loadSurfaceSnapshotFile supports legacy plain snapshot shape', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-legacy-'));
-  try {
-    const snapshotPath = join(root, 'surface.snapshot.json');
-    writeFileSync(snapshotPath, JSON.stringify({
-      surface: 'cli',
-      actions: [
-        {
-          name: 'wallet create',
-          args: [{ name: '--label', required: true, type: 'string' }],
-        },
-      ],
-    }, null, 2), 'utf-8');
+await test('buildMcpToolDefinitionsFromSnapshot preserves nested arg schemas', () => {
+  const snapshot: SurfaceSnapshot = {
+    surface: 'mcp',
+    actions: [
+      {
+        name: 'folders.update',
+        args: [
+          {
+            name: 'folderIds',
+            required: true,
+            type: 'array',
+            schema: {
+              type: 'array',
+              items: { type: 'integer' },
+              description: 'Folder ids to update',
+            },
+          },
+          {
+            name: 'peers',
+            required: false,
+            type: 'array',
+            schema: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+          },
+        ],
+      },
+    ],
+  };
 
-    const loaded = loadSurfaceSnapshotFile(snapshotPath);
-    assertEqual(loaded.surface, 'cli', 'legacy file should load as cli snapshot');
-    assertEqual(loaded.actions.length, 1, 'legacy file should include actions');
-    assertEqual(loaded.actions[0].args[0].name, 'label', 'legacy cli arg names should be normalized');
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
+  const definitions = buildMcpToolDefinitionsFromSnapshot(snapshot);
+  const properties = definitions[0].function.parameters?.properties as Record<string, any>;
+  assertEqual(properties.folderIds.items.type, 'integer', 'array items should be preserved in rebuilt tool schema');
+  assertEqual(properties.peers.items.type, 'string', 'optional array items should be preserved in rebuilt tool schema');
 });
 
 await test('loadSurfaceSnapshotFile supports versioned action snapshot artifact', () => {
@@ -432,14 +480,14 @@ await test('loadSurfaceSnapshotFile supports versioned action snapshot artifact'
     assertEqual(loaded.surface, 'cli', 'versioned file should map to cli snapshot');
     assertEqual(loaded.actions[0].name, 'wallet create', 'action name should map from action catalog');
     assertEqual(loaded.actions[0].args[0].name, 'label', 'converted cli arg names should be normalized');
-    assert(!('key' in loaded.actions[0]), 'converted legacy snapshot should not expose key field');
+    assert(!('key' in loaded.actions[0]), 'converted SurfaceSnapshot action should not expose key field');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
 
-await test('loadSurfaceSnapshotFile prefers valid legacy snapshot shape even with version/catalog keys present', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-legacy-extra-'));
+await test('loadSurfaceSnapshotFile throws a clear error for unsupported plain snapshot format', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-snapshot-unsupported-format-'));
   try {
     const snapshotPath = join(root, 'surface.snapshot.json');
     writeFileSync(snapshotPath, JSON.stringify({
@@ -450,16 +498,18 @@ await test('loadSurfaceSnapshotFile prefers valid legacy snapshot shape even wit
           args: [{ name: '--label', required: true, type: 'string' }],
         },
       ],
-      version: ACTION_SNAPSHOT_VERSION,
-      catalog: {
-        this: 'should be ignored for legacy shape',
-      },
     }, null, 2), 'utf-8');
 
-    const loaded = loadSurfaceSnapshotFile(snapshotPath);
-    assertEqual(loaded.surface, 'cli', 'valid legacy snapshot should load as legacy shape');
-    assertEqual(loaded.actions.length, 1, 'legacy action list should be preserved');
-    assertEqual(loaded.actions[0].args[0].name, 'label', 'legacy CLI arg normalization should still apply');
+    let threw = false;
+    try {
+      loadSurfaceSnapshotFile(snapshotPath);
+    } catch (error: any) {
+      threw = true;
+      assert(error.message.includes('not supported'), 'error should describe the format as unsupported');
+      assert(error.message.includes('.skill-optimizer/'), 'error should direct user to delete .skill-optimizer/');
+    }
+
+    assert(threw, 'unsupported plain snapshot format should throw');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

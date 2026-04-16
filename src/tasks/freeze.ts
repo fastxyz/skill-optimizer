@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { fromSurfaceSnapshot, writeActionSnapshotFile } from '../actions/snapshot.js';
 import type { ResolvedProjectConfig, SurfaceSnapshot } from '../project/types.js';
 
 import type { FrozenTaskArtifacts, GeneratedTask } from './types.js';
@@ -27,7 +28,7 @@ export function freezeTaskArtifacts(params: FreezeTaskArtifactsParams): FrozenTa
   const snapshotPath = join(outputDir, 'surface.snapshot.json');
 
   writeFileSync(tasksPath, JSON.stringify({ tasks: params.kept }, null, 2), 'utf-8');
-  writeFileSync(snapshotPath, JSON.stringify(params.snapshot, null, 2), 'utf-8');
+  writeActionSnapshotFile(snapshotPath, fromSurfaceSnapshot(params.snapshot));
 
   const generatedProject = {
     name: params.project.name,
@@ -47,6 +48,7 @@ export function freezeTaskArtifacts(params: FreezeTaskArtifactsParams): FrozenTa
     benchmark: {
       format: params.project.benchmark.format,
       baseUrl: params.project.benchmark.baseUrl,
+      authMode: params.project.benchmark.authMode,
       apiKeyEnv: params.project.benchmark.apiKeyEnv,
       timeout: params.project.benchmark.timeout,
       headers: params.project.benchmark.headers,
@@ -63,7 +65,6 @@ export function freezeTaskArtifacts(params: FreezeTaskArtifactsParams): FrozenTa
       output: params.project.benchmark.output,
       agentic: params.project.benchmark.agentic,
     },
-    optimize: params.project.optimize,
   };
   writeFileSync(benchmarkPath, JSON.stringify(generatedProject, null, 2), 'utf-8');
 

@@ -10,7 +10,7 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 
 | Code | Description | Quick fix |
 |---|---|---|
-| `E_INVALID_SURFACE` | Invalid surface value | Set target.surface to one of: sdk, cli, mcp |
+| `E_INVALID_SURFACE` | Invalid surface value | Set target.surface to one of: sdk, cli, mcp, prompt |
 | `E_MODELS_EMPTY` | benchmark.models is empty or missing | Add at least one model to benchmark.models, e.g.: |
 | `E_MODEL_ID_FORMAT` | Model ID is missing the openrouter/ prefix | Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4-6 |
 | `E_VERDICT_OUT_OF_RANGE` | Verdict threshold is out of range | Set benchmark.verdict.perModelFloor and targetWeightedAverage to values between 0.0 and 1.0 |
@@ -24,7 +24,6 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 | `E_ALLOWED_PATHS_ESCAPE` | optimize.allowedPaths contains a path outside target.repoPath | All paths in optimize.allowedPaths must be inside target.repoPath |
 | `E_OUTPUT_DIR_NOT_WRITABLE` | benchmark.output.dir is not writable | Check directory permissions for the path set in benchmark.output.dir |
 | `E_MISSING_API_KEY` | API key environment variable is not set | Export your OpenRouter API key before running: export OPENROUTER_API_KEY=sk-or-... |
-| `E_LEGACY_CONFIG` | Found skill-benchmark.json instead of skill-optimizer.json | Rename skill-benchmark.json to skill-optimizer.json |
 | `E_DISCOVERY_EMPTY` | Discovery found zero callable actions | Check that target.discovery.sources points at the right entry file |
 | `E_MAXTASKS_TOO_LOW` | benchmark.taskGeneration.maxTasks is less than the in-scope action count | Raise benchmark.taskGeneration.maxTasks to at least the number of in-scope actions |
 | `E_COVERAGE_EXHAUSTED` | Task generation could not cover all in-scope actions after 2 retry passes | Add guidance for the uncovered actions to your SKILL.md |
@@ -41,8 +40,8 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 **Invalid surface value**
 
 **How to fix:**
-- Set target.surface to one of: sdk, cli, mcp
-- sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server
+- Set target.surface to one of: sdk, cli, mcp, prompt
+- sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server, prompt = prompt template / skill document
 
 ### `E_MODELS_EMPTY`
 
@@ -150,14 +149,6 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 - Or add it to a .env file alongside your skill-optimizer.json
 - Get a key at https://openrouter.ai/keys
 
-### `E_LEGACY_CONFIG`
-
-**Found skill-benchmark.json instead of skill-optimizer.json**
-
-**How to fix:**
-- Rename skill-benchmark.json to skill-optimizer.json
-- See CHANGELOG.md for any field renames between versions
-
 ### `E_DISCOVERY_EMPTY`
 
 **Discovery found zero callable actions**
@@ -229,4 +220,4 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 
 **How to fix:**
 - Check the full error message and stack trace above for details
-- File an issue at https://github.com/bucurdavid/skill-optimizer/issues with the full output
+- File an issue at https://github.com/fastxyz/skill-optimizer/issues with the full output

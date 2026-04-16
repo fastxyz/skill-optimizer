@@ -67,7 +67,7 @@ export function accept(
   models: ModelConfig[],
   policy: VerdictPolicy & { minImprovement: number },
 ): boolean {
-  // When no model configs are provided (legacy path), fall back to simple overall pass rate comparison
+  // When no model configs are provided, fall back to simple overall pass rate comparison
   if (models.length === 0) {
     return after.summary.overallPassRate - before.summary.overallPassRate >= policy.minImprovement;
   }

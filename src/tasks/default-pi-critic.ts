@@ -1,11 +1,11 @@
-import { completeSimple } from '@mariozechner/pi-ai';
-
-import { resolvePiModel } from '../runtime/pi/index.js';
 import type { CriticDeps } from '../verdict/recommendations.js';
+import { piSimpleComplete } from './pi-simple-complete.js';
+import type { PiAuthMode } from '../runtime/pi/auth.js';
 
 export interface DefaultPiCriticOptions {
   provider: string;
   model: string;
+  authMode?: PiAuthMode;
   apiKeyEnv?: string;
   timeoutMs?: number;
   headers?: Record<string, string>;
@@ -14,40 +14,28 @@ export interface DefaultPiCriticOptions {
 export function createDefaultPiCritic(options: DefaultPiCriticOptions): CriticDeps {
   return {
     async complete(input) {
-      const resolved = await resolvePiModel(options.provider, options.model, {
-        apiKeyEnv: options.apiKeyEnv,
-      });
-
-      const controller = new AbortController();
-      const timeoutMs = options.timeoutMs ?? 120_000;
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      timer.unref?.();
-
-      const response = await completeSimple(
-        resolved.model,
-        {
-          systemPrompt: input.system,
-          messages: [{ role: 'user', content: input.prompt, timestamp: Date.now() }],
-        },
-        {
-          signal: controller.signal,
-          apiKey: resolved.auth.apiKey,
-          headers: { ...(resolved.auth.headers ?? {}), ...(options.headers ?? {}) },
-          reasoning: 'minimal',
-        },
-      ).finally(() => clearTimeout(timer));
-
-      if (response.stopReason === 'error' && response.errorMessage) {
-        throw new Error(response.errorMessage);
+      try {
+        return await piSimpleComplete(
+          {
+            provider: options.provider,
+            model: options.model,
+            authMode: options.authMode,
+            apiKeyEnv: options.apiKeyEnv,
+            timeoutMs: options.timeoutMs,
+            headers: options.headers,
+            reasoning: 'minimal',
+          },
+          { system: input.system, prompt: input.prompt },
+        );
+      } catch (err) {
+        // A model that returns no text blocks is treated as "no recommendations"
+        // rather than a hard failure — the verdict flow continues with an empty list.
+        // Real provider errors (stopReason === 'error') are re-thrown.
+        if (err instanceof Error && err.message.startsWith('Model returned no text blocks')) {
+          return '[]';
+        }
+        throw err;
       }
-
-      const text = response.content
-        .filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
-        .map((block) => block.text)
-        .join('\n')
-        .trim();
-
-      return text || '[]';
     },
   };
 }

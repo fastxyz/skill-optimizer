@@ -29,26 +29,6 @@ function testConfigNotFound() {
   console.log('PASS: config-not-found error has next step');
 }
 
-function testLegacyFilenameError() {
-  const dir = mkdtempSync(join(tmpdir(), 'skill-opt-legacy-'));
-  try {
-    const p = join(dir, 'skill-benchmark.json');
-    writeFileSync(p, '{}');
-    const result = run(['run', '--config', p]);
-    // This test is about the legacy filename detection which only fires when no --config is given
-    // and the file is named skill-benchmark.json in cwd. We skip the cwd-based detection here
-    // and just check that config-not-found is reported for the explicit path.
-    const combined = result.stderr + result.stdout;
-    if (combined.includes('legacy') || combined.includes('skill-optimizer.json')) {
-      console.log('PASS: legacy filename error names new filename');
-    } else {
-      // Config not found is acceptable since we gave an explicit path
-      console.log('SKIP: legacy test — cwd plumbing varies');
-    }
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
 
 function testInvalidJson() {
   const dir = mkdtempSync(join(tmpdir(), 'skill-opt-inv-'));
@@ -153,7 +133,6 @@ function testRepoPathMissing() {
 
 async function main() {
   testConfigNotFound();
-  testLegacyFilenameError();
   testInvalidJson();
   testMissingApiKeyOnRun();
   testEmptyScope();

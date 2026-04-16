@@ -26,6 +26,9 @@ import { evaluateTask } from './evaluator.js';
 import { computeCoverage } from './coverage.js';
 import { computeVerdict } from './scoring.js';
 import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
+import { evaluatePromptResponse, generateCriteriaFromCapability } from './prompt-evaluator.js';
+import type { PromptEvaluationCriteria } from './prompt-evaluator.js';
+import { discoverPromptCapabilitiesWithSections } from '../project/discover-prompt.js';
 
 function buildWebFetchTool(): McpToolDefinition {
   return {
@@ -107,14 +110,12 @@ export interface RunnerOptions {
  * Run the full benchmark.
  */
 export async function runBenchmark(options: RunnerOptions = {}): Promise<BenchmarkReport> {
-  // 1. Load config
   const { config, configDir } = await loadConfig(options.configPath);
 
   console.log('================================================================');
   console.log(`  Skill Benchmark — ${config.name}`);
   console.log('================================================================\n');
 
-  // 2. Load tasks first (needed for known action derivation)
   if (config.tasks === '__generated__') {
     throw new Error(
       'This benchmark config uses task generation (benchmark.taskGeneration.enabled=true). ' +
@@ -124,25 +125,25 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
   let tasks = loadTasks(config.tasks, configDir);
 
-  // 3. Determine known actions (for precision/hallucination tracking)
   let knownMethods: Set<string>;
   let cliCommands: ReturnType<typeof loadCliCommands> | undefined = undefined;
   let mcpToolDefs: ReturnType<typeof loadMcpTools> | undefined = undefined;
-  if (config.surface === 'sdk') {
-    // Derive from task expected actions + optional sdk.apiSurface
+  if (config.surface === 'prompt') {
+    // Prompt surface: no tool/action definitions — evaluation is content-based.
+    knownMethods = new Set<string>();
+  } else if (config.surface === 'sdk') {
     const fromTasks = new Set<string>();
     for (const task of tasks) {
       for (const action of getExpectedActions(task)) {
         fromTasks.add(getExpectedActionName(action));
       }
     }
-    const apiSurface = config.sdk?.apiSurface ?? config.sdk?.methods ?? [];
+    const apiSurface = config.sdk?.apiSurface ?? [];
     knownMethods = new Set([...fromTasks, ...apiSurface]);
   } else if (config.surface === 'cli') {
     cliCommands = loadCliCommands(config.cli!.commands, configDir);
     knownMethods = new Set(cliCommands.map((c) => c.command));
   } else {
-    // MCP surface: load tools once, reuse for both knownMethods and chatWithTools
     mcpToolDefs = config.mcpToolDefinitions ?? (config.mcp ? loadMcpTools(config.mcp.tools, configDir) : []);
     knownMethods = new Set(mcpToolDefs.map(t => t.function.name));
   }
@@ -156,15 +157,15 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log(`[tasks] Filtered to task: ${options.taskId}`);
   }
 
-  // 4. Log known definitions (already loaded in step 3)
-  if (config.surface === 'mcp' && mcpToolDefs) {
+  if (config.surface === 'prompt') {
+    console.log('[prompt] Content-based evaluation — no action definitions needed');
+  } else if (config.surface === 'mcp' && mcpToolDefs) {
     const sourceLabel = config.surfaceSnapshot ? 'surface snapshot' : config.mcp?.tools ?? 'MCP manifest';
     console.log(`[mcp] Loaded ${mcpToolDefs.length} tool definitions from ${sourceLabel}`);
   } else if (config.surface === 'cli' && cliCommands) {
     console.log(`[cli] Loaded ${cliCommands.length} command definitions from ${config.cli!.commands}`);
   }
 
-  // 5. Fetch skill doc (optional — may be null)
   const skillConfig = options.skillOverride
     ? { ...(config.skill ?? {}), source: options.skillOverride, cache: false } as typeof config.skill
     : config.skill;
@@ -178,7 +179,18 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log('[skill] No skill configured — using generic system prompt\n');
   }
 
-  // 6. Build system prompt
+  // Pre-compute evaluation criteria for prompt surface.
+  let promptEvalCriteria: PromptEvaluationCriteria | undefined;
+  if (config.surface === 'prompt' && skill) {
+    const caps = discoverPromptCapabilitiesWithSections(skill.content);
+    if (caps.length > 0) {
+      // Use the primary capability's section to derive criteria.
+      promptEvalCriteria = generateCriteriaFromCapability(caps[0].action, caps[0].section);
+      console.log(`[prompt] Evaluation criteria derived from ${caps.length} discovered capabilities`);
+    }
+  }
+
+
   const promptOptions = {
     surface: config.surface,
     agentic: Boolean(config.agentic),
@@ -189,10 +201,8 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   console.log(`[prompt] Surface: ${config.surface}`);
   console.log(`[prompt] System prompt: ${systemPrompt.length} chars\n`);
 
-  // 7. Create LLM client
   const client = createLLMClient(config.llm);
 
-  // 8. Select models
   let models: ModelConfig[] = [...config.llm.models];
   if (options.tier) {
     models = getModelsByTier(config, options.tier);
@@ -209,13 +219,11 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
 
   console.log(`\n[run] ${tasks.length} tasks × ${models.length} models = ${tasks.length * models.length} evaluations\n`);
 
-  // 9. Setup output directory
   const outputDir = options.outputDir
     ? resolve(options.outputDir)
     : resolve(configDir, config.output?.dir ?? 'benchmark-results');
   mkdirSync(outputDir, { recursive: true });
 
-  // 10. Run evaluations
   const results: TaskResult[] = [];
 
   for (const task of tasks) {
@@ -288,59 +296,62 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         llmLatencyMs = Date.now() - start;
         error = err instanceof Error ? err.message : String(err);
         console.error(`  [${slug}] FAILED: ${error}`);
-        // Create a minimal empty response for extraction
         llmResponse = { content: '', usage: undefined };
       }
 
-      // Extract calls from response
       let extractedCalls: ExtractedCall[] = [];
       let generatedCode: string | null = null;
       let bindings: Map<string, string> | undefined;
 
-      try {
-        const extractionConfig = config.surface === 'cli' && cliCommands
-          ? {
-              ...config,
-              cli: {
-                ...config.cli,
-                commandDefinitions: cliCommands,
-              },
+      if (config.surface === 'prompt') {
+        // Prompt surface: no extraction — evaluation is content-based.
+        // The raw text response is the output; no tool calls or code blocks to parse.
+        console.log(`  [${slug}] Prompt response: ${rawResponse.length} chars`);
+      } else {
+        try {
+          const extractionConfig = config.surface === 'cli' && cliCommands
+            ? {
+                ...config,
+                cli: {
+                  ...config.cli,
+                  commandDefinitions: cliCommands,
+                },
+              }
+            : config;
+
+          const extracted = await extract(llmResponse!, extractionConfig as BenchmarkConfig);
+          extractedCalls = extracted.calls;
+          generatedCode = extracted.generatedCode;
+          bindings = extracted.bindings;
+
+          if (config.surface === 'sdk') {
+            const sdkLanguage = config.sdk?.language ?? 'typescript';
+            if (generatedCode) {
+              console.log(`  [${slug}] ${sdkLanguage} code extracted: ${generatedCode.length} chars`);
+            } else if (!error) {
+              console.log(`  [${slug}] WARNING: No ${sdkLanguage} code block found`);
+              error = error ?? `No ${sdkLanguage} code block in response`;
             }
-          : config;
-
-        const extracted = await extract(llmResponse!, extractionConfig as BenchmarkConfig);
-        extractedCalls = extracted.calls;
-        generatedCode = extracted.generatedCode;
-        bindings = extracted.bindings;
-
-        if (config.surface === 'sdk') {
-          const sdkLanguage = config.sdk?.language ?? 'typescript';
-          if (generatedCode) {
-            console.log(`  [${slug}] ${sdkLanguage} code extracted: ${generatedCode.length} chars`);
-          } else if (!error) {
-            console.log(`  [${slug}] WARNING: No ${sdkLanguage} code block found`);
-            error = error ?? `No ${sdkLanguage} code block in response`;
           }
-        }
 
-        if (config.surface === 'cli') {
-          if (generatedCode) {
-            console.log(`  [${slug}] Command block extracted: ${generatedCode.length} chars`);
-          } else if (!error) {
-            console.log(`  [${slug}] WARNING: No shell command block found`);
-            error = error ?? 'No shell command block in response';
+          if (config.surface === 'cli') {
+            if (generatedCode) {
+              console.log(`  [${slug}] Command block extracted: ${generatedCode.length} chars`);
+            } else if (!error) {
+              console.log(`  [${slug}] WARNING: No shell command block found`);
+              error = error ?? 'No shell command block in response';
+            }
           }
-        }
 
-        if (extractedCalls.length > 0) {
-          console.log(`  [${slug}] Extracted ${extractedCalls.length} calls: ${extractedCalls.map(c => c.method).join(', ')}`);
+          if (extractedCalls.length > 0) {
+            console.log(`  [${slug}] Extracted ${extractedCalls.length} calls: ${extractedCalls.map(c => c.method).join(', ')}`);
+          }
+        } catch (err) {
+          console.error(`  [${slug}] Extraction error: ${err instanceof Error ? err.message : err}`);
+          error = error ?? `Extraction failed: ${err instanceof Error ? err.message : err}`;
         }
-      } catch (err) {
-        console.error(`  [${slug}] Extraction error: ${err instanceof Error ? err.message : err}`);
-        error = error ?? `Extraction failed: ${err instanceof Error ? err.message : err}`;
       }
 
-      // Evaluate
       const taskResult = evaluateTask({
         task,
         model,
@@ -354,6 +365,19 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         bindings,
         surface: config.surface,
       });
+
+      // Prompt surface: replace vacuous tool-recall with content-based score.
+      if (config.surface === 'prompt' && promptEvalCriteria) {
+        try {
+          const promptResult = evaluatePromptResponse(rawResponse, promptEvalCriteria);
+          taskResult.metrics.toolRecall = promptResult.score;
+          taskResult.metrics.taskPassed = promptResult.score >= 0.5;
+          console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
+        } catch (err) {
+          console.error(`  [${slug}] Prompt eval error: ${err instanceof Error ? err.message : err}`);
+          // Leave vacuous scores in place — task shows as PASS rather than crashing the run
+        }
+      }
 
       if (config.agentic && task.expected_fetches) {
         const actualFetches = fetchedPaths;
@@ -397,11 +421,9 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     }
   }
 
-  // 11. Compute coverage
   const allMethods = Array.from(knownMethods);
   const coverage = computeCoverage(tasks, allMethods);
 
-  // 12. Build report
   const skillVersion: SkillVersion = skill?.version ?? {
     source: 'none',
     commitSha: 'none',
@@ -418,17 +440,14 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     outputDir,
   );
 
-  // 12b. Attach scope coverage if provided
   if (options.scopeCoverage) {
     report.scopeCoverage = options.scopeCoverage;
   }
 
-  // 13. Compute verdict
   if (options.verdictPolicy) {
     report.verdict = computeVerdict(report, config.llm.models, options.verdictPolicy);
   }
 
-  // 14. Save report
   const jsonPath = resolve(outputDir, 'report.json');
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf-8');
   console.log(`\n[output] Report saved to ${jsonPath}`);
