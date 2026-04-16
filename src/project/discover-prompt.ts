@@ -51,6 +51,13 @@ interface MarkdownSection {
   phaseNumber?: number;
 }
 
+function stripFrontmatter(content: string): string {
+  if (!content.startsWith('---')) return content;
+  const closingMatch = content.slice(3).match(/\n---\s*(\n|$)/);
+  if (!closingMatch || closingMatch.index === undefined) return content;
+  return content.slice(3 + closingMatch.index + closingMatch[0].length);
+}
+
 /**
  * Split markdown content into sections by ## headings.
  */
@@ -72,6 +79,7 @@ function splitSections(content: string): MarkdownSection[] {
     const headingMatch = HEADING_RE.exec(line);
     if (headingMatch) {
       flushCurrent();
+      bodyLines.length = 0; // discard preamble lines before first heading
       const phaseMatch = PHASE_HEADING_RE.exec(line);
       current = {
         heading: headingMatch[1]!.trim(),
@@ -252,7 +260,8 @@ function capabilityToAction(cap: PromptCapability): ActionDefinition {
  * benchmark runner.
  */
 export function discoverPromptCapabilities(skillContent: string): ActionDefinition[] {
-  const sections = splitSections(skillContent);
+  const content = stripFrontmatter(skillContent);
+  const sections = splitSections(content);
   const capabilities: PromptCapability[] = [];
   const seenNames = new Set<string>();
 

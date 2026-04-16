@@ -10,6 +10,7 @@ import {
   discoverPromptSurfaceFromContent,
   discoverPromptSurfaceFromSources,
 } from '../src/discovery/prompt.js';
+import { discoverPromptCapabilities } from '../src/project/discover-prompt.js';
 
 let passed = 0;
 let failed = 0;
@@ -223,6 +224,41 @@ await test('stripFrontmatter: does not terminate early when YAML value contains 
   const phaseName = result.phases[0].name.toLowerCase();
   assert(phaseName.includes('section'),
     `phase name should be "Section" but was: "${result.phases[0].name}"`);
+});
+
+// Bug 6: preamble contamination
+await test('discoverPromptCapabilities: preamble lines do not contaminate first section body', () => {
+  const content = [
+    '# My Skill',
+    'Run this preamble step before anything else.',
+    '',
+    '## Phase 1: Do the thing',
+    'Write the implementation here.',
+  ].join('\n');
+  const actions = discoverPromptCapabilities(content);
+  const hasSpuriousInstruction = actions.some(a =>
+    a.description.toLowerCase().includes('preamble'),
+  );
+  // Should be false — preamble should not bleed into instructions
+  if (hasSpuriousInstruction) throw new Error('preamble content bled into discovered instructions');
+});
+
+// Bug 7: frontmatter
+await test('discoverPromptCapabilities: strips YAML frontmatter before scanning', () => {
+  const content = [
+    '---',
+    'run: my-skill-command',
+    '---',
+    '',
+    '## Phase 1: Setup',
+    'Configure the environment.',
+  ].join('\n');
+  const actions = discoverPromptCapabilities(content);
+  const hasFrontmatterCap = actions.some(a =>
+    a.description.toLowerCase().includes('run: my-skill-command'),
+  );
+  if (hasFrontmatterCap) throw new Error('frontmatter must be stripped before discovery');
+  if (actions.length === 0) throw new Error('should still find Phase 1 capability');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
