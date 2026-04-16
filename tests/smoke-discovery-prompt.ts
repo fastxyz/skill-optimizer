@@ -277,5 +277,45 @@ await test('discoverPromptCapabilities: handles heading-less instruction-only fi
   assert(actions.length > 0, `should extract at least one capability from bullet list, got ${actions.length}`);
 });
 
+await test('discoverPromptCapabilities: returns valid ActionDefinition[] shape', () => {
+  const content = [
+    '## Phase 1: Requirements',
+    'Ask the user clarifying questions.',
+    'Generate a requirements document.',
+    '',
+    '## Phase 2: Implementation',
+    'Write the implementation code.',
+  ].join('\n');
+
+  const actions = discoverPromptCapabilities(content);
+  assert(Array.isArray(actions), 'should return an array');
+  assert(actions.length >= 2, `expected ≥2 capabilities, got ${actions.length}`);
+
+  for (const action of actions) {
+    assert(typeof action.name === 'string' && action.name.length > 0, 'name must be non-empty');
+    assert(typeof action.description === 'string', 'description must be string');
+    assert(Array.isArray(action.args), 'args must be array');
+  }
+});
+
+// Regression guard: both discovery modules exist intentionally for different layers.
+// This test documents the interface difference so future refactors stay aware.
+await test('production path (discover-prompt) vs standalone path (discovery/prompt) have different shapes', () => {
+  const content = '## Phase 1: Do the thing\nRun this step.';
+
+  // Production path: ActionDefinition[] — has args field, no source field
+  const productionResult = discoverPromptCapabilities(content);
+  assert(productionResult.length > 0, 'production path must return at least one capability');
+  assert('args' in productionResult[0], 'production path must have args field');
+
+  // Standalone discovery path: PromptDiscoverySnapshot — capabilities have source field, not args
+  const discoveryResult = discoverPromptSurfaceFromContent(content);
+  if (discoveryResult.capabilities.length > 0) {
+    const cap = discoveryResult.capabilities[0];
+    assert('source' in cap, 'discovery path capability must have source field');
+    assert(!('args' in cap), 'discovery path must NOT have args field');
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
