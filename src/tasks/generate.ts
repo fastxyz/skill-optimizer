@@ -121,8 +121,13 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
 
   const validated = tasks.map((task, index) => validateTask(task, index));
 
+  // Sort by (id, prompt) before deduplication so the numeric suffix assigned to
+  // colliding IDs is determined by content order, not by the LLM's output order.
+  // Without this sort, swapping two same-action tasks between runs would swap their
+  // suffixes (e.g. id-1 and id-2), making --task filters unstable for multi-variant cases.
+  validated.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : a.prompt < b.prompt ? -1 : 1);
+
   // Deduplicate IDs: two tasks with the same action-name set get a numeric suffix.
-  // This can occur when the model generates multiple tasks targeting the same action.
   const seen = new Map<string, number>();
   return validated.map(task => {
     const n = seen.get(task.id) ?? 0;
