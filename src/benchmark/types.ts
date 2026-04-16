@@ -87,6 +87,7 @@ export interface SkillConfig {
 
 export interface LLMConfig {
   baseUrl?: string;                // required for direct openai/anthropic formats
+  authMode?: 'env' | 'codex' | 'auto';
   apiKeyEnv?: string;              // e.g. "OPENROUTER_API_KEY" — reads from process.env
   format: 'openai' | 'anthropic' | 'pi';
   timeout?: number;                // ms, default 240000

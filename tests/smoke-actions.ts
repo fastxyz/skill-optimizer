@@ -10,7 +10,7 @@ import {
   writeActionSnapshotFile,
 } from '../src/actions/snapshot.js';
 import { diffActionCatalog } from '../src/actions/diff.js';
-import { buildSurfaceSnapshot, loadProjectConfig, loadSurfaceSnapshotFile } from '../src/project/index.js';
+import { buildMcpToolDefinitionsFromSnapshot, buildSurfaceSnapshot, loadProjectConfig, loadSurfaceSnapshotFile } from '../src/project/index.js';
 import type { SurfaceSnapshot } from '../src/project/types.js';
 
 let passed = 0;
@@ -64,6 +64,40 @@ await test('snapshot write/load roundtrip includes artifact version', () => {
     const loaded = loadActionSnapshotFile(snapshotPath);
     assertEqual(loaded.version, ACTION_SNAPSHOT_VERSION, 'loaded snapshot version should match constant');
     assertEqual(loaded.catalog.actions[0].key, 'wallet.create', 'action key should roundtrip');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+await test('snapshot roundtrip preserves nested MCP arg schemas', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-actions-schema-'));
+  try {
+    const snapshotPath = join(root, 'actions.snapshot.json');
+    writeActionSnapshotFile(snapshotPath, {
+      surface: 'mcp',
+      actions: [
+        {
+          key: 'folders.update',
+          name: 'folders.update',
+          args: [
+            {
+              name: 'folderIds',
+              required: true,
+              type: 'array',
+              schema: {
+                type: 'array',
+                items: { type: 'integer' },
+                description: 'Folder ids to update',
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const loaded = loadActionSnapshotFile(snapshotPath);
+    const schema = loaded.catalog.actions[0].args[0].schema as { items?: { type?: string } };
+    assertEqual(schema.items?.type, 'integer', 'nested array items should survive snapshot roundtrip');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -388,6 +422,43 @@ await test('buildSurfaceSnapshot returns expected legacy snapshot fields from di
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+await test('buildMcpToolDefinitionsFromSnapshot preserves nested arg schemas', () => {
+  const snapshot: SurfaceSnapshot = {
+    surface: 'mcp',
+    actions: [
+      {
+        name: 'folders.update',
+        args: [
+          {
+            name: 'folderIds',
+            required: true,
+            type: 'array',
+            schema: {
+              type: 'array',
+              items: { type: 'integer' },
+              description: 'Folder ids to update',
+            },
+          },
+          {
+            name: 'peers',
+            required: false,
+            type: 'array',
+            schema: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  const definitions = buildMcpToolDefinitionsFromSnapshot(snapshot);
+  const properties = definitions[0].function.parameters?.properties as Record<string, any>;
+  assertEqual(properties.folderIds.items.type, 'integer', 'array items should be preserved in rebuilt tool schema');
+  assertEqual(properties.peers.items.type, 'string', 'optional array items should be preserved in rebuilt tool schema');
 });
 
 await test('loadSurfaceSnapshotFile supports legacy plain snapshot shape', () => {

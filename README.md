@@ -4,7 +4,7 @@ Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can 
 
 skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
-**Requirements:** Node.js 20+, an [OpenRouter](https://openrouter.ai) API key.
+**Requirements:** Node.js 20+, plus either an [OpenRouter](https://openrouter.ai) API key or a local Codex login when using direct OpenAI models.
 
 ## Installation
 
@@ -20,6 +20,20 @@ npm link        # makes `skill-optimizer` available globally
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
+```
+
+For direct OpenAI runs you can also use your local Codex browser login instead of exporting `OPENAI_API_KEY`:
+
+```json
+{
+  "benchmark": {
+    "format": "pi",
+    "authMode": "codex",
+    "models": [
+      { "id": "openai/gpt-5-4", "name": "GPT-5.4", "tier": "flagship" }
+    ]
+  }
+}
 ```
 
 **Step 1 — Scaffold config** (run from your project root):
@@ -72,7 +86,17 @@ npx skill-optimizer init --answers answers.json
 {
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
-  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
+  "models": [
+    "openrouter/anthropic/claude-sonnet-4-6",
+    "openrouter/deepseek/deepseek-v3-2",
+    "openrouter/google/gemini-2-5-flash",
+    "openrouter/qwen/qwen3-5-397b-a17b",
+    "openrouter/moonshotai/kimi-k2-5",
+    "openrouter/z-ai/glm-5-1",
+    "openrouter/minimax/minimax-m2-7",
+    "openrouter/google/gemma-4-31b-it",
+    "openrouter/meta-llama/llama-4-maverick"
+  ],
   "maxTasks": 20,
   "maxIterations": 5,
   "entryFile": "src/cli.ts"
@@ -87,6 +111,7 @@ npx skill-optimizer init --answers answers.json
 | `target.discovery.sources` | Source files to scan for callable methods/commands/tools | e.g. `["../src/index.ts"]` or `["../src/server.ts"]` |
 | `target.skill` | Docs file the optimizer will edit | Path to your `SKILL.md` or equivalent guidance doc |
 | `benchmark.models` | Models to benchmark | Valid [OpenRouter](https://openrouter.ai/models) model IDs |
+| `benchmark.authMode` | How model auth is resolved | `env` (default), `codex`, or `auto` |
 
 ### Prompt templates / Claude Code skills
 
@@ -166,7 +191,7 @@ No per-failure LLM calls — feedback is deterministic (structured failure detai
 
 ## Dependencies
 
-The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent` — a small OSS wrapper around OpenRouter that handles agent sessions and tool loops. Models are accessed through [OpenRouter](https://openrouter.ai/) — you need one API key for everything.
+The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent`. OpenRouter-backed runs still use your configured API key env var. Direct OpenAI runs can use either `OPENAI_API_KEY` or the browser-login tokens that Codex stores in `~/.codex/auth.json`.
 
 ## Troubleshooting
 
@@ -174,6 +199,8 @@ The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent` — a
 ```bash
 export OPENROUTER_API_KEY=sk-or-...
 ```
+
+**Using Codex auth**: Set `benchmark.authMode` (and optionally `optimize.authMode`) to `"codex"` or `"auto"` and use direct OpenAI model refs such as `openai/gpt-5-4`. Codex auth only applies to the `openai` provider and reads either a browser-login access token or `OPENAI_API_KEY` from `~/.codex/auth.json`. Alternatively, set `benchmark.format` to `"openai"` with `authMode: "codex"` and `openai/...` model IDs — the client bridges to the Pi/Codex path automatically.
 
 **Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 

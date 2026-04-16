@@ -5,6 +5,7 @@ export interface ActionArgSchema {
   required: boolean;
   type?: string;
   description?: string;
+  schema?: Record<string, unknown>;
 }
 
 export interface ActionDefinition {

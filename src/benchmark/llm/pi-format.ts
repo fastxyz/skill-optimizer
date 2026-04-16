@@ -4,9 +4,12 @@ import { complete, completeSimple } from '@mariozechner/pi-ai';
 
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
 import { resolvePiModelByRef } from '../../runtime/pi/index.js';
+import { createToolNameAliasCodec } from './tool-name-aliases.js';
 
 interface PiCallParams {
+  authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
   apiKeyOverride?: string;
+  apiKeyEnv?: string;
   headers?: Record<string, string>;
   timeout: number;
   modelId: string;
@@ -27,7 +30,14 @@ interface ResolvedPiRequest {
 }
 
 type PiImplementationSet = {
-  resolve(modelId: string, apiKeyOverride?: string): Promise<ResolvedPiRequest>;
+  resolve(
+    modelId: string,
+    authOptions?: {
+      authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+      apiKeyEnv?: string;
+      apiKeyOverride?: string;
+    },
+  ): Promise<ResolvedPiRequest>;
   completeSimple(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
   complete(model: Model<any>, context: Context, options?: SimpleStreamOptions): Promise<AssistantMessage>;
 };
@@ -40,7 +50,11 @@ export function __setPiImplementationsForTest(implementations: PiImplementationS
 
 export async function chatPi(params: PiCallParams): Promise<LLMResponse> {
   const impl = getPiImplementations();
-  const { model, auth } = await impl.resolve(params.modelId, params.apiKeyOverride);
+  const { model, auth } = await impl.resolve(params.modelId, {
+    authMode: params.authMode,
+    apiKeyEnv: params.apiKeyEnv,
+    apiKeyOverride: params.apiKeyOverride,
+  });
   const response = await impl.completeSimple(
     model,
     {
@@ -49,22 +63,29 @@ export async function chatPi(params: PiCallParams): Promise<LLMResponse> {
     },
     buildPiOptions(params.timeout, auth, params.headers),
   );
+  assertPiResponseSucceeded(response);
   return toLLMResponse(response);
 }
 
 export async function chatWithToolsPi(params: PiCallWithToolsParams): Promise<LLMResponse> {
   const impl = getPiImplementations();
-  const { model, auth } = await impl.resolve(params.modelId, params.apiKeyOverride);
+  const toolCodec = createToolNameAliasCodec(params.tools);
+  const { model, auth } = await impl.resolve(params.modelId, {
+    authMode: params.authMode,
+    apiKeyEnv: params.apiKeyEnv,
+    apiKeyOverride: params.apiKeyOverride,
+  });
   const response = await impl.complete(
     model,
     {
       systemPrompt: params.system,
       messages: [{ role: 'user', content: params.user, timestamp: Date.now() }],
-      tools: params.tools.map(toPiTool),
+      tools: toolCodec.tools.map(toPiTool),
     },
     buildPiOptions(params.timeout, auth, params.headers),
   );
-  return toLLMResponse(response);
+  assertPiResponseSucceeded(response);
+  return toLLMResponse(response, toolCodec.toCanonical);
 }
 
 interface PiAgentLoopParams extends PiCallWithToolsParams {
@@ -74,7 +95,12 @@ interface PiAgentLoopParams extends PiCallWithToolsParams {
 
 export async function chatAgentLoopPi(params: PiAgentLoopParams): Promise<LLMResponse> {
   const impl = getPiImplementations();
-  const { model, auth } = await impl.resolve(params.modelId, params.apiKeyOverride);
+  const toolCodec = createToolNameAliasCodec(params.tools);
+  const { model, auth } = await impl.resolve(params.modelId, {
+    authMode: params.authMode,
+    apiKeyEnv: params.apiKeyEnv,
+    apiKeyOverride: params.apiKeyOverride,
+  });
   const messages: Context['messages'] = [
     { role: 'user', content: params.user, timestamp: Date.now() },
   ];
@@ -87,12 +113,13 @@ export async function chatAgentLoopPi(params: PiAgentLoopParams): Promise<LLMRes
       {
         systemPrompt: params.system,
         messages,
-        tools: params.tools.map(toPiTool),
+        tools: toolCodec.tools.map(toPiTool),
       },
       buildPiOptions(params.timeout, auth, params.headers),
     );
 
-    finalResponse = toLLMResponse(response);
+    assertPiResponseSucceeded(response);
+    finalResponse = toLLMResponse(response, toolCodec.toCanonical);
     if (!finalResponse.toolCalls || finalResponse.toolCalls.length === 0) {
       return {
         ...finalResponse,
@@ -108,10 +135,11 @@ export async function chatAgentLoopPi(params: PiAgentLoopParams): Promise<LLMRes
     );
 
     for (const toolCall of responseToolCalls) {
+      const canonicalToolName = toolCodec.toCanonical(toolCall.name);
       let result: string;
       let isError = false;
       try {
-        result = await params.executor(toolCall.name, toolCall.arguments);
+        result = await params.executor(canonicalToolName, toolCall.arguments);
       } catch (error) {
         isError = true;
         result = `Error: ${error instanceof Error ? error.message : String(error)}`;
@@ -146,8 +174,15 @@ function getPiImplementations(): PiImplementationSet {
   };
 }
 
-async function resolvePiRequest(modelId: string, apiKeyOverride?: string): Promise<ResolvedPiRequest> {
-  const resolved = await resolvePiModelByRef(modelId, { apiKeyOverride });
+async function resolvePiRequest(
+  modelId: string,
+  authOptions?: {
+    authMode?: import('../../runtime/pi/auth.js').PiAuthMode;
+    apiKeyEnv?: string;
+    apiKeyOverride?: string;
+  },
+): Promise<ResolvedPiRequest> {
+  const resolved = await resolvePiModelByRef(modelId, authOptions);
   return {
     model: resolved.model,
     auth: {
@@ -180,7 +215,16 @@ function toPiTool(tool: McpToolDefinition): PiTool {
   };
 }
 
-function toLLMResponse(message: AssistantMessage): LLMResponse {
+function assertPiResponseSucceeded(message: AssistantMessage): void {
+  if (message.stopReason === 'error') {
+    throw new Error(message.errorMessage ?? 'PI model returned an unknown error');
+  }
+}
+
+function toLLMResponse(
+  message: AssistantMessage,
+  toCanonicalToolName: (name: string) => string = (name) => name,
+): LLMResponse {
   const content = message.content
     .filter((block): block is Extract<AssistantMessage['content'][number], { type: 'text' }> => block.type === 'text')
     .map((block) => block.text)
@@ -188,7 +232,10 @@ function toLLMResponse(message: AssistantMessage): LLMResponse {
 
   const toolCalls = message.content
     .filter((block): block is Extract<AssistantMessage['content'][number], { type: 'toolCall' }> => block.type === 'toolCall')
-    .map((block) => ({ name: block.name, arguments: block.arguments as Record<string, unknown> }));
+    .map((block) => ({
+      name: toCanonicalToolName(block.name),
+      arguments: block.arguments as Record<string, unknown>,
+    }));
 
   return {
     content,

@@ -1,4 +1,5 @@
 import type { LLMResponse, McpToolDefinition, ToolExecutor } from '../types.js';
+import { createToolNameAliasCodec } from './tool-name-aliases.js';
 
 interface CallParams {
   baseUrl: string;
@@ -35,17 +36,18 @@ export async function chatOpenAI(params: CallParams): Promise<LLMResponse> {
  * POST {baseUrl}/chat/completions with tools array
  */
 export async function chatWithToolsOpenAI(params: CallWithToolsParams): Promise<LLMResponse> {
+  const toolCodec = createToolNameAliasCodec(params.tools);
   const body = {
     model: params.modelId,
     messages: [
       { role: 'system', content: params.system },
       { role: 'user', content: params.user },
     ],
-    tools: params.tools,
+    tools: toolCodec.tools,
     tool_choice: 'auto',
     temperature: 0.2,
   };
-  return callWithRetry(params, body);
+  return callWithRetry(params, body, toolCodec.toCanonical);
 }
 
 async function doFetch(params: CallParams, body: Record<string, unknown>): Promise<LLMResponse> {
@@ -132,6 +134,7 @@ interface AgentLoopParams extends CallWithToolsParams {
 }
 
 export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMResponse> {
+  const toolCodec = createToolNameAliasCodec(params.tools);
   const messages: Array<Record<string, unknown>> = [
     { role: 'system', content: params.system },
     { role: 'user', content: params.user },
@@ -141,9 +144,9 @@ export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMR
 
   for (let turn = 0; turn < params.maxTurns; turn++) {
     const body: Record<string, unknown> = {
-      model: params.modelId, messages, tools: params.tools, tool_choice: 'auto', temperature: 0.2,
+      model: params.modelId, messages, tools: toolCodec.tools, tool_choice: 'auto', temperature: 0.2,
     };
-    const response = await callWithRetry(params, body);
+    const response = await callWithRetry(params, body, toolCodec.toCanonical);
     if (response.usage) {
       totalUsage.prompt += response.usage.prompt;
       totalUsage.completion += response.usage.completion;
@@ -155,7 +158,14 @@ export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMR
     allToolCalls.push(...response.toolCalls);
     messages.push({
       role: 'assistant', content: response.content || null,
-      tool_calls: response.toolCalls.map((tc, i) => ({ id: `call_${turn}_${i}`, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments) } })),
+      tool_calls: response.toolCalls.map((tc, i) => ({
+        id: `call_${turn}_${i}`,
+        type: 'function',
+        function: {
+          name: toolCodec.toProvider(tc.name),
+          arguments: JSON.stringify(tc.arguments),
+        },
+      })),
     });
     const MAX_TOOL_RESULT_CHARS = 50_000;
     for (let i = 0; i < response.toolCalls.length; i++) {
@@ -175,9 +185,21 @@ export async function chatAgentLoopOpenAI(params: AgentLoopParams): Promise<LLMR
 async function callWithRetry(
   params: CallParams,
   body: Record<string, unknown>,
+  toCanonicalToolName: (name: string) => string = (name) => name,
 ): Promise<LLMResponse> {
   try {
-    return await doFetch(params, body);
+    const response = await doFetch(params, body);
+    if (!response.toolCalls || response.toolCalls.length === 0) {
+      return response;
+    }
+
+    return {
+      ...response,
+      toolCalls: response.toolCalls.map((toolCall) => ({
+        ...toolCall,
+        name: toCanonicalToolName(toolCall.name),
+      })),
+    };
   } catch (err) {
     if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') {
       throw err;
@@ -191,6 +213,17 @@ async function callWithRetry(
     }
     // Retry once after 3s
     await new Promise((resolve) => setTimeout(resolve, 3_000));
-    return doFetch(params, body);
+    const response = await doFetch(params, body);
+    if (!response.toolCalls || response.toolCalls.length === 0) {
+      return response;
+    }
+
+    return {
+      ...response,
+      toolCalls: response.toolCalls.map((toolCall) => ({
+        ...toolCall,
+        name: toCanonicalToolName(toolCall.name),
+      })),
+    };
   }
 }

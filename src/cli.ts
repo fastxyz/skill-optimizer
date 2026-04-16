@@ -27,6 +27,7 @@ import type { WizardAnswers } from './init/answers.js';
 import { runWizard } from './init/wizard.js';
 import { detectProject, detectedToPreseed, printDetectionSummary } from './init/detect-project.js';
 import { ERRORS, SkillOptimizerError, printError } from './errors.js';
+import { requireConfiguredApiKey } from './runtime/pi/index.js';
 
 // ── Error handling ────────────────────────────────────────────────────────────
 
@@ -394,6 +395,7 @@ async function main(): Promise<void> {
               const criticDeps = createDefaultPiCritic({
                 provider: mutation.provider,
                 model: mutation.model,
+                authMode: mutation.authMode,
                 apiKeyEnv: mutation.apiKeyEnv,
               });
               recs = await generateRecommendations(
@@ -427,6 +429,7 @@ async function main(): Promise<void> {
       const deps = createDefaultPiTaskGenerator({
         provider,
         model,
+        authMode: project.optimize?.authMode ?? project.benchmark.authMode,
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       const result = await generateTasksForProject({
@@ -483,11 +486,27 @@ async function main(): Promise<void> {
           `Edit "target.repoPath" in ${project.configPath}.`,
       );
     }
-    if (project.benchmark.format !== 'anthropic' && !process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY']) {
-      throw new Error(
-        `Missing ${project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'} environment variable. ` +
-          `Set it in your shell or in a .env file alongside ${project.configPath}.`,
-      );
+    // Preflight: check credentials for every unique provider in the benchmark config.
+    // For direct-API formats there is one provider; for pi format each model may need
+    // a different key (e.g. openrouter + openai in the same run).
+    const benchmarkProviders = project.benchmark.format === 'openai'
+      ? ['openai']
+      : project.benchmark.format === 'anthropic'
+        ? ['anthropic']
+        : [...new Set(project.benchmark.models.map(m => parseModelRef(m.id).provider))];
+    for (const benchmarkProvider of benchmarkProviders) {
+      try {
+        requireConfiguredApiKey({
+          provider: benchmarkProvider,
+          authMode: project.benchmark.authMode,
+          apiKeyEnv: project.benchmark.apiKeyEnv,
+        });
+      } catch (error) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} ` +
+            `Configure auth in ${project.configPath} before running the benchmark.`,
+        );
+      }
     }
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
@@ -495,6 +514,7 @@ async function main(): Promise<void> {
       const deps = createDefaultPiTaskGenerator({
         provider,
         model,
+        authMode: project.optimize?.authMode ?? project.benchmark.authMode,
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       const generation = await generateTasksForProject({
@@ -545,6 +565,7 @@ async function main(): Promise<void> {
       const criticDeps = createDefaultPiCritic({
         provider,
         model,
+        authMode: project.optimize?.authMode ?? project.benchmark.authMode,
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       recommendations = await generateRecommendations(

@@ -136,6 +136,7 @@ export function buildMcpToolDefinitionsFromSnapshot(snapshot: SurfaceSnapshot): 
           action.args.map((arg) => [
             arg.name,
             {
+              ...(arg.schema ?? {}),
               ...(arg.type ? { type: arg.type } : {}),
               ...(arg.description ? { description: arg.description } : {}),
             },
