@@ -12,7 +12,7 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 |---|---|---|
 | `E_INVALID_SURFACE` | Invalid surface value | Set target.surface to one of: sdk, cli, mcp, prompt |
 | `E_MODELS_EMPTY` | benchmark.models is empty or missing | Add at least one model to benchmark.models, e.g.: |
-| `E_MODEL_ID_FORMAT` | Model ID is missing the openrouter/ prefix | Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4-6 |
+| `E_MODEL_ID_FORMAT` | Model ID is missing the openrouter/ prefix | Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4.6 |
 | `E_VERDICT_OUT_OF_RANGE` | Verdict threshold is out of range | Set benchmark.verdict.perModelFloor and targetWeightedAverage to values between 0.0 and 1.0 |
 | `E_MAX_ITERATIONS_ZERO` | optimize.maxIterations must be a positive integer | Set optimize.maxIterations to a positive integer, e.g. 5 |
 | `E_INVALID_FORMAT` | Invalid benchmark.format value | Set benchmark.format to one of: pi, openai, anthropic |
@@ -49,14 +49,14 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 
 **How to fix:**
 - Add at least one model to benchmark.models, e.g.:
--   { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }
+-   { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }
 
 ### `E_MODEL_ID_FORMAT`
 
 **Model ID is missing the openrouter/ prefix**
 
 **How to fix:**
-- Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4-6
+- Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4.6
 - Browse available models at https://openrouter.ai/models
 
 ### `E_VERDICT_OUT_OF_RANGE`

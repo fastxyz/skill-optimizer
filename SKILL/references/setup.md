@@ -58,7 +58,7 @@ npx skill-optimizer init <surface>
 The wizard prompts for:
 
 - **Repo path** — absolute path to your project root (defaults to CWD)
-- **Models** — model IDs to benchmark against (e.g., `openrouter/anthropic/claude-sonnet-4-6`)
+- **Models** — model IDs to benchmark against (e.g., `openrouter/anthropic/claude-sonnet-4.6`)
 - **SKILL.md location** — path to your existing documentation or guidance file
 - **Discovery sources** — source files for tree-sitter to parse (e.g., `src/cli.ts`, `src/index.ts`)
 - **Max tasks** — upper bound on generated benchmark tasks (default: 20)
@@ -78,7 +78,7 @@ npx skill-optimizer init --answers answers.json
 {
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
-  "models": ["openrouter/anthropic/claude-sonnet-4-6", "openrouter/openai/gpt-4o"],
+  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
   "maxTasks": 20,
   "maxIterations": 5,
   "entryFile": "src/cli.ts"

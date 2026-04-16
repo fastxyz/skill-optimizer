@@ -30,7 +30,7 @@ For direct OpenAI runs you can also use your local Codex browser login instead o
     "format": "pi",
     "authMode": "codex",
     "models": [
-      { "id": "openai/gpt-5-4", "name": "GPT-5.4", "tier": "flagship" }
+      { "id": "openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
     ]
   }
 }
@@ -87,13 +87,13 @@ npx skill-optimizer init --answers answers.json
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
   "models": [
-    "openrouter/anthropic/claude-sonnet-4-6",
-    "openrouter/deepseek/deepseek-v3-2",
+    "openrouter/anthropic/claude-sonnet-4.6",
+    "openrouter/deepseek/deepseek-v3.2",
     "openrouter/google/gemini-2-5-flash",
-    "openrouter/qwen/qwen3-5-397b-a17b",
-    "openrouter/moonshotai/kimi-k2-5",
-    "openrouter/z-ai/glm-5-1",
-    "openrouter/minimax/minimax-m2-7",
+    "openrouter/qwen/qwen3.5-397b-a17b",
+    "openrouter/moonshotai/kimi-k2.5",
+    "openrouter/z-ai/glm-5.1",
+    "openrouter/minimax/minimax-m2.7",
     "openrouter/google/gemma-4-31b-it",
     "openrouter/meta-llama/llama-4-maverick"
   ],
@@ -200,7 +200,7 @@ The optimizer's coding agent is powered by `@mariozechner/pi-coding-agent`. Open
 export OPENROUTER_API_KEY=sk-or-...
 ```
 
-**Using Codex auth**: Set `benchmark.authMode` (and optionally `optimize.authMode`) to `"codex"` or `"auto"` and use direct OpenAI model refs such as `openai/gpt-5-4`. Codex auth only applies to the `openai` provider and reads either a browser-login access token or `OPENAI_API_KEY` from `~/.codex/auth.json`. Alternatively, set `benchmark.format` to `"openai"` with `authMode: "codex"` and `openai/...` model IDs — the client bridges to the Pi/Codex path automatically.
+**Using Codex auth**: Set `benchmark.authMode` (and optionally `optimize.authMode`) to `"codex"` or `"auto"` and use direct OpenAI model refs such as `openai/gpt-5.4`. Codex auth only applies to the `openai` provider and reads either a browser-login access token or `OPENAI_API_KEY` from `~/.codex/auth.json`. Alternatively, set `benchmark.format` to `"openai"` with `authMode: "codex"` and `openai/...` model IDs — the client bridges to the Pi/Codex path automatically.
 
 **Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 
