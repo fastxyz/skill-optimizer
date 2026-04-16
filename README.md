@@ -39,7 +39,7 @@ For direct OpenAI runs you can also use your local Codex browser login instead o
 **Step 1 — Scaffold config** (run from your project root):
 
 ```bash
-npx skill-optimizer init cli       # or: init sdk, init mcp
+npx skill-optimizer init cli       # or: init sdk, init mcp, init prompt
 ```
 
 The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `skill-optimizer/` directory:

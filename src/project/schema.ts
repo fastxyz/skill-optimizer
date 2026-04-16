@@ -36,7 +36,7 @@ const ScopeConfigSchema = z.object({
 });
 
 const TargetConfigSchema = z.object({
-  surface: z.enum(['sdk', 'cli', 'mcp']).describe('Type of callable surface'),
+  surface: z.enum(['sdk', 'cli', 'mcp', 'prompt']).describe('Type of callable surface'),
   repoPath: z.string().optional().describe('Path to the target repo (default ".")'),
   skill: z.union([
     z.string(),

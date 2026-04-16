@@ -9,7 +9,7 @@ Paths in the config are relative to the config file location.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `name` | `string` | — | Human-readable project name |
-| `target.surface` | `"sdk" | "cli" | "mcp"` | — | Type of callable surface |
+| `target.surface` | `"sdk" | "cli" | "mcp" | "prompt"` | — | Type of callable surface |
 | `target.repoPath` | `string` | — | Path to the target repo (default ".") |
 | `target.skill` | `string | object` | — | Path to SKILL.md or { source, cache } object |
 | `target.discovery.mode` | `"auto" | "manifest"` | — | "auto" = code-first tree-sitter; "manifest" = use provided file only |

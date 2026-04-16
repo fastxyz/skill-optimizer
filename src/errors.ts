@@ -27,8 +27,8 @@ export const ERRORS = {
     code: 'E_INVALID_SURFACE',
     message: 'Invalid surface value',
     fix: [
-      'Set target.surface to one of: sdk, cli, mcp',
-      'sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server',
+      'Set target.surface to one of: sdk, cli, mcp, prompt',
+      'sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server, prompt = prompt template / skill document',
     ],
   },
   E_MODELS_EMPTY: {

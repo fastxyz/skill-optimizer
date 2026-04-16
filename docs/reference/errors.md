@@ -10,7 +10,7 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 
 | Code | Description | Quick fix |
 |---|---|---|
-| `E_INVALID_SURFACE` | Invalid surface value | Set target.surface to one of: sdk, cli, mcp |
+| `E_INVALID_SURFACE` | Invalid surface value | Set target.surface to one of: sdk, cli, mcp, prompt |
 | `E_MODELS_EMPTY` | benchmark.models is empty or missing | Add at least one model to benchmark.models, e.g.: |
 | `E_MODEL_ID_FORMAT` | Model ID is missing the openrouter/ prefix | Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4-6 |
 | `E_VERDICT_OUT_OF_RANGE` | Verdict threshold is out of range | Set benchmark.verdict.perModelFloor and targetWeightedAverage to values between 0.0 and 1.0 |
@@ -40,8 +40,8 @@ The catch-all `E_UNEXPECTED` appears if an error slips past the known list.
 **Invalid surface value**
 
 **How to fix:**
-- Set target.surface to one of: sdk, cli, mcp
-- sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server
+- Set target.surface to one of: sdk, cli, mcp, prompt
+- sdk = TypeScript/Python/Rust library, cli = command-line tool, mcp = MCP server, prompt = prompt template / skill document
 
 ### `E_MODELS_EMPTY`
 
