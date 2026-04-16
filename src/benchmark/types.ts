@@ -23,7 +23,7 @@ export interface TokenUsage {
 
 // === Config (loaded from benchmark.config.json) ===
 
-export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp';
+export type BenchmarkSurface = 'sdk' | 'cli' | 'mcp' | 'prompt';
 export type SdkLanguage = 'typescript' | 'python' | 'rust';
 
 export interface BenchmarkConfig {

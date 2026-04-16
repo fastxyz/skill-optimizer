@@ -31,6 +31,33 @@ export async function generateCandidateTasks(
 function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig): string {
   const clampedMax = Math.max(1, Math.floor(config.maxTasks));
 
+  if (surface.snapshot.surface === 'prompt') {
+    return [
+      'Generate benchmark evaluation tasks for a prompt/skill document.',
+      'These tasks will be evaluated by content quality, not action matching.',
+      '',
+      'Return a JSON object with EXACTLY this shape:',
+      '{"tasks":[{"id":"string","prompt":"string","expected_actions":[]}]}',
+      '',
+      'RULES:',
+      '- Each task has EXACTLY three keys: id, prompt, expected_actions.',
+      '- expected_actions MUST always be an empty array [].',
+      '- id: short snake_case identifier (e.g. "deploy_service_to_staging").',
+      '- prompt: ask the model to perform a realistic task from the skill.',
+      `- Produce at most ${clampedMax} tasks. Seed: ${config.seed}.`,
+      '',
+      'Full SKILL.md:',
+      '---BEGIN SKILL---',
+      surface.skillMarkdown,
+      '---END SKILL---',
+      '',
+      'Discovered prompt surface snapshot (capabilities for reference):',
+      '---BEGIN SURFACE SNAPSHOT---',
+      JSON.stringify(surface.snapshot, null, 2),
+      '---END SURFACE SNAPSHOT---',
+    ].join('\n');
+  }
+
   return [
     `Generate benchmark tasks for a ${surface.snapshot.surface} callable surface.`,
     '',

@@ -55,7 +55,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   p.intro('skill-optimizer init');
 
   // 1. Surface
-  let surface: 'sdk' | 'cli' | 'mcp';
+  let surface: 'sdk' | 'cli' | 'mcp' | 'prompt';
   if (preseed?.surface) {
     surface = preseed.surface;
     p.log.info(`Surface: ${surface}`);
@@ -66,8 +66,9 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
         { value: 'sdk', label: 'sdk', hint: 'TypeScript / Python / Rust library' },
         { value: 'cli', label: 'cli', hint: 'command-line tool with subcommands' },
         { value: 'mcp', label: 'mcp', hint: 'MCP server with tools' },
+        { value: 'prompt', label: 'prompt', hint: 'markdown skill/prompt file' },
       ],
-    }) as 'sdk' | 'cli' | 'mcp');
+    }) as 'sdk' | 'cli' | 'mcp' | 'prompt');
   }
 
   // 2. Target repo path

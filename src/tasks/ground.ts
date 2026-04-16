@@ -11,7 +11,7 @@ export function groundTasks(tasks: GeneratedTask[], snapshot: SurfaceSnapshot): 
   const actions = new Map(snapshot.actions.map((action) => [action.name, action]));
 
   for (const task of tasks) {
-    const rejection = getRejectionReason(task, seenIds, actions);
+    const rejection = getRejectionReason(task, seenIds, actions, snapshot.surface);
     if (rejection) {
       rejected.push({ task, reason: rejection });
       continue;
@@ -28,10 +28,19 @@ function getRejectionReason(
   task: GeneratedTask,
   seenIds: Set<string>,
   actions: Map<string, SurfaceSnapshot['actions'][number]>,
+  surface: SurfaceSnapshot['surface'],
 ): string | null {
   const expectedActions = task.expected_actions ?? task.expected_tools ?? [];
   if (seenIds.has(task.id)) {
     return `duplicate task id "${task.id}"`;
+  }
+
+  // Prompt surface tasks must have expected_actions: [] — evaluated on content, not tool calls.
+  if (surface === 'prompt') {
+    if (expectedActions.length > 0) {
+      return `prompt task "${task.id}" must have empty expected_actions, got ${expectedActions.length}`;
+    }
+    return null;
   }
 
   if (!Array.isArray(expectedActions) || expectedActions.length === 0) {
