@@ -215,5 +215,15 @@ Otherwise fall back to the default response.
   assert(snapshot.phases[0].hasDecisionPoints, 'phase should detect decision points');
 });
 
+await test('stripFrontmatter: does not terminate early when YAML value contains ---', () => {
+  // YAML value "A --- B" contains ---, which indexOf finds first
+  const content = `---\ntitle: "A --- B"\n---\n\n## Section\nBody text.`;
+  const result = discoverPromptSurfaceFromContent(content);
+  assert(result.phases.length > 0, 'should have at least one phase');
+  const phaseName = result.phases[0].name.toLowerCase();
+  assert(phaseName.includes('section'),
+    `phase name should be "Section" but was: "${result.phases[0].name}"`);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

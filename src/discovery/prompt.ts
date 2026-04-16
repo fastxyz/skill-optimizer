@@ -127,13 +127,12 @@ function extractCapabilities(content: string, phases: PromptPhase[]): PromptCapa
 // ── Frontmatter stripping ─────────────────────────────────────────────────
 
 function stripFrontmatter(content: string): string {
-  if (content.startsWith('---')) {
-    const endIdx = content.indexOf('---', 3);
-    if (endIdx !== -1) {
-      return content.slice(endIdx + 3).trim();
-    }
-  }
-  return content;
+  if (!content.startsWith('---')) return content;
+  // Match the closing --- that appears on its own line (after the opening ---)
+  const closingMatch = content.slice(3).match(/\n---\s*(\n|$)/);
+  if (!closingMatch || closingMatch.index === undefined) return content;
+  const endIdx = 3 + closingMatch.index + closingMatch[0].length;
+  return content.slice(endIdx);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────
