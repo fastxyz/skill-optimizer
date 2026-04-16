@@ -1,8 +1,8 @@
 import type { ExtractedCall, BenchmarkConfig, LLMResponse } from '../types.js';
-import { extractCodeBlock, extractSdkCodeBlock } from './code-extractor.js';
+import { extractSdkCodeBlock } from './code-extractor.js';
 import { extractFromCliMarkdown, extractShellBlock } from './cli-extractor.js';
 import { extractFromToolCalls } from './mcp-extractor.js';
-import { extractSdkFromCode, getSdkAdapter } from './sdk/registry.js';
+import { extractSdkFromCode } from './sdk/registry.js';
 
 /**
  * Extract SDK/tool calls from an LLM response based on the configured surface.

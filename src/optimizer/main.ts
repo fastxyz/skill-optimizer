@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   createBenchmarkAdapter,

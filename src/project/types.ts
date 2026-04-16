@@ -10,7 +10,7 @@ import type {
   SdkSurfaceConfig,
   SkillConfig,
 } from '../benchmark/types.js';
-import type { ActionArgSchema, ActionCatalog, ActionDefinition } from '../actions/types.js';
+import type { ActionCatalog, ActionDefinition } from '../actions/types.js';
 
 export interface ProjectTaskGenerationConfig {
   enabled?: boolean;

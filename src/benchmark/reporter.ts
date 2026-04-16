@@ -15,9 +15,6 @@ function padR(s: string, w: number): string {
   return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length);
 }
 
-function padL(s: string, w: number): string {
-  return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s;
-}
 
 function center(s: string, w: number): string {
   if (s.length >= w) return s.slice(0, w);
