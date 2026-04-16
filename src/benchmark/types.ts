@@ -1,5 +1,4 @@
 import type {
-  ActionArgSchema,
   ActionAttempt,
   ActionCatalog,
   ActionDefinition,

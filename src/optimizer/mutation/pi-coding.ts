@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, basename } from 'node:path';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
