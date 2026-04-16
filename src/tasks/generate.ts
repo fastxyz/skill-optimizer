@@ -6,18 +6,12 @@ import type { ActionDefinition } from '../actions/types.js';
 import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
 import type { DiscoveredTaskSurface, GeneratedTask, TaskGeneratorConfig, TaskGeneratorDeps } from './types.js';
 
-const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
-
 // Derive a stable task ID from the expected action names.
 // Action names are surface-stable (they come from discovered code, not LLM free-form output),
 // so the same surface produces the same IDs across regenerations.
 function stableTaskId(actionNames: string[]): string {
   const key = [...actionNames].sort().join('\x00');
   return createHash('sha1').update(key).digest('hex').slice(0, 12);
-}
-
-function isSafeTaskId(taskId: string): boolean {
-  return SAFE_TASK_ID.test(taskId) && taskId !== '.' && taskId !== '..';
 }
 
 export async function generateCandidateTasks(
@@ -180,8 +174,9 @@ function validateTask(task: unknown, index: number): GeneratedTask {
 
   // Resolve expected_actions before computing the ID so action names can anchor the ID.
   // LLM-supplied IDs are intentionally ignored — they vary across runs for the same task,
-  // breaking --task filters after regeneration. Action names come from the surface definition
-  // and are stable across runs as long as the surface doesn't change.
+  // breaking --task filters after regeneration. For SDK/CLI/MCP surfaces, action names come
+  // from the surface definition and are stable across runs. Prompt-surface tasks have no
+  // actions (expected_actions is always []), so they fall back to hashing the prompt text.
   let rawExpectedActions = (
     ['expected_actions', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
   )
@@ -203,7 +198,10 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     .map(a => (typeof a['name'] === 'string' ? a['name'].trim() : ''))
     .filter(Boolean);
 
-  const taskId = actionNamesForId.length > 0 ? stableTaskId(actionNamesForId) : `task-${index}`;
+  const taskId =
+    actionNamesForId.length > 0 ? stableTaskId(actionNamesForId)
+    : taskPrompt ? stableTaskId([taskPrompt])
+    : `task-${index}`;
 
   if (!taskPrompt) {
     // Only reachable if the object has no string values at all.

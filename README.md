@@ -8,7 +8,7 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 
 ## How it works — at a glance
 
-![Optimizer Loop](docs/images/optimizer-loop.svg)
+![Optimizer Loop](https://raw.githubusercontent.com/fastxyz/skill-optimizer/main/docs/images/optimizer-loop.svg)
 
 `skill-optimizer run` benchmarks your callable surface against multiple LLMs — it discovers actions, generates tasks, calls each model, and statically evaluates action recall and argument accuracy to produce a PASS/FAIL verdict (exit 0/1) usable in CI.
 
@@ -150,9 +150,9 @@ SDK/CLI/MCP guidance.
 
 ## Configuration reference
 
-See [docs/reference/config-schema.md](docs/reference/config-schema.md) for the full generated config reference — auto-updated at every build.
+See [docs/reference/config-schema.md](https://github.com/fastxyz/skill-optimizer/blob/main/docs/reference/config-schema.md) for the full generated config reference — auto-updated at every build.
 
-See [docs/reference/errors.md](docs/reference/errors.md) for all error codes, descriptions, and fix instructions.
+See [docs/reference/errors.md](https://github.com/fastxyz/skill-optimizer/blob/main/docs/reference/errors.md) for all error codes, descriptions, and fix instructions.
 
 ## Interpreting the verdict
 
@@ -218,4 +218,4 @@ export OPENROUTER_API_KEY=sk-or-...
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/fastxyz/skill-optimizer/blob/main/CONTRIBUTING.md).
