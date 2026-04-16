@@ -30,7 +30,11 @@ export function applyFixes(
       }
 
       if (issue.code === 'model-id-bad-format' && !prefixFixedIndices.has(idx)) {
-        models[idx]!.id = (models[idx]!.id as string).replace(/(\d+)\.(\d+)/g, '$1-$2');
+        const currentId = models[idx]!.id as string;
+        // Never rewrite openrouter/ slugs — they're passed verbatim to OpenRouter's API.
+        if (!currentId.startsWith('openrouter/')) {
+          models[idx]!.id = currentId.replace(/(\d+)\.(\d+)/g, '$1-$2');
+        }
       }
     }
 

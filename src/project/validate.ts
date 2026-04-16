@@ -343,9 +343,9 @@ export async function checkConfig(
       }
 
       // OpenAI's own API uses dots in some model slugs (e.g. gpt-4.5), so skip the
-      // dot check for openai/ IDs. All other providers (openrouter/, anthropic/, etc.)
-      // expect hyphens in version segments.
-      if (!model.id.startsWith('openai/') && /\d+\.\d+/.test(model.id)) {
+      // dot check for openai/ IDs. OpenRouter model slugs come from the provider's
+      // own catalog and are passed verbatim to OpenRouter — don't rewrite them either.
+      if (!model.id.startsWith('openai/') && !model.id.startsWith('openrouter/') && /\d+\.\d+/.test(model.id)) {
         const corrected = model.id.replace(/(\d+)\.(\d+)/g, '$1-$2');
         issues.push({
           code: 'model-id-bad-format', severity: 'warning', field: `benchmark.models[${i}].id`,
