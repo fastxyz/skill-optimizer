@@ -7,39 +7,39 @@ import { scaffoldInit } from './scaffold.js';
 // Ordered by OpenRouter weekly token volume (top 20).
 export const MODEL_PRESETS = [
   // DeepSeek
-  { value: 'openrouter/deepseek/deepseek-v3-2',            label: 'DeepSeek V3.2          · DeepSeek',  hint: '#1' },
+  { value: 'openrouter/deepseek/deepseek-v3.2',            label: 'DeepSeek V3.2          · DeepSeek',  hint: '#1' },
   // Anthropic
-  { value: 'openrouter/anthropic/claude-opus-4-6',         label: 'Claude Opus 4.6        · Anthropic', hint: 'flagship' },
-  { value: 'openrouter/anthropic/claude-sonnet-4-6',       label: 'Claude Sonnet 4.6      · Anthropic' },
+  { value: 'openrouter/anthropic/claude-opus-4.6',         label: 'Claude Opus 4.6        · Anthropic', hint: 'flagship' },
+  { value: 'openrouter/anthropic/claude-sonnet-4.6',       label: 'Claude Sonnet 4.6      · Anthropic' },
   // MiniMax
-  { value: 'openrouter/minimax/minimax-m2-7',              label: 'MiniMax M2.7           · MiniMax',   hint: 'flagship' },
-  { value: 'openrouter/minimax/minimax-m2-5',              label: 'MiniMax M2.5           · MiniMax' },
+  { value: 'openrouter/minimax/minimax-m2.7',              label: 'MiniMax M2.7           · MiniMax',   hint: 'flagship' },
+  { value: 'openrouter/minimax/minimax-m2.5',              label: 'MiniMax M2.5           · MiniMax' },
   // Google
   { value: 'openrouter/google/gemini-3-flash-preview',     label: 'Gemini 3 Flash Preview · Google',    hint: 'fast' },
-  { value: 'openrouter/google/gemini-3-1-pro-preview',     label: 'Gemini 3.1 Pro Preview · Google',    hint: 'flagship' },
-  { value: 'openrouter/google/gemini-2-5-flash',           label: 'Gemini 2.5 Flash       · Google',    hint: 'fast' },
-  { value: 'openrouter/google/gemini-2-5-flash-lite',      label: 'Gemini 2.5 Flash Lite  · Google',    hint: 'fast' },
+  { value: 'openrouter/google/gemini-3.1-pro-preview',     label: 'Gemini 3.1 Pro Preview · Google',    hint: 'flagship' },
+  { value: 'openrouter/google/gemini-2.5-flash',           label: 'Gemini 2.5 Flash       · Google',    hint: 'fast' },
+  { value: 'openrouter/google/gemini-2.5-flash-lite',      label: 'Gemini 2.5 Flash Lite  · Google',    hint: 'fast' },
   { value: 'openrouter/google/gemma-4-31b-it',             label: 'Gemma 4 31B-it         · Google',    hint: 'open' },
   // Qwen
-  { value: 'openrouter/qwen/qwen3-5-397b-a17b',            label: 'Qwen3.5 397B A17B      · Alibaba',   hint: 'MoE' },
-  { value: 'openrouter/qwen/qwen3-6-plus',                 label: 'Qwen 3.6 Plus          · Alibaba',   hint: 'open' },
+  { value: 'openrouter/qwen/qwen3.5-397b-a17b',            label: 'Qwen3.5 397B A17B      · Alibaba',   hint: 'MoE' },
+  { value: 'openrouter/qwen/qwen3.6-plus',                 label: 'Qwen 3.6 Plus          · Alibaba',   hint: 'open' },
   // Xiaomi
   { value: 'openrouter/xiaomi/mimo-v2-pro',                label: 'MiMo-V2-Pro            · Xiaomi' },
   // Nvidia
   { value: 'openrouter/nvidia/nemotron-3-super-120b-a12b', label: 'Nemotron 3 Super 120B  · Nvidia',    hint: 'open' },
   // Moonshot
-  { value: 'openrouter/moonshotai/kimi-k2-5',              label: 'Kimi K2.5              · Moonshot',  hint: 'flagship' },
+  { value: 'openrouter/moonshotai/kimi-k2.5',              label: 'Kimi K2.5              · Moonshot',  hint: 'flagship' },
   // xAI
-  { value: 'openrouter/x-ai/grok-4-1-fast',               label: 'Grok 4.1 Fast          · xAI' },
+  { value: 'openrouter/x-ai/grok-4.1-fast',               label: 'Grok 4.1 Fast          · xAI' },
   // OpenAI
-  { value: 'openrouter/openai/gpt-5-4',                    label: 'GPT-5.4                · OpenAI',    hint: 'flagship' },
+  { value: 'openrouter/openai/gpt-5.4',                    label: 'GPT-5.4                · OpenAI',    hint: 'flagship' },
   { value: 'openrouter/openai/gpt-4o-mini',                label: 'GPT-4o Mini            · OpenAI',    hint: 'fast' },
   { value: 'openrouter/openai/gpt-oss-120b',               label: 'GPT-OSS 120B           · OpenAI',    hint: 'open' },
   // Meta
   { value: 'openrouter/meta-llama/llama-4-maverick',       label: 'Llama 4 Maverick       · Meta',      hint: 'open' },
   // Z-AI
   { value: 'openrouter/z-ai/glm-5',                        label: 'GLM 5                  · Z-AI' },
-  { value: 'openrouter/z-ai/glm-5-1',                      label: 'GLM 5.1                · Z-AI',      hint: 'new' },
+  { value: 'openrouter/z-ai/glm-5.1',                      label: 'GLM 5.1                · Z-AI',      hint: 'new' },
   { value: 'openrouter/z-ai/glm-5-turbo',                  label: 'GLM 5 Turbo            · Z-AI',      hint: 'fast' },
 ];
 
@@ -116,7 +116,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     message: 'Which models to benchmark? (space to toggle, enter to confirm)',
     options: MODEL_PRESETS,
     required: true,
-    initialValues: ['openrouter/anthropic/claude-sonnet-4-6', 'openrouter/deepseek/deepseek-v3-2', 'openrouter/google/gemini-2-5-flash'],
+    initialValues: ['openrouter/anthropic/claude-sonnet-4.6', 'openrouter/deepseek/deepseek-v3.2', 'openrouter/google/gemini-2.5-flash'],
   }) as string[]);
   const models: string[] = selectedPresets;
 

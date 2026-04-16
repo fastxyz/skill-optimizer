@@ -16,9 +16,9 @@ export interface WizardAnswers {
 }
 
 const DEFAULT_MODELS = [
-  'openrouter/anthropic/claude-sonnet-4-6',
-  'openrouter/deepseek/deepseek-v3-2',
-  'openrouter/google/gemini-2-5-flash',
+  'openrouter/anthropic/claude-sonnet-4.6',
+  'openrouter/deepseek/deepseek-v3.2',
+  'openrouter/google/gemini-2.5-flash',
 ];
 
 export function buildDefaultAnswers(surface: 'sdk' | 'cli' | 'mcp' | 'prompt' = 'sdk', repoPath?: string): WizardAnswers {

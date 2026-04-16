@@ -36,14 +36,14 @@ export const ERRORS = {
     message: 'benchmark.models is empty or missing',
     fix: [
       'Add at least one model to benchmark.models, e.g.:',
-      '  { "id": "openrouter/anthropic/claude-sonnet-4-6", "name": "Claude Sonnet", "tier": "flagship" }',
+      '  { "id": "openrouter/anthropic/claude-sonnet-4.6", "name": "Claude Sonnet", "tier": "flagship" }',
     ],
   },
   E_MODEL_ID_FORMAT: {
     code: 'E_MODEL_ID_FORMAT',
     message: 'Model ID is missing the openrouter/ prefix',
     fix: [
-      'Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4-6',
+      'Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4.6',
       'Browse available models at https://openrouter.ai/models',
     ],
   },

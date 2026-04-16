@@ -4,7 +4,7 @@
 import { z } from 'zod/v3';
 
 const ModelConfigSchema = z.object({
-  id: z.string().describe('OpenRouter model ID, e.g. openrouter/anthropic/claude-sonnet-4-6'),
+  id: z.string().describe('OpenRouter model ID, e.g. openrouter/anthropic/claude-sonnet-4.6'),
   name: z.string().describe('Human-readable model name for reports'),
   tier: z.enum(['flagship', 'mid', 'low']).optional().describe('Model tier — affects weighting in weighted average'),
   weight: z.number().optional().describe('Weight in weighted average (default 1.0). Higher = more influence'),
@@ -75,7 +75,7 @@ const BenchmarkConfigSchema = z.object({
 });
 
 const OptimizeConfigSchema = z.object({
-  model: z.string().optional().describe('Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4-6'),
+  model: z.string().optional().describe('Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4.6'),
   authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve optimizer credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
   apiKeyEnv: z.string().optional().describe('Env var for the optimizer API key'),
   thinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional()
