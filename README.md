@@ -6,6 +6,14 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 
 **Requirements:** Node.js 20+, plus either an [OpenRouter](https://openrouter.ai) API key or a local Codex login when using direct OpenAI models.
 
+## How it works — at a glance
+
+![Optimizer Loop](docs/images/optimizer-loop.svg)
+
+`skill-optimizer run` benchmarks your callable surface against multiple LLMs — it discovers actions, generates tasks, calls each model, and statically evaluates action recall and argument accuracy to produce a PASS/FAIL verdict (exit 0/1) usable in CI.
+
+`skill-optimizer optimize` runs the benchmark as a feedback loop: it copies your SKILL.md, mutates it with an LLM agent, re-benchmarks, accepts only when scores improve, and repeats until stable. Your original SKILL.md is never modified.
+
 ## Installation
 
 ```bash

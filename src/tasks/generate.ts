@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { ExpectedAction, CoverageReport } from '../benchmark/types.js';
 
 import type { ActionDefinition } from '../actions/types.js';
@@ -5,6 +7,14 @@ import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.
 import type { DiscoveredTaskSurface, GeneratedTask, TaskGeneratorConfig, TaskGeneratorDeps } from './types.js';
 
 const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
+
+// Derive a stable task ID from the expected action names.
+// Action names are surface-stable (they come from discovered code, not LLM free-form output),
+// so the same surface produces the same IDs across regenerations.
+function stableTaskId(actionNames: string[]): string {
+  const key = [...actionNames].sort().join('\x00');
+  return createHash('sha1').update(key).digest('hex').slice(0, 12);
+}
 
 function isSafeTaskId(taskId: string): boolean {
   return SAFE_TASK_ID.test(taskId) && taskId !== '.' && taskId !== '..';
@@ -115,7 +125,16 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
     throw new Error('Task generator response must contain a top-level "tasks" array');
   }
 
-  return tasks.map((task, index) => validateTask(task, index));
+  const validated = tasks.map((task, index) => validateTask(task, index));
+
+  // Deduplicate IDs: two tasks with the same action-name set get a numeric suffix.
+  // This can occur when the model generates multiple tasks targeting the same action.
+  const seen = new Map<string, number>();
+  return validated.map(task => {
+    const n = seen.get(task.id) ?? 0;
+    seen.set(task.id, n + 1);
+    return n > 0 ? { ...task, id: `${task.id}-${n}` } : task;
+  });
 }
 
 function resolveStringField(obj: Record<string, unknown>, ...keys: string[]): string | null {
@@ -159,31 +178,10 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     resolveStringField(candidate, 'prompt', 'user_prompt', 'description', 'instruction', 'task', 'action', 'method', 'name', 'command') ??
     pickLongestStringValue(candidate);
 
-  // Resolve ID — fall back to deriving a slug from the prompt or action if omitted
-  let taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
-  if (!taskId) {
-    const basis = taskPrompt ?? `task-${index}`;
-    taskId = basis
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 48)
-      + `-${index}`;
-  }
-
-  if (!taskPrompt) {
-    // Only reachable if the object has no string values at all.
-    const received = JSON.stringify(Object.keys(candidate));
-    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
-  }
-  if (!isSafeTaskId(taskId)) {
-    // Sanitize rather than throw — strip unsafe chars, then handle dot-only segments that
-    // survive character replacement unchanged (e.g. ".." → all chars allowed → still "..").
-    taskId = taskId.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-|-$/g, '');
-    if (taskId === '.' || taskId === '..') taskId = '';
-    taskId = taskId || `task-${index}`;
-  }
-
+  // Resolve expected_actions before computing the ID so action names can anchor the ID.
+  // LLM-supplied IDs are intentionally ignored — they vary across runs for the same task,
+  // breaking --task filters after regeneration. Action names come from the surface definition
+  // and are stable across runs as long as the surface doesn't change.
   let rawExpectedActions = (
     ['expected_actions', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
   )
@@ -198,6 +196,19 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     if (actionName && actionName.trim()) {
       rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
     }
+  }
+
+  const actionNamesForId = (rawExpectedActions ?? [])
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .map(a => (typeof a['name'] === 'string' ? a['name'].trim() : ''))
+    .filter(Boolean);
+
+  const taskId = actionNamesForId.length > 0 ? stableTaskId(actionNamesForId) : `task-${index}`;
+
+  if (!taskPrompt) {
+    // Only reachable if the object has no string values at all.
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
 
   if (!rawExpectedActions) {
