@@ -225,6 +225,10 @@ function validateTask(task: unknown, index: number, knownCapabilityKeys?: string
     throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
 
+  if (!rawExpectedActions && knownCapabilityKeys !== undefined) {
+    rawExpectedActions = [];
+  }
+
   if (!rawExpectedActions) {
     const received = JSON.stringify(Object.keys(candidate));
     throw new Error(`Task ${taskId} must include an expected_actions array (received keys: ${received})`);
