@@ -39,7 +39,7 @@ Before doing anything, figure out where you are:
 | Run optimizer | `npx skill-optimizer optimize --config <config-path>` |
 | Compare two runs | `npx skill-optimizer compare --baseline a.json --current b.json` |
 
-`<config-path>` is the path to your `skill-optimizer.json` — typically `./skill-optimizer/skill-optimizer.json` after running `init`, or wherever you placed it.
+`<config-path>` is the path to your `skill-optimizer.json` — typically `./.skill-optimizer/skill-optimizer.json` after running `init`, or wherever you placed it.
 
 ## What Do You Need?
 
