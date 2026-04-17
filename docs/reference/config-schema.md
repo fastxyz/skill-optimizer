@@ -24,7 +24,7 @@ Paths in the config are relative to the config file location.
 | `target.scope.exclude` | `string[]` | — | Glob patterns for actions to exclude (default []) |
 | `benchmark.format` | `"pi" | "openai" | "anthropic"` | — | LLM transport format: "pi" routes through OpenRouter/Pi (use openrouter/* or openai/* model refs); "openai" calls the OpenAI API directly (supports Codex auth); "anthropic" calls the Anthropic API directly |
 | `benchmark.authMode` | `"env" | "codex" | "auto"` | — | How to resolve credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback |
-| `benchmark.apiKeyEnv` | `string` | — | Env var name for the API key (default: OPENROUTER_API_KEY for format:pi, OPENAI_API_KEY for format:openai, ANTHROPIC_API_KEY for format:anthropic) |
+| `benchmark.apiKeyEnv` | `string` | — | Env var name for the API key (default is determined by the model provider prefix: openrouter/ → OPENROUTER_API_KEY, openai/ → OPENAI_API_KEY, anthropic/ → ANTHROPIC_API_KEY; leave unset to use the per-provider default) |
 | `benchmark.timeout` | `integer` | — | Milliseconds per model call (default 240000) |
 | `benchmark.models` | `object[]` | — | Models to benchmark — at least one required |
 | `benchmark.taskGeneration.enabled` | `boolean` | — | Whether to generate tasks automatically (default false) |
