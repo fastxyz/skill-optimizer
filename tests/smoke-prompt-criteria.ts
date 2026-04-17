@@ -65,12 +65,36 @@ function testNoActiveCriteriaFlag() {
   console.log('PASS: flags noActiveCriteria when criteria are empty');
 }
 
+function testOutputCapabilityWithCodeBlockSectionProducesCriteria() {
+  // Regression guard for Issue 1: _output capabilities store section: section.body
+  // (full markdown with fences), not section: snippet (stripped content without fences).
+  // generateCriteriaFromCapability requires fences to extract format patterns.
+  const outputSection = [
+    '## Output Format',
+    '',
+    'Respond with this structure:',
+    '',
+    '```json',
+    '{',
+    '  "name": "<string>",',
+    '  "count": <number>',
+    '}',
+    '```',
+  ].join('\n');
+  const caps = [cap('my_output', outputSection)];
+  const result = resolveCriteriaForTask(task('t1', 'my_output'), caps);
+  assert.strictEqual(result.noActiveCriteria, false,
+    'output capability whose section contains a fenced code block must produce non-empty criteria');
+  console.log('PASS: output capability with code block section produces criteria (Issue 1 guard)');
+}
+
 async function main() {
   testResolvesCriteriaForMatchingCapability();
   testDistinctCriteriaPerCapability();
   testThrowsOnUnknownCapabilityId();
   testThrowsOnMissingCapabilityId();
   testNoActiveCriteriaFlag();
+  testOutputCapabilityWithCodeBlockSectionProducesCriteria();
   console.log('\nALL PASS: smoke-prompt-criteria');
 }
 
