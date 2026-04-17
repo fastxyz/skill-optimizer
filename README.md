@@ -52,7 +52,7 @@ For direct OpenAI runs you can also use your local Codex browser login instead o
 npx skill-optimizer init cli       # or: init sdk, init mcp, init prompt
 ```
 
-The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `skill-optimizer/` directory:
+The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `.skill-optimizer/` directory:
 - `skill-optimizer.json` — the main config (commit this)
 - `.skill-optimizer/cli-commands.json` — CLI surface manifest (template to edit, or auto-extracted)
 - `.skill-optimizer/tools.json` — MCP surface manifest (template to edit)
@@ -68,13 +68,13 @@ npx skill-optimizer import-commands --from my-cli --scrape
 **Step 3 — Run a benchmark:**
 
 ```bash
-npx skill-optimizer run --config ./skill-optimizer/skill-optimizer.json
+npx skill-optimizer run --config ./.skill-optimizer/skill-optimizer.json
 ```
 
 **Step 4 — Run the optimizer** (iteratively improves your `SKILL.md`):
 
 ```bash
-npx skill-optimizer optimize --config ./skill-optimizer/skill-optimizer.json
+npx skill-optimizer optimize --config ./.skill-optimizer/skill-optimizer.json
 ```
 
 The optimizer never modifies your original `SKILL.md` — it works from versioned local copies in `.skill-optimizer/` and prints a progress table at the end showing per-model improvement.
@@ -113,7 +113,7 @@ npx skill-optimizer init --answers answers.json
 }
 ```
 
-**Key config fields** in `skill-optimizer/skill-optimizer.json`:
+**Key config fields** in `.skill-optimizer/skill-optimizer.json`:
 
 | Field | What it does | Set it to |
 |-------|-------------|-----------|

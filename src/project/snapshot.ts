@@ -69,7 +69,7 @@ export function loadSurfaceSnapshotFile(snapshotPath: string): SurfaceSnapshot {
       && 'actions' in parsed
     ) {
       throw new Error(
-        `Snapshot file format is not supported — delete .skill-optimizer/ and re-run the benchmark to regenerate.`,
+        `Snapshot file format is not supported: ${snapshotPath} — delete .skill-optimizer/ and re-run the benchmark to regenerate.`,
       );
     }
     throw new Error(`Invalid surface snapshot file: ${snapshotPath}`);

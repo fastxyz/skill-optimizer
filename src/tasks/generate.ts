@@ -225,6 +225,10 @@ function validateTask(task: unknown, index: number, knownCapabilityKeys?: string
     throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
 
+  if (!rawExpectedActions && knownCapabilityKeys !== undefined) {
+    rawExpectedActions = [];
+  }
+
   if (!rawExpectedActions) {
     const received = JSON.stringify(Object.keys(candidate));
     throw new Error(`Task ${taskId} must include an expected_actions array (received keys: ${received})`);
@@ -273,6 +277,10 @@ export async function generateCandidateTasksWithCoverage(
   inScopeActions: ActionDefinition[],
   outOfScopeActions: ActionDefinition[] = [],
 ): Promise<{ tasks: GeneratedTask[]; coverage: CoverageReport }> {
+  if (surface.snapshot.surface === 'prompt') {
+    throw new Error('generateCandidateTasksWithCoverage must not be called for prompt surface — use generateCandidateTasks directly');
+  }
+
   // Iteration 1 — existing one-shot prompt
   const firstPass = await generateCandidateTasks(surface, config, deps);
 

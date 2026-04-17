@@ -78,7 +78,7 @@ npx skill-optimizer init --answers answers.json
 {
   "surface": "cli",
   "repoPath": "/absolute/path/to/your-repo",
-  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o"],
+  "models": ["openrouter/anthropic/claude-sonnet-4.6", "openrouter/openai/gpt-4o-mini"],
   "maxTasks": 20,
   "maxIterations": 5,
   "entryFile": "src/cli.ts"
@@ -130,7 +130,7 @@ npx skill-optimizer doctor --fix --config <config-path>
 
 After successful setup:
 
-- **`skill-optimizer.json`** — main config file (commit this); when created by `init`, the default location is `./skill-optimizer/skill-optimizer.json`
+- **`skill-optimizer.json`** — main config file (commit this); when created by `init`, the default location is `./.skill-optimizer/skill-optimizer.json`
 - **`.skill-optimizer/`** — working directory for task artifacts, surface manifests, and versioned skill copies (gitignored)
 
 Your project is ready for benchmarking. Read `references/benchmark.md` for next steps.

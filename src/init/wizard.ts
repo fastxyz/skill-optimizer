@@ -126,7 +126,9 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     placeholder: 'openrouter/provider/model-name',
     validate: (v) => {
       if (!v || !v.trim()) return undefined;
-      if (!v.startsWith('openrouter/')) return 'Must start with openrouter/';
+      if (!v.startsWith('openrouter/') && !v.startsWith('anthropic/') && !v.startsWith('openai/')) {
+        return 'Must start with openrouter/, anthropic/, or openai/';
+      }
       return undefined;
     },
   }) as string);
