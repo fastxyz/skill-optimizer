@@ -29,7 +29,7 @@ export async function generateCandidateTasks(
   const completion = await deps.complete({ system, prompt });
 
   // For prompt surface, pass the known capability keys so parseGeneratedTasks
-  // can validate and attach capabilityId to each task.
+  // can attach capabilityId to each task; membership validation is in ground.ts.
   const knownCapabilityKeys = surface.snapshot.surface === 'prompt'
     ? surface.snapshot.actions.map((a) => a.name)
     : undefined;

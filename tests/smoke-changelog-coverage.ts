@@ -55,8 +55,7 @@ const STOP = new Set([
 
 const testFiles = readdirSync(resolve(repoRoot, 'tests'))
   .filter((f) => f.startsWith('smoke-') && f.endsWith('.ts'))
-  .map((f) => readFileSync(resolve(repoRoot, 'tests', f), 'utf-8'))
-  .join('\n\n');
+  .map((f) => readFileSync(resolve(repoRoot, 'tests', f), 'utf-8'));
 
 let failures = 0;
 for (const item of items) {
@@ -66,7 +65,14 @@ for (const item of items) {
     .filter((t) => t.length >= 4 && !STOP.has(t))
     .slice(0, 8);
   if (tokens.length === 0) continue;
-  const hit = tokens.some((t) => testFiles.includes(t));
+  // Require at least 2 tokens to co-occur in a single test file (whole-word match).
+  // Prevents false-passes where a lone generic word like "prompt" or "coverage"
+  // appears somewhere in the corpus but no test actually covers the claimed behavior.
+  const minMatch = Math.min(2, tokens.length);
+  const hit = testFiles.some((content) => {
+    const matched = tokens.filter((t) => new RegExp(`\\b${t}\\b`, 'i').test(content));
+    return matched.length >= minMatch;
+  });
   if (!hit) {
     console.error(`[FAIL] CHANGELOG entry has no test reference: "${item}"`);
     console.error(`       searched for tokens: ${tokens.join(', ')}`);
