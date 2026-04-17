@@ -61,3 +61,4 @@ skill-optimizer.json
 cli-commands.json
 tools.json
 tasks.json
+.worktrees/

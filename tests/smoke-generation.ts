@@ -142,7 +142,9 @@ await test('generateCandidateTasks: parses strict JSON response', async () => {
 
     const generated = await generateCandidateTasks(surface, { maxTasks: 5, seed: 7 }, deps);
     assertEqual(generated.length, 1, 'should parse one task');
-    assertEqual(generated[0].id, 'task-create', 'task id should match');
+    // ID is derived from action names (content-stable hash), not the LLM-supplied id field
+    assert(/^[0-9a-f]{12}$/.test(generated[0].id), 'task id should be a 12-char hex hash of action names');
+    assertEqual(generated[0].prompt, 'Create a wallet named alpha.', 'task prompt should match');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -374,8 +376,9 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
     });
 
     assertEqual(result.kept.length, 2, 'two tasks should remain after grounding');
-    assert(result.kept.some((t) => t.id === 'kept-task'), 'kept-task should be in kept');
-    assert(result.kept.some((t) => t.id === 'balance-task'), 'balance-task should be in kept');
+    // IDs are now content-based hashes; verify by the action the task covers
+    assert(result.kept.some((t) => t.expected_actions.some(a => a.name === 'create_wallet')), 'task covering create_wallet should be kept');
+    assert(result.kept.some((t) => t.expected_actions.some(a => a.name === 'get_balance')), 'task covering get_balance should be kept');
     assert(result.rejected.length >= 1, 'at least one rejected task expected');
     assert(existsSync(result.artifacts.benchmarkPath), 'generated benchmark config should exist');
   } finally {
