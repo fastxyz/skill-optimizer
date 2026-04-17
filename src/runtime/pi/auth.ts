@@ -143,7 +143,7 @@ function readCodexApiKey(provider: string): ResolvedApiCredential {
 function isJwtExpired(token: string): boolean {
   const parts = token.split('.');
   if (parts.length !== 3) {
-    return false;
+    return true;
   }
 
   try {

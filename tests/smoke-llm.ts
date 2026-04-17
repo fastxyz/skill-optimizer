@@ -440,6 +440,29 @@ await test('resolveApiCredential: browser-login JWT still returns source codex (
   }
 });
 
+await test('resolveApiCredential: malformed access_token falls through to static OPENAI_API_KEY', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-malformed-token-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ tokens: { access_token: 'not-a-jwt', OPENAI_API_KEY: 'sk-static-fallback' } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+  try {
+    const result = resolveApiCredential({ provider: 'openai', authMode: 'codex' });
+    assertEqual(result.apiKey, 'sk-static-fallback', 'malformed access_token should fall through to static key');
+    assertEqual(result.source, 'env', 'static fallback key should have source env');
+  } finally {
+    if (originalHome === undefined) { delete process.env.HOME; } else { process.env.HOME = originalHome; }
+  }
+});
+
 await test('openai format: codex auth bridges through pi with openai provider refs', async () => {
   const originalHome = process.env.HOME;
   const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
