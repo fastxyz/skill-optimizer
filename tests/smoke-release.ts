@@ -59,5 +59,14 @@ await test('mock-repos README matches the tracked templates', () => {
   assert(!readme.includes('mcp-demo'), 'mock-repos README should not mention removed mcp-demo template');
 });
 
+// CHANGELOG must have a heading for current package version
+await test('CHANGELOG.md has a section for the current package version', () => {
+  const pkgVersion = (JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as { version: string }).version;
+  const changelogContent = readFileSync(join(process.cwd(), 'CHANGELOG.md'), 'utf-8');
+  const versionHeaderRe = new RegExp(`^##\\s*\\[?${pkgVersion.replace(/\./g, '\\.')}\\]?`, 'm');
+  assert(versionHeaderRe.test(changelogContent), `CHANGELOG.md must have a section for version ${pkgVersion}`);
+  console.log(`PASS: CHANGELOG has section for v${pkgVersion}`);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

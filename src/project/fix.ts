@@ -31,8 +31,9 @@ export function applyFixes(
 
       if (issue.code === 'model-id-bad-format' && !prefixFixedIndices.has(idx)) {
         const currentId = models[idx]!.id as string;
-        // Never rewrite openrouter/ slugs — they're passed verbatim to OpenRouter's API.
-        if (!currentId.startsWith('openrouter/')) {
+        // Only anthropic/ direct-API IDs get dots rewritten to hyphens.
+        // openrouter/ slugs are passed verbatim; openai/ direct-API IDs use dots (e.g. gpt-5.4).
+        if (!currentId.startsWith('openrouter/') && !currentId.startsWith('openai/')) {
           models[idx]!.id = currentId.replace(/(\d+)\.(\d+)/g, '$1-$2');
         }
       }

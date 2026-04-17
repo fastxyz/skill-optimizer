@@ -4,6 +4,8 @@ Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can 
 
 skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
+Built by the team at [Fast](https://fast.xyz/) — payment infrastructure for AI agents. [Give your agent a wallet](https://github.com/fastxyz/fast-sdk) in 3 lines of code.
+
 **Requirements:** Node.js 20+, plus either an [OpenRouter](https://openrouter.ai) API key or a local Codex login when using direct OpenAI models.
 
 ## How it works — at a glance
@@ -132,10 +134,14 @@ skill-optimizer run
 
 The prompt surface discovers phases and capabilities from your SKILL.md,
 generates scenario-based tasks, and evaluates output quality — not just
-tool calls. It scores responses on required sections, format patterns,
-forbidden keywords, and structural elements (code blocks, numbered lists,
-tables). This lets you optimize prompt templates the same way you optimize
-SDK/CLI/MCP guidance.
+tool calls. Each task is tagged with the specific capability it exercises
+(`capabilityId`), and scoring is performed against that capability's
+criteria — not the first discovered capability. It scores responses on
+required sections, format patterns, forbidden keywords, and structural
+elements (code blocks, numbered lists, tables). Coverage violations do
+not hard-fail prompt runs; coverage is informational for the prompt
+surface. This lets you optimize prompt templates the same way you
+optimize SDK/CLI/MCP guidance.
 
 ## How it works
 

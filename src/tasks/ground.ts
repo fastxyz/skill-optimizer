@@ -36,9 +36,17 @@ function getRejectionReason(
   }
 
   // Prompt surface tasks must have expected_actions: [] — evaluated on content, not tool calls.
+  // They must also carry a valid capabilityId referencing a known discovered capability.
   if (surface === 'prompt') {
     if (expectedActions.length > 0) {
       return `prompt task "${task.id}" must have empty expected_actions, got ${expectedActions.length}`;
+    }
+    const knownKeys = [...actions.keys()];
+    if (!task.capabilityId) {
+      return `prompt task "${task.id}" is missing capabilityId (known: ${knownKeys.join(', ')})`;
+    }
+    if (!actions.has(task.capabilityId)) {
+      return `prompt task "${task.id}" has unknown capabilityId "${task.capabilityId}" (known: ${knownKeys.join(', ')})`;
     }
     return null;
   }

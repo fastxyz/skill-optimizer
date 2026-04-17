@@ -312,7 +312,7 @@ export function discoverPromptCapabilitiesWithSections(
       addWithSection({
         name: outputName,
         description: `Expected output format: ${preview}`,
-        section: snippet,
+        section: section.body,
         type: 'output',
       });
     }

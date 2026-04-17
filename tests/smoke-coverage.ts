@@ -20,6 +20,10 @@ function mkTask(id: string, actions: string[]): GeneratedTask {
   };
 }
 
+function mkPromptTask(id: string, capabilityId: string): GeneratedTask {
+  return { id, prompt: `do ${id}`, expected_actions: [], capabilityId };
+}
+
 function testFullCoverage() {
   const actions = [mkAction('Wallet.send'), mkAction('Wallet.receive')];
   const tasks = [mkTask('t1', ['Wallet.send']), mkTask('t2', ['Wallet.receive'])];
@@ -54,11 +58,24 @@ function testRetryPromptMentionsActions() {
   console.log('PASS: retry prompt names uncovered actions');
 }
 
+function testPromptCoverageFromCapabilityId() {
+  // Regression guard for Issue 2: prompt tasks have expected_actions:[] but
+  // must count as covering their declared capabilityId capability.
+  const actions = [mkAction('summarize'), mkAction('translate')];
+  const tasks = [mkPromptTask('t1', 'summarize'), mkPromptTask('t2', 'translate')];
+  const coverage = computeCoverage(actions, tasks);
+  assert.strictEqual(coverage.coverageViolation, false);
+  assert.strictEqual(coverage.uncoveredActions.length, 0);
+  assert.deepStrictEqual(coverage.coveredActions.sort(), ['summarize', 'translate']);
+  console.log('PASS: prompt tasks covered via capabilityId (Issue 2 guard)');
+}
+
 async function main() {
   testFullCoverage();
   testPartialCoverage();
   testUncoveredDriver();
   testRetryPromptMentionsActions();
+  testPromptCoverageFromCapabilityId();
   console.log('\nALL PASS: smoke-coverage');
 }
 
