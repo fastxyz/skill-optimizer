@@ -262,10 +262,13 @@ function resolveMethod(
   if (knownCommands && knownCommands.length > 0) {
     const knownSet = new Set(knownCommands.map((command) => command.trim()).filter(Boolean));
 
-    // Try matching from startIndex first, then skip one token (the executable name, e.g. "fast")
-    const match =
-      findKnownCommand(tokens, startIndex, knownSet) ??
-      (startIndex + 1 < tokens.length ? findKnownCommand(tokens, startIndex + 1, knownSet) : null);
+    // Try matching from startIndex, then skip 1–3 tokens to handle prefixes like "npx skill-optimizer" or "fast"
+    let match: ReturnType<typeof findKnownCommand> = null;
+    for (let skip = 0; skip <= 3 && !match; skip++) {
+      if (startIndex + skip < tokens.length) {
+        match = findKnownCommand(tokens, startIndex + skip, knownSet);
+      }
+    }
 
     if (match) return match;
   }
