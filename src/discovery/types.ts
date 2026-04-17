@@ -1,14 +1,9 @@
-export interface DiscoveredActionArg {
-  name: string;
-  required: boolean;
-  type?: string;
-  description?: string;
-}
+import type { ActionArgSchema } from '../actions/types.js';
 
 export interface DiscoveredAction {
   name: string;
   description?: string;
-  args: DiscoveredActionArg[];
+  args: ActionArgSchema[];
   source?: string;
 }
 

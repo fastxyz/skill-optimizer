@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   createBenchmarkAdapter,
@@ -101,6 +101,7 @@ export async function runOptimizeFromConfig(
           const deps = createDefaultPiTaskGenerator({
             provider: mutation.provider,
             model: mutation.model,
+            authMode: mutation.authMode,
             apiKeyEnv: mutation.apiKeyEnv,
           });
           const generation = await generateTasksForProject({

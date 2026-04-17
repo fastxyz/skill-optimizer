@@ -17,7 +17,9 @@ const KNOWN_MODELS: Record<string, { name: string; tier: 'flagship' | 'mid' | 'l
   'openrouter/google/gemini-3.1-pro-preview': { name: 'Gemini 3.1 Pro Preview', tier: 'flagship' },
   'openrouter/google/gemini-2.5-flash': { name: 'Gemini 2.5 Flash', tier: 'mid' },
   'openrouter/google/gemini-2.5-flash-lite': { name: 'Gemini 2.5 Flash Lite', tier: 'low' },
+  'openrouter/google/gemma-4-31b-it': { name: 'Gemma 4 31B-it', tier: 'mid' },
   // Qwen
+  'openrouter/qwen/qwen3.5-397b-a17b': { name: 'Qwen3.5 397B A17B', tier: 'flagship' },
   'openrouter/qwen/qwen3.6-plus': { name: 'Qwen 3.6 Plus', tier: 'mid' },
   // Xiaomi
   'openrouter/xiaomi/mimo-v2-pro': { name: 'MiMo-V2-Pro', tier: 'mid' },
@@ -31,6 +33,8 @@ const KNOWN_MODELS: Record<string, { name: string; tier: 'flagship' | 'mid' | 'l
   'openrouter/openai/gpt-5.4': { name: 'GPT-5.4', tier: 'flagship' },
   'openrouter/openai/gpt-4o-mini': { name: 'GPT-4o Mini', tier: 'mid' },
   'openrouter/openai/gpt-oss-120b': { name: 'GPT-OSS 120B', tier: 'mid' },
+  // Meta
+  'openrouter/meta-llama/llama-4-maverick': { name: 'Llama 4 Maverick', tier: 'mid' },
   // Z-AI
   'openrouter/z-ai/glm-5': { name: 'GLM 5', tier: 'mid' },
   'openrouter/z-ai/glm-5.1': { name: 'GLM 5.1', tier: 'mid' },
@@ -46,7 +50,7 @@ function resolveModel(id: string): { id: string; name: string; tier: 'flagship' 
 }
 
 
-export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
+function buildConfigFromAnswers(answers: WizardAnswers, configDir: string): object {
   const { surface, repoPath, models, maxTasks, maxIterations, name } = answers;
   const targetPassRate = answers.targetPassRate ?? 0.8;
   const projectName = name ?? basename(repoPath);
@@ -63,7 +67,6 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   const skillAllowedPath = relative(repoPath, skillAbsPath);
 
   const commonBenchmark = {
-    apiKeyEnv: 'OPENROUTER_API_KEY',
     format: 'pi',
     timeout: 240000,
     taskGeneration: { enabled: true, maxTasks, outputDir: '.' },
@@ -73,8 +76,7 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
   };
 
   const commonOptimize = {
-    model: 'openrouter/anthropic/claude-sonnet-4-6',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
+    model: 'openrouter/anthropic/claude-sonnet-4.6',
     allowedPaths: [skillAllowedPath],
     validation: [],
     maxIterations,
@@ -110,6 +112,19 @@ export function buildConfigFromAnswers(answers: WizardAnswers, configDir: string
         skill: skillConfigPath,
         discovery: { mode: 'auto', sources: [entryConfigPath] },
         cli: { commands: './cli-commands.json' },
+      },
+      benchmark: commonBenchmark,
+      optimize: commonOptimize,
+    };
+  }
+
+  if (surface === 'prompt') {
+    return {
+      name: projectName,
+      target: {
+        surface: 'prompt',
+        repoPath: relRepo,
+        skill: skillConfigPath,
       },
       benchmark: commonBenchmark,
       optimize: commonOptimize,

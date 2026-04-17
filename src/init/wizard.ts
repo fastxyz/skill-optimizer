@@ -18,8 +18,10 @@ export const MODEL_PRESETS = [
   { value: 'openrouter/google/gemini-3-flash-preview',     label: 'Gemini 3 Flash Preview · Google',    hint: 'fast' },
   { value: 'openrouter/google/gemini-3.1-pro-preview',     label: 'Gemini 3.1 Pro Preview · Google',    hint: 'flagship' },
   { value: 'openrouter/google/gemini-2.5-flash',           label: 'Gemini 2.5 Flash       · Google',    hint: 'fast' },
-  { value: 'openrouter/google/gemini-2.5-flash-lite',       label: 'Gemini 2.5 Flash Lite  · Google',    hint: 'fast' },
+  { value: 'openrouter/google/gemini-2.5-flash-lite',      label: 'Gemini 2.5 Flash Lite  · Google',    hint: 'fast' },
+  { value: 'openrouter/google/gemma-4-31b-it',             label: 'Gemma 4 31B-it         · Google',    hint: 'open' },
   // Qwen
+  { value: 'openrouter/qwen/qwen3.5-397b-a17b',            label: 'Qwen3.5 397B A17B      · Alibaba',   hint: 'MoE' },
   { value: 'openrouter/qwen/qwen3.6-plus',                 label: 'Qwen 3.6 Plus          · Alibaba',   hint: 'open' },
   // Xiaomi
   { value: 'openrouter/xiaomi/mimo-v2-pro',                label: 'MiMo-V2-Pro            · Xiaomi' },
@@ -33,6 +35,8 @@ export const MODEL_PRESETS = [
   { value: 'openrouter/openai/gpt-5.4',                    label: 'GPT-5.4                · OpenAI',    hint: 'flagship' },
   { value: 'openrouter/openai/gpt-4o-mini',                label: 'GPT-4o Mini            · OpenAI',    hint: 'fast' },
   { value: 'openrouter/openai/gpt-oss-120b',               label: 'GPT-OSS 120B           · OpenAI',    hint: 'open' },
+  // Meta
+  { value: 'openrouter/meta-llama/llama-4-maverick',       label: 'Llama 4 Maverick       · Meta',      hint: 'open' },
   // Z-AI
   { value: 'openrouter/z-ai/glm-5',                        label: 'GLM 5                  · Z-AI' },
   { value: 'openrouter/z-ai/glm-5.1',                      label: 'GLM 5.1                · Z-AI',      hint: 'new' },
@@ -51,7 +55,7 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
   p.intro('skill-optimizer init');
 
   // 1. Surface
-  let surface: 'sdk' | 'cli' | 'mcp';
+  let surface: 'sdk' | 'cli' | 'mcp' | 'prompt';
   if (preseed?.surface) {
     surface = preseed.surface;
     p.log.info(`Surface: ${surface}`);
@@ -62,8 +66,9 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
         { value: 'sdk', label: 'sdk', hint: 'TypeScript / Python / Rust library' },
         { value: 'cli', label: 'cli', hint: 'command-line tool with subcommands' },
         { value: 'mcp', label: 'mcp', hint: 'MCP server with tools' },
+        { value: 'prompt', label: 'prompt', hint: 'markdown skill/prompt file' },
       ],
-    }) as 'sdk' | 'cli' | 'mcp');
+    }) as 'sdk' | 'cli' | 'mcp' | 'prompt');
   }
 
   // 2. Target repo path
@@ -121,7 +126,9 @@ export async function runWizard(cwd: string, preseed?: Partial<WizardAnswers>): 
     placeholder: 'openrouter/provider/model-name',
     validate: (v) => {
       if (!v || !v.trim()) return undefined;
-      if (!v.startsWith('openrouter/')) return 'Must start with openrouter/';
+      if (!v.startsWith('openrouter/') && !v.startsWith('anthropic/') && !v.startsWith('openai/')) {
+        return 'Must start with openrouter/, anthropic/, or openai/';
+      }
       return undefined;
     },
   }) as string);

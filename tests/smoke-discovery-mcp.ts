@@ -157,16 +157,12 @@ await test('code-first discovery fails fast when MCP source is missing', async (
     // loadProjectConfig now validates paths eagerly — expect it to throw when source is missing
     let threw = false;
     try {
-      const project = await loadProjectConfig(configPath);
-      // If load succeeds (future behavior change), check that buildSurfaceSnapshot also fails
-      buildSurfaceSnapshot(project);
+      await loadProjectConfig(configPath);
     } catch (error: any) {
       threw = true;
-      // Accept either the new validation error or the old discovery error
-      const msg: string = error.message;
       assert(
-        msg.includes('does not exist') || msg.includes('not found'),
-        `missing source error should mention missing path, got: ${msg}`,
+        error.message.includes('does not exist'),
+        `missing source error should mention missing path, got: ${error.message}`,
       );
     }
     assert(threw, 'missing discovery source should fail fast');
@@ -252,19 +248,14 @@ await test('discoverActions fails fast when MCP discovery source is missing and 
       },
     }, null, 2), 'utf-8');
 
-    // loadProjectConfig now validates paths eagerly — expect it to throw when source is missing
     let threw = false;
     try {
-      const project = await loadProjectConfig(configPath);
-      // If load succeeds (future behavior change), check that discoverActions also fails
-      discoverActions(project);
+      await loadProjectConfig(configPath);
     } catch (error: any) {
       threw = true;
-      // Accept either the new validation error or the old discovery error
-      const msg: string = error.message;
       assert(
-        msg.includes('does not exist') || msg.includes('not found'),
-        `missing source error should mention missing path, got: ${msg}`,
+        error.message.includes('does not exist'),
+        `missing source error should mention missing path, got: ${error.message}`,
       );
     }
 

@@ -142,7 +142,9 @@ await test('generateCandidateTasks: parses strict JSON response', async () => {
 
     const generated = await generateCandidateTasks(surface, { maxTasks: 5, seed: 7 }, deps);
     assertEqual(generated.length, 1, 'should parse one task');
-    assertEqual(generated[0].id, 'task-create', 'task id should match');
+    // ID is derived from action names (content-stable hash), not the LLM-supplied id field
+    assert(/^[0-9a-f]{12}$/.test(generated[0].id), 'task id should be a 12-char hex hash of action names');
+    assertEqual(generated[0].prompt, 'Create a wallet named alpha.', 'task prompt should match');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -322,13 +324,16 @@ await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', asyn
 
     const benchmark = JSON.parse(readFileSync(frozen.benchmarkPath, 'utf-8')) as {
       target: { skill: { source: string; cache: boolean } };
-      benchmark: { tasks: string; surfaceSnapshot: string };
+      benchmark: { authMode?: string; tasks: string; surfaceSnapshot: string };
+      optimize?: unknown;
     };
 
     assert(benchmark.target.skill.source.startsWith('/'), 'target.skill.source should be absolute');
     assertEqual(benchmark.target.skill.cache, false, 'target.skill.cache should be preserved');
+    assertEqual(benchmark.benchmark.authMode, 'env', 'benchmark authMode should be preserved in generated config');
     assertEqual(benchmark.benchmark.tasks, frozen.tasksPath, 'tasks should point at generated tasks path');
     assertEqual(benchmark.benchmark.surfaceSnapshot, frozen.snapshotPath, 'surface snapshot should be pinned in generated config');
+    assertEqual(benchmark.optimize, undefined, 'generated benchmark config should omit optimize-only settings');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -345,17 +350,17 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
             {
               id: 'kept-task',
               prompt: 'Create wallet called beta.',
-              expected_tools: [{ method: 'create_wallet', args: { label: 'beta' } }],
+              expected_actions: [{ name: 'create_wallet', args: { label: 'beta' } }],
             },
             {
               id: 'balance-task',
               prompt: 'Get balance for address 0x1.',
-              expected_tools: [{ method: 'get_balance', args: { address: '0x1' } }],
+              expected_actions: [{ name: 'get_balance', args: { address: '0x1' } }],
             },
             {
               id: 'rejected-task',
               prompt: 'Use unknown method.',
-              expected_tools: [{ method: 'delete_wallet', args: { id: 'x' } }],
+              expected_actions: [{ name: 'delete_wallet', args: { id: 'x' } }],
             },
           ],
         });
@@ -371,8 +376,9 @@ await test('generateTasksForProject: runs discover -> generate -> ground -> free
     });
 
     assertEqual(result.kept.length, 2, 'two tasks should remain after grounding');
-    assert(result.kept.some((t) => t.id === 'kept-task'), 'kept-task should be in kept');
-    assert(result.kept.some((t) => t.id === 'balance-task'), 'balance-task should be in kept');
+    // IDs are now content-based hashes; verify by the action the task covers
+    assert(result.kept.some((t) => t.expected_actions.some(a => a.name === 'create_wallet')), 'task covering create_wallet should be kept');
+    assert(result.kept.some((t) => t.expected_actions.some(a => a.name === 'get_balance')), 'task covering get_balance should be kept');
     assert(result.rejected.length >= 1, 'at least one rejected task expected');
     assert(existsSync(result.artifacts.benchmarkPath), 'generated benchmark config should exist');
   } finally {
@@ -520,6 +526,168 @@ await test('cli discovery/task generation canonicalizes option keys for extracti
     assertEqual(result.metrics.taskPassed, true, 'CLI canonical arg names should still match extracted command args');
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ── Prompt surface fixture ────────────────────────────────────────────────────
+
+function makePromptFixture(): {
+  root: string;
+  benchmarkConfigPath: string;
+  skillPath: string;
+  // Capability keys produced by the phase headings in the skill file.
+  capabilityKeys: { summarize: string; translate: string };
+} {
+  const root = mkdtempSync(join(tmpdir(), 'skill-optimizer-prompt-'));
+  const skillPath = join(root, 'SKILL.md');
+  const benchmarkConfigPath = join(root, 'skill-optimizer.json');
+
+  // Two ## Phase headings produce exactly two capabilities:
+  //   phase_1_summarize  and  phase_2_translate
+  // Body text avoids imperative verbs and decision-point words so no extra
+  // instruction / decision capabilities are generated alongside the phases.
+  writeFileSync(skillPath, [
+    '# Translation Service Skill',
+    '',
+    '## Phase 1: Summarize',
+    'Condenses long documents into brief summaries for quick reading.',
+    '',
+    '## Phase 2: Translate',
+    'Converts text from one language to another while preserving meaning.',
+  ].join('\n'), 'utf-8');
+
+  writeFileSync(benchmarkConfigPath, JSON.stringify({
+    name: 'prompt-smoke',
+    target: {
+      surface: 'prompt',
+      repoPath: '.',
+      skill: './SKILL.md',
+    },
+    benchmark: {
+      tasks: './tasks.json',
+      format: 'pi',
+      models: [{ id: 'openai/test', name: 'Test', tier: 'flagship' }],
+    },
+  }, null, 2), 'utf-8');
+
+  return {
+    root,
+    benchmarkConfigPath,
+    skillPath,
+    capabilityKeys: { summarize: 'phase_1_summarize', translate: 'phase_2_translate' },
+  };
+}
+
+// ── Prompt surface: capabilityId tagging ─────────────────────────────────────
+
+await test('prompt surface: generator tags tasks with capabilityId', async () => {
+  const fixture = makePromptFixture();
+  try {
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    assertEqual(surface.snapshot.surface, 'prompt', 'surface should be prompt');
+
+    const { summarize, translate } = fixture.capabilityKeys;
+    const deps: TaskGeneratorDeps = {
+      async complete() {
+        return JSON.stringify({
+          tasks: [
+            {
+              id: 'summarize_long_doc',
+              prompt: 'Summarize this long research paper into three bullet points.',
+              expected_actions: [],
+              capabilityId: summarize,
+            },
+            {
+              id: 'translate_spanish',
+              prompt: 'Translate the following paragraph from English to Spanish.',
+              expected_actions: [],
+              capabilityId: translate,
+            },
+          ],
+        });
+      },
+    };
+
+    const generated = await generateCandidateTasks(surface, { maxTasks: 5, seed: 7 }, deps);
+    assertEqual(generated.length, 2, 'should produce 2 tasks');
+
+    const summarizeTask = generated.find((t) => t.capabilityId === summarize);
+    const translateTask = generated.find((t) => t.capabilityId === translate);
+
+    assert(summarizeTask !== undefined, `task with capabilityId "${summarize}" should exist`);
+    assert(translateTask !== undefined, `task with capabilityId "${translate}" should exist`);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+// ── Prompt surface: grounding rejects unknown capabilityId ───────────────────
+
+await test('prompt surface: grounding rejects unknown capabilityId', async () => {
+  const fixture = makePromptFixture();
+  try {
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    const { summarize } = fixture.capabilityKeys;
+
+    const deps: TaskGeneratorDeps = {
+      async complete() {
+        return JSON.stringify({
+          tasks: [
+            {
+              id: 'bad_task',
+              prompt: 'Use an unknown capability.',
+              expected_actions: [],
+              capabilityId: 'not-real',
+            },
+            {
+              id: 'good_task',
+              prompt: 'Summarize this document into bullet points.',
+              expected_actions: [],
+              capabilityId: summarize,
+            },
+          ],
+        });
+      },
+    };
+
+    const generated = await generateCandidateTasks(surface, { maxTasks: 5, seed: 7 }, deps);
+
+    // Only the task with a valid capabilityId passes grounding.
+    const grounded = groundTasks(generated, surface.snapshot);
+    assertEqual(grounded.kept.length, 1, 'only the valid capabilityId task should be kept');
+    assertEqual(grounded.rejected.length, 1, 'task with unknown capabilityId should be rejected');
+    assert(
+      grounded.rejected[0].reason.includes('unknown capabilityId'),
+      `rejection reason should mention unknown capabilityId, got: ${grounded.rejected[0].reason}`,
+    );
+    assertEqual(grounded.kept[0].capabilityId, summarize, 'kept task should have the valid capabilityId');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+await test('prompt surface: grounding rejects task with missing capabilityId', async () => {
+  const fixture = makePromptFixture();
+  try {
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    const deps: TaskGeneratorDeps = {
+      async complete() {
+        return JSON.stringify({
+          tasks: [
+            // capabilityId field is entirely absent from this task
+            { id: 't1', prompt: 'Do something.', expected_actions: [] },
+          ],
+        });
+      },
+    };
+    const generated = await generateCandidateTasks(surface, { maxTasks: 5, seed: 7 }, deps);
+    const result = groundTasks(generated, surface.snapshot);
+    assertEqual(result.kept.length, 0, 'task without capabilityId must be rejected');
+    assertEqual(result.rejected.length, 1, 'rejected list must have one entry');
+    assert(result.rejected[0]!.reason.includes('capabilityId'),
+      `rejection reason must mention capabilityId, got: "${result.rejected[0]!.reason}"`);
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
   }
 });
 

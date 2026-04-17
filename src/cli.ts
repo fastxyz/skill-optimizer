@@ -27,6 +27,7 @@ import type { WizardAnswers } from './init/answers.js';
 import { runWizard } from './init/wizard.js';
 import { detectProject, detectedToPreseed, printDetectionSummary } from './init/detect-project.js';
 import { ERRORS, SkillOptimizerError, printError } from './errors.js';
+import { requireConfiguredApiKey } from './runtime/pi/index.js';
 
 // ── Error handling ────────────────────────────────────────────────────────────
 
@@ -123,10 +124,10 @@ export function positionals(args: string[]): string[] {
 
 function printUsage(): void {
   console.log(`
-Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP guidance
+Skill Optimizer CLI — Benchmark and optimize SDK/CLI/MCP/prompt guidance
 
 Usage:
-  skill-optimizer init [sdk|cli|mcp]            Interactive wizard — scaffold config for the given surface
+  skill-optimizer init [sdk|cli|mcp|prompt]      Interactive wizard — scaffold config for the given surface
   skill-optimizer init [surface] --yes          Accept all defaults non-interactively
   skill-optimizer init --answers <file.json>    Load wizard answers from a JSON file (CI mode)
   skill-optimizer init --auto                   Auto-detect surface from CWD and pre-fill wizard
@@ -178,6 +179,7 @@ Examples:
   skill-optimizer init cli
   skill-optimizer init sdk
   skill-optimizer init mcp
+  skill-optimizer init prompt
   skill-optimizer import-commands --from ./src/cli.ts
   skill-optimizer import-commands --from fast-cli --scrape
   skill-optimizer doctor --config ./skill-optimizer.json
@@ -194,7 +196,7 @@ Examples:
   skill-optimizer run --no-cache
   skill-optimizer generate-tasks --config ./skill-optimizer.json
   skill-optimizer optimize --config ./skill-optimizer.json
-  skill-optimizer compare --baseline results/old/report.json --current results/report.json
+  skill-optimizer compare --baseline results/baseline/report.json --current results/report.json
 `);
 }
 
@@ -213,7 +215,7 @@ async function runDryRun(configPath: string): Promise<void> {
   console.log(`Out of scope: ${outOfScope.length} — ${outOfScope.map((a) => a.name).join(', ')}`);
 
   const maxTasks = project.benchmark.taskGeneration.maxTasks;
-  if (project.benchmark.taskGeneration.enabled && inScope.length > 0 && maxTasks < inScope.length) {
+  if (project.target.surface !== 'prompt' && project.benchmark.taskGeneration.enabled && inScope.length > 0 && maxTasks < inScope.length) {
     console.error(`\nERROR: maxTasks (${maxTasks}) < in-scope action count (${inScope.length}).`);
     console.error(`Raise benchmark.taskGeneration.maxTasks in ${project.configPath}, or tighten target.scope.exclude.`);
     process.exit(1);
@@ -231,7 +233,6 @@ async function runDryRun(configPath: string): Promise<void> {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  // Strip node + script path from argv
   const args = process.argv.slice(2);
 
   if (hasFlag(args, '--help') || hasFlag(args, '-h')) {
@@ -250,9 +251,9 @@ async function main(): Promise<void> {
 
   // ── Init mode ────────────────────────────────────────────────────────────────
   if (command === 'init') {
-    const surfaceArg = pos[1] as 'sdk' | 'cli' | 'mcp' | undefined;
-    if (surfaceArg && !['sdk', 'cli', 'mcp'].includes(surfaceArg)) {
-      console.error(`ERROR: Unknown surface '${surfaceArg}'. Must be: sdk | cli | mcp`);
+    const surfaceArg = pos[1] as 'sdk' | 'cli' | 'mcp' | 'prompt' | undefined;
+    if (surfaceArg && !['sdk', 'cli', 'mcp', 'prompt'].includes(surfaceArg)) {
+      console.error(`ERROR: Unknown surface '${surfaceArg}'. Must be: sdk | cli | mcp | prompt`);
       process.exit(1);
     }
     const answersFlag = getFlag(args, '--answers');
@@ -343,12 +344,12 @@ async function main(): Promise<void> {
 
     if (!baselinePath) {
       console.error('ERROR: --baseline <path> is required for compare mode.');
-      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/baseline/report.json --current results/report.json');
       process.exit(1);
     }
     if (!currentPath) {
       console.error('ERROR: --current <path> is required for compare mode.');
-      console.error('  Example: skill-optimizer compare --baseline results/old/report.json --current results/report.json');
+      console.error('  Example: skill-optimizer compare --baseline results/baseline/report.json --current results/report.json');
       process.exit(1);
     }
 
@@ -393,6 +394,7 @@ async function main(): Promise<void> {
               const criticDeps = createDefaultPiCritic({
                 provider: mutation.provider,
                 model: mutation.model,
+                authMode: mutation.authMode,
                 apiKeyEnv: mutation.apiKeyEnv,
               });
               recs = await generateRecommendations(
@@ -426,6 +428,7 @@ async function main(): Promise<void> {
       const deps = createDefaultPiTaskGenerator({
         provider,
         model,
+        authMode: project.optimize?.authMode ?? project.benchmark.authMode,
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       const result = await generateTasksForProject({
@@ -482,11 +485,26 @@ async function main(): Promise<void> {
           `Edit "target.repoPath" in ${project.configPath}.`,
       );
     }
-    if (project.benchmark.format !== 'anthropic' && !process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY']) {
-      throw new Error(
-        `Missing ${project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'} environment variable. ` +
-          `Set it in your shell or in a .env file alongside ${project.configPath}.`,
-      );
+    // Check credentials for each unique provider: direct-API formats have one provider,
+    // but pi format may route different models to different providers (e.g. openrouter + openai).
+    const benchmarkProviders = project.benchmark.format === 'openai'
+      ? ['openai']
+      : project.benchmark.format === 'anthropic'
+        ? ['anthropic']
+        : [...new Set(project.benchmark.models.map(m => parseModelRef(m.id).provider))];
+    for (const benchmarkProvider of benchmarkProviders) {
+      try {
+        requireConfiguredApiKey({
+          provider: benchmarkProvider,
+          authMode: project.benchmark.authMode,
+          apiKeyEnv: project.benchmark.apiKeyEnv,
+        });
+      } catch (error) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)} ` +
+            `Configure auth in ${project.configPath} before running the benchmark.`,
+        );
+      }
     }
     if (project.benchmark.taskGeneration.enabled) {
       const modelRef = project.optimize?.model ?? project.benchmark.models[0]!.id;
@@ -494,6 +512,7 @@ async function main(): Promise<void> {
       const deps = createDefaultPiTaskGenerator({
         provider,
         model,
+        authMode: project.optimize?.authMode ?? project.benchmark.authMode,
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       const generation = await generateTasksForProject({
@@ -524,18 +543,14 @@ async function main(): Promise<void> {
     fatalError(err);
   }
 
-  // Print console summary
   printSummary(report);
-
-  // Print coverage
   printCoverage(report.coverage);
 
-  // Determine output dir — resolve relative to the config file's directory (matching the runner)
+  // Resolve output dir relative to the config file's directory, matching the runner's behavior
   const configFileDir = options.configPath ? dirname(resolve(options.configPath)) : process.cwd();
   const reportConfig = report.config as { name: string; surface: string; outputDir?: string };
-  const outputDir = resolve(configFileDir, reportConfig?.outputDir ?? 'benchmark-results');
+  const outputDir = resolve(configFileDir, reportConfig.outputDir ?? 'benchmark-results');
 
-  // Generate recommendations if verdict is FAIL
   let recommendations: Recommendation[] = [];
   if (report.verdict?.result === 'FAIL' && project) {
     try {
@@ -544,6 +559,7 @@ async function main(): Promise<void> {
       const criticDeps = createDefaultPiCritic({
         provider,
         model,
+        authMode: project.optimize?.authMode ?? project.benchmark.authMode,
         apiKeyEnv: project.optimize?.apiKeyEnv ?? project.benchmark.apiKeyEnv,
       });
       recommendations = await generateRecommendations(
@@ -556,10 +572,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // Print verdict
   console.log(renderVerdictConsole(report, recommendations));
 
-  // Generate and save Markdown report alongside JSON
   const mdPath = resolve(outputDir, 'report.md');
   try {
     const markdown = generateMarkdown(report) + '\n\n' + renderVerdictMarkdown(report, recommendations);
@@ -569,7 +583,6 @@ async function main(): Promise<void> {
     console.error(`WARNING: Could not write Markdown report: ${err instanceof Error ? err.message : err}`);
   }
 
-  // Final summary line
   const { summary } = report;
   const passedCount = Math.round(summary.overallPassRate * summary.totalEvaluations);
   console.log(

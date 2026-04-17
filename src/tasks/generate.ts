@@ -1,14 +1,17 @@
+import { createHash } from 'node:crypto';
+
 import type { ExpectedAction, CoverageReport } from '../benchmark/types.js';
-import { getExpectedActionName } from '../benchmark/types.js';
 
 import type { ActionDefinition } from '../actions/types.js';
 import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
 import type { DiscoveredTaskSurface, GeneratedTask, TaskGeneratorConfig, TaskGeneratorDeps } from './types.js';
 
-const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
-
-function isSafeTaskId(taskId: string): boolean {
-  return SAFE_TASK_ID.test(taskId) && taskId !== '.' && taskId !== '..';
+// Derive a stable task ID from the expected action names.
+// Action names are surface-stable (they come from discovered code, not LLM free-form output),
+// so the same surface produces the same IDs across regenerations.
+function stableTaskId(actionNames: string[]): string {
+  const key = [...actionNames].sort().join('\x00');
+  return createHash('sha1').update(key).digest('hex').slice(0, 12);
 }
 
 export async function generateCandidateTasks(
@@ -24,12 +27,50 @@ export async function generateCandidateTasks(
 
   const prompt = buildPrompt(surface, config);
   const completion = await deps.complete({ system, prompt });
-  const tasks = parseGeneratedTasks(completion);
+
+  // For prompt surface, pass the known capability keys so parseGeneratedTasks
+  // can attach capabilityId to each task; membership validation is in ground.ts.
+  const knownCapabilityKeys = surface.snapshot.surface === 'prompt'
+    ? surface.snapshot.actions.map((a) => a.name)
+    : undefined;
+
+  const tasks = parseGeneratedTasks(completion, knownCapabilityKeys);
   return tasks.slice(0, Math.max(1, Math.floor(config.maxTasks)));
 }
 
 function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig): string {
   const clampedMax = Math.max(1, Math.floor(config.maxTasks));
+
+  if (surface.snapshot.surface === 'prompt') {
+    const capKeys = surface.snapshot.actions.map((a) => a.name);
+    return [
+      'Generate benchmark evaluation tasks for a prompt/skill document.',
+      'These tasks will be evaluated by content quality, not action matching.',
+      '',
+      'Return a JSON object with EXACTLY this shape:',
+      '{"tasks":[{"id":"string","prompt":"string","expected_actions":[],"capabilityId":"string"}]}',
+      '',
+      'RULES:',
+      '- Each task has EXACTLY four keys: id, prompt, expected_actions, capabilityId.',
+      '- expected_actions MUST always be an empty array [].',
+      '- id: short snake_case identifier (e.g. "deploy_service_to_staging").',
+      '- prompt: ask the model to perform a realistic task from the skill.',
+      '- capabilityId: set to the action key of the discovered capability this task exercises.',
+      `- Valid capabilityId values: ${capKeys.join(', ')}.`,
+      '- Every task MUST have a capabilityId from the valid list above — no other values are accepted.',
+      `- Produce at most ${clampedMax} tasks. Seed: ${config.seed}.`,
+      '',
+      'Full SKILL.md:',
+      '---BEGIN SKILL---',
+      surface.skillMarkdown,
+      '---END SKILL---',
+      '',
+      'Discovered prompt surface snapshot (capabilities for reference):',
+      '---BEGIN SURFACE SNAPSHOT---',
+      JSON.stringify(surface.snapshot, null, 2),
+      '---END SURFACE SNAPSHOT---',
+    ].join('\n');
+  }
 
   return [
     `Generate benchmark tasks for a ${surface.snapshot.surface} callable surface.`,
@@ -72,7 +113,7 @@ function stripCodeFence(raw: string): string {
   return match ? match[1].trim() : trimmed;
 }
 
-function parseGeneratedTasks(raw: string): GeneratedTask[] {
+function parseGeneratedTasks(raw: string, knownCapabilityKeys?: string[]): GeneratedTask[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripCodeFence(raw));
@@ -89,7 +130,21 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
     throw new Error('Task generator response must contain a top-level "tasks" array');
   }
 
-  return tasks.map((task, index) => validateTask(task, index));
+  const validated = tasks.map((task, index) => validateTask(task, index, knownCapabilityKeys));
+
+  // Sort by (id, prompt) before deduplication so the numeric suffix assigned to
+  // colliding IDs is determined by content order, not by the LLM's output order.
+  // Without this sort, swapping two same-action tasks between runs would swap their
+  // suffixes (e.g. id-1 and id-2), making --task filters unstable for multi-variant cases.
+  validated.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : a.prompt < b.prompt ? -1 : 1);
+
+  // Deduplicate IDs: two tasks with the same action-name set get a numeric suffix.
+  const seen = new Map<string, number>();
+  return validated.map(task => {
+    const n = seen.get(task.id) ?? 0;
+    seen.set(task.id, n + 1);
+    return n > 0 ? { ...task, id: `${task.id}-${n}` } : task;
+  });
 }
 
 function resolveStringField(obj: Record<string, unknown>, ...keys: string[]): string | null {
@@ -120,7 +175,7 @@ function pickLongestStringValue(obj: Record<string, unknown>): string | null {
   return best;
 }
 
-function validateTask(task: unknown, index: number): GeneratedTask {
+function validateTask(task: unknown, index: number, knownCapabilityKeys?: string[]): GeneratedTask {
   if (!task || typeof task !== 'object') {
     throw new Error(`Task at index ${index} must be an object`);
   }
@@ -133,33 +188,13 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     resolveStringField(candidate, 'prompt', 'user_prompt', 'description', 'instruction', 'task', 'action', 'method', 'name', 'command') ??
     pickLongestStringValue(candidate);
 
-  // Resolve ID — fall back to deriving a slug from the prompt or action if omitted
-  let taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
-  if (!taskId) {
-    const basis = taskPrompt ?? `task-${index}`;
-    taskId = basis
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 48)
-      + `-${index}`;
-  }
-
-  if (!taskPrompt) {
-    // Only reachable if the object has no string values at all.
-    const received = JSON.stringify(Object.keys(candidate));
-    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
-  }
-  if (!isSafeTaskId(taskId)) {
-    // Sanitize rather than throw — strip unsafe chars, then handle dot-only segments that
-    // survive character replacement unchanged (e.g. ".." → all chars allowed → still "..").
-    taskId = taskId.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-|-$/g, '');
-    if (taskId === '.' || taskId === '..') taskId = '';
-    taskId = taskId || `task-${index}`;
-  }
-
+  // Resolve expected_actions before computing the ID so action names can anchor the ID.
+  // LLM-supplied IDs are intentionally ignored — they vary across runs for the same task,
+  // breaking --task filters after regeneration. For SDK/CLI/MCP surfaces, action names come
+  // from the surface definition and are stable across runs. Prompt-surface tasks have no
+  // actions (expected_actions is always []), so they fall back to hashing the prompt text.
   let rawExpectedActions = (
-    ['expected_actions', 'expected_tools', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
+    ['expected_actions', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
   )
     .map((key) => candidate[key])
     .find((v) => Array.isArray(v)) as unknown[] | undefined;
@@ -168,11 +203,30 @@ function validateTask(task: unknown, index: number): GeneratedTask {
   if (!rawExpectedActions) {
     const actionName =
       typeof candidate['action'] === 'string' ? candidate['action'] :
-      typeof candidate['method'] === 'string' ? candidate['method'] :
       typeof candidate['command'] === 'string' ? candidate['command'] : null;
     if (actionName && actionName.trim()) {
       rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
     }
+  }
+
+  const actionNamesForId = (rawExpectedActions ?? [])
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .map(a => (typeof a['name'] === 'string' ? a['name'].trim() : ''))
+    .filter(Boolean);
+
+  const taskId =
+    actionNamesForId.length > 0 ? stableTaskId(actionNamesForId)
+    : taskPrompt ? stableTaskId([taskPrompt])
+    : `task-${index}`;
+
+  if (!taskPrompt) {
+    // Only reachable if the object has no string values at all.
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
+  }
+
+  if (!rawExpectedActions && knownCapabilityKeys !== undefined) {
+    rawExpectedActions = [];
   }
 
   if (!rawExpectedActions) {
@@ -182,11 +236,16 @@ function validateTask(task: unknown, index: number): GeneratedTask {
 
   const expected_actions = rawExpectedActions.map((action, actionIndex) => validateExpectedAction(taskId, action, actionIndex));
 
+  // Extract capabilityId for prompt-surface tasks. The field is stored as-is here;
+  // grounding validates it against the known capability keys and rejects bad values.
+  const rawCapabilityId = typeof candidate['capabilityId'] === 'string' ? candidate['capabilityId'].trim() : undefined;
+  const capabilityId = knownCapabilityKeys !== undefined && rawCapabilityId ? rawCapabilityId : undefined;
+
   return {
     id: taskId,
     prompt: taskPrompt,
     expected_actions,
-    expected_tools: expected_actions,
+    ...(capabilityId !== undefined ? { capabilityId } : {}),
   };
 }
 
@@ -195,8 +254,8 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] must be an object`);
   }
 
-  const typed = action as { name?: unknown; method?: unknown; args?: unknown };
-  const name = typeof typed.name === 'string' ? typed.name : typeof typed.method === 'string' ? typed.method : null;
+  const typed = action as { name?: unknown; args?: unknown };
+  const name = typeof typed.name === 'string' ? typed.name : null;
   if (!name || name.trim() === '') {
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] must include a non-empty name`);
   }
@@ -205,14 +264,10 @@ function validateExpectedAction(taskId: string, action: unknown, actionIndex: nu
     throw new Error(`Task ${taskId} expected_actions[${actionIndex}] args must be an object when present`);
   }
 
-  const normalized: ExpectedAction = {
+  return {
     name,
-    method: name,
     args: typed.args as Record<string, unknown> | undefined,
   };
-  // Touch helper so transitional action alias stays normalized consistently.
-  getExpectedActionName(normalized);
-  return normalized;
 }
 
 export async function generateCandidateTasksWithCoverage(
@@ -222,6 +277,10 @@ export async function generateCandidateTasksWithCoverage(
   inScopeActions: ActionDefinition[],
   outOfScopeActions: ActionDefinition[] = [],
 ): Promise<{ tasks: GeneratedTask[]; coverage: CoverageReport }> {
+  if (surface.snapshot.surface === 'prompt') {
+    throw new Error('generateCandidateTasksWithCoverage must not be called for prompt surface — use generateCandidateTasks directly');
+  }
+
   // Iteration 1 — existing one-shot prompt
   const firstPass = await generateCandidateTasks(surface, config, deps);
 

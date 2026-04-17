@@ -9,12 +9,12 @@ import { listMockRepoTemplates, materializeMockRepo } from './mock-repos.js';
 function printUsage(): void {
   console.log(`
 Usage:
-  tsx src/optimizer/materialize-mock-repo.ts <sdk-demo|cli-demo|mcp-demo|mcp-tracker-demo> [destination-root]
+  tsx src/optimizer/materialize-mock-repo.ts <mcp-tracker-demo|sdk-counter-demo|cli-taskfile-demo> [destination-root]
 
 Examples:
-  tsx src/optimizer/materialize-mock-repo.ts sdk-demo
-  tsx src/optimizer/materialize-mock-repo.ts cli-demo ./.tmp/mock-repos
   tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo
+  tsx src/optimizer/materialize-mock-repo.ts sdk-counter-demo ./.tmp/mock-repos
+  tsx src/optimizer/materialize-mock-repo.ts cli-taskfile-demo
 `);
 }
 

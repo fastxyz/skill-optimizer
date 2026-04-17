@@ -1,4 +1,5 @@
 import type { BenchmarkReport, BenchmarkSurface, ModelConfig, ModelSummary } from '../benchmark/types.js';
+import type { PiAuthMode } from '../runtime/pi/auth.js';
 
 export type FailureBucketKind = 'missing-tool' | 'bad-args' | 'hallucination' | 'error';
 export type StopReason = 'max-iterations' | 'stable';
@@ -24,7 +25,7 @@ export interface OptimizePolicy {
   mode?: 'stable-surface' | 'surface-changing';
   maxIterations?: number;
   stabilityWindow?: number;
-  minOverallPassDelta?: number;
+  minImprovement?: number;
   taskGeneration?: OptimizeTaskGenerationConfig;
   perModelFloor?: number;
   targetWeightedAverage?: number;
@@ -35,6 +36,7 @@ export interface OptimizeMutationConfig {
   provider: string;
   model: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  authMode?: PiAuthMode;
   apiKeyEnv?: string;
   reportContextMaxBytes?: number;
 }
@@ -63,7 +65,7 @@ export interface ResolvedOptimizeManifest {
     mode: 'stable-surface' | 'surface-changing';
     maxIterations: number;
     stabilityWindow: number;
-    minOverallPassDelta: number;
+    minImprovement: number;
     taskGeneration: {
       enabled: boolean;
       maxGenerated: number;

@@ -3,12 +3,11 @@ import { resolve } from 'node:path';
 import type {
   BenchmarkConfig,
   TaskDefinition,
-  McpToolDefinition,
-  CliCommandDefinition,
   ModelConfig,
   ExpectedAction,
 } from './types.js';
 import { DEFAULT_PROJECT_CONFIG_NAME, loadProjectConfig, toBenchmarkConfig } from '../project/index.js';
+export { loadMcpTools, loadCliCommands } from '../actions/loaders.js';
 
 const DEFAULT_CONFIG_NAME = DEFAULT_PROJECT_CONFIG_NAME;
 const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
@@ -51,9 +50,9 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
     throw new Error(`Failed to read tasks: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
 
-  let parsed: { tasks: Array<TaskDefinition & { expected_tools?: unknown; expected_actions?: unknown }> };
+  let parsed: { tasks: Array<{ id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown; capabilityId?: unknown }> };
   try {
-    parsed = JSON.parse(raw) as { tasks: TaskDefinition[] };
+    parsed = JSON.parse(raw) as typeof parsed;
   } catch (err) {
     throw new Error(`Invalid JSON in tasks file: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
@@ -66,7 +65,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
 }
 
 function normalizeTaskDefinition(
-  task: TaskDefinition & { expected_tools?: unknown; expected_actions?: unknown },
+  task: { id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown; capabilityId?: unknown },
   resolvedPath: string,
   index: number,
 ): TaskDefinition {
@@ -80,11 +79,7 @@ function normalizeTaskDefinition(
     throw new Error(`Tasks file ${resolvedPath}: task ${task.id} must include a non-empty string prompt`);
   }
 
-  const rawExpectedActions = Array.isArray(task.expected_actions)
-    ? task.expected_actions
-    : Array.isArray(task.expected_tools)
-      ? task.expected_tools
-      : null;
+  const rawExpectedActions = Array.isArray(task.expected_actions) ? task.expected_actions : null;
 
   if (!rawExpectedActions) {
     throw new Error(`Tasks file ${resolvedPath}: task at index ${index} must include an expected_actions array`);
@@ -92,13 +87,33 @@ function normalizeTaskDefinition(
 
   const expected_actions = rawExpectedActions.map((rawAction, actionIndex) => normalizeExpectedAction(rawAction, resolvedPath, index, actionIndex));
 
+  const rawVerify = Array.isArray(task.verify) ? task.verify : undefined;
+  if (rawVerify !== undefined) {
+    for (let i = 0; i < rawVerify.length; i++) {
+      if (!rawVerify[i] || typeof rawVerify[i] !== 'object') {
+        throw new Error(`Tasks file ${resolvedPath}: task ${task.id} verify[${i}] must be an object`);
+      }
+    }
+  }
+
+  const rawFetches = Array.isArray(task.expected_fetches) ? task.expected_fetches : undefined;
+  if (rawFetches !== undefined) {
+    for (let i = 0; i < rawFetches.length; i++) {
+      if (typeof rawFetches[i] !== 'string' || !(rawFetches[i] as string).trim()) {
+        throw new Error(`Tasks file ${resolvedPath}: task ${task.id} expected_fetches[${i}] must be a non-empty string`);
+      }
+    }
+  }
+
+  const capabilityId = typeof task.capabilityId === 'string' ? task.capabilityId : undefined;
+
   return {
     id: task.id,
     prompt: task.prompt,
     expected_actions,
-    expected_tools: expected_actions,
-    verify: task.verify,
-    expected_fetches: task.expected_fetches,
+    verify: rawVerify as TaskDefinition['verify'] | undefined,
+    expected_fetches: rawFetches as string[] | undefined,
+    ...(capabilityId !== undefined ? { capabilityId } : {}),
   };
 }
 
@@ -112,12 +127,8 @@ function normalizeExpectedAction(
     throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must be an object`);
   }
 
-  const candidate = rawAction as { name?: unknown; method?: unknown; args?: unknown };
-  const name = typeof candidate.name === 'string'
-    ? candidate.name
-    : typeof candidate.method === 'string'
-      ? candidate.method
-      : null;
+  const candidate = rawAction as { name?: unknown; args?: unknown };
+  const name = typeof candidate.name === 'string' ? candidate.name : null;
 
   if (!name || name.trim() === '') {
     throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must include a non-empty name`);
@@ -129,88 +140,8 @@ function normalizeExpectedAction(
 
   return {
     name,
-    method: name,
     args: (candidate.args as Record<string, unknown> | undefined) ?? {},
   };
-}
-
-/**
- * Load MCP tool definitions from the tools.json path specified in config.
- */
-export function loadMcpTools(toolsPath: string, baseDir?: string): McpToolDefinition[] {
-  const resolved = resolve(baseDir ?? process.cwd(), toolsPath);
-  if (!existsSync(resolved)) {
-    throw new Error(`MCP tools file not found: ${resolved}`);
-  }
-
-  let raw: string;
-  try {
-    raw = readFileSync(resolved, 'utf-8');
-  } catch (err) {
-    throw new Error(`Failed to read MCP tools: ${resolved}: ${err instanceof Error ? err.message : err}`);
-  }
-
-  let tools: McpToolDefinition[];
-  try {
-    tools = JSON.parse(raw) as McpToolDefinition[];
-  } catch (err) {
-    throw new Error(`Invalid JSON in MCP tools file: ${resolved}: ${err instanceof Error ? err.message : err}`);
-  }
-
-  if (!Array.isArray(tools)) {
-    throw new Error(`MCP tools file ${resolved}: must be a JSON array of tool definitions`);
-  }
-
-  return tools;
-}
-
-/**
- * Load CLI command definitions from the commands.json path specified in config.
- */
-export function loadCliCommands(commandsPath: string, baseDir?: string): CliCommandDefinition[] {
-  const resolved = resolve(baseDir ?? process.cwd(), commandsPath);
-  if (!existsSync(resolved)) {
-    throw new Error(`CLI commands file not found: ${resolved}`);
-  }
-
-  let raw: string;
-  try {
-    raw = readFileSync(resolved, 'utf-8');
-  } catch (err) {
-    throw new Error(`Failed to read CLI commands: ${resolved}: ${err instanceof Error ? err.message : err}`);
-  }
-
-  let commands: CliCommandDefinition[];
-  try {
-    commands = JSON.parse(raw) as CliCommandDefinition[];
-  } catch (err) {
-    throw new Error(`Invalid JSON in CLI commands file: ${resolved}: ${err instanceof Error ? err.message : err}`);
-  }
-
-  if (!Array.isArray(commands)) {
-    throw new Error(`CLI commands file ${resolved}: must be a JSON array of command definitions`);
-  }
-
-  for (const [index, command] of commands.entries()) {
-    if (!command || typeof command !== 'object') {
-      throw new Error(`CLI commands file ${resolved}: entry ${index} must be an object`);
-    }
-    if (typeof command.command !== 'string' || command.command.trim() === '') {
-      throw new Error(`CLI commands file ${resolved}: entry ${index} must include a non-empty "command" string`);
-    }
-    if (command.options !== undefined && !Array.isArray(command.options)) {
-      throw new Error(`CLI commands file ${resolved}: entry ${index} options must be an array when present`);
-    }
-    if (Array.isArray(command.options)) {
-      for (const [optionIndex, option] of command.options.entries()) {
-        if (!option || typeof option !== 'object' || typeof option.name !== 'string' || option.name.trim() === '') {
-          throw new Error(`CLI commands file ${resolved}: entry ${index} option ${optionIndex} must include a non-empty "name" string`);
-        }
-      }
-    }
-  }
-
-  return commands;
 }
 
 /**

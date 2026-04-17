@@ -1,17 +1,47 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { resolve, isAbsolute } from 'node:path';
 
 import type { SurfaceSnapshot } from './types.js';
 import type { ResolvedProjectConfig } from './types.js';
 import type { McpToolDefinition } from '../benchmark/types.js';
 import { discoverActions } from '../actions/discover.js';
 import { loadActionSnapshotFile, toSurfaceSnapshot } from '../actions/snapshot.js';
+import { discoverPromptCapabilities } from './discover-prompt.js';
 
 export function buildSurfaceSnapshot(project: ResolvedProjectConfig): SurfaceSnapshot {
   if (project.benchmark.surfaceSnapshot) {
     return loadSurfaceSnapshotFile(project.benchmark.surfaceSnapshot);
   }
 
+  if (project.target.surface === 'prompt') {
+    return buildPromptSurfaceSnapshot(project);
+  }
+
   return toSurfaceSnapshot(discoverActions(project));
+}
+
+function buildPromptSurfaceSnapshot(project: ResolvedProjectConfig): SurfaceSnapshot {
+  const skillSource = project.target.skill?.source;
+  if (!skillSource) {
+    throw new Error('Prompt surface requires target.skill to point at a markdown skill file');
+  }
+
+  const absPath = isAbsolute(skillSource) ? skillSource : resolve(project.configDir, skillSource);
+  if (!existsSync(absPath)) {
+    throw new Error(`Prompt skill file not found: ${absPath}`);
+  }
+
+  const content = readFileSync(absPath, 'utf-8');
+  const actions = discoverPromptCapabilities(content);
+
+  if (actions.length === 0) {
+    throw new Error(`Prompt discovery found 0 capabilities in ${absPath}`);
+  }
+
+  return {
+    surface: 'prompt',
+    actions: actions.map(({ key: _key, ...rest }) => rest),
+  };
 }
 
 function normalizeCliArgName(name: string): string {
@@ -27,30 +57,25 @@ export function loadSurfaceSnapshotFile(snapshotPath: string): SurfaceSnapshot {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
-  } catch (error: any) {
-    throw new Error(`Invalid surface snapshot file: ${snapshotPath} (invalid JSON: ${error.message})`);
+  } catch (error) {
+    throw new Error(`Invalid surface snapshot file: ${snapshotPath} (invalid JSON: ${error instanceof Error ? error.message : String(error)})`);
   }
 
-  if (isLegacySurfaceSnapshot(parsed)) {
-    return normalizeCliArgs(parsed);
+  if (!isActionSnapshotArtifactShape(parsed)) {
+    if (
+      parsed
+      && typeof parsed === 'object'
+      && 'surface' in parsed
+      && 'actions' in parsed
+    ) {
+      throw new Error(
+        `Snapshot file format is not supported: ${snapshotPath} — delete .skill-optimizer/ and re-run the benchmark to regenerate.`,
+      );
+    }
+    throw new Error(`Invalid surface snapshot file: ${snapshotPath}`);
   }
 
-  if (isActionSnapshotArtifactShape(parsed)) {
-    return normalizeCliArgs(toSurfaceSnapshot(loadActionSnapshotFile(snapshotPath).catalog));
-  }
-
-  throw new Error(`Invalid surface snapshot file: ${snapshotPath}`);
-}
-
-function isLegacySurfaceSnapshot(value: unknown): value is SurfaceSnapshot {
-  return Boolean(
-    value
-      && typeof value === 'object'
-      && 'surface' in value
-      && 'actions' in value
-      && Array.isArray((value as { actions?: unknown }).actions)
-      && ['sdk', 'cli', 'mcp'].includes(String((value as { surface?: unknown }).surface)),
-  );
+  return normalizeCliArgs(toSurfaceSnapshot(loadActionSnapshotFile(snapshotPath).catalog));
 }
 
 function isActionSnapshotArtifactShape(value: unknown): value is { version: number; catalog: { surface: string; actions: unknown[] } } {
@@ -69,7 +94,7 @@ function isActionSnapshotArtifactShape(value: unknown): value is { version: numb
   return typeof candidate.version === 'number'
     && Boolean(candidate.catalog)
     && typeof candidate.catalog === 'object'
-    && ['sdk', 'cli', 'mcp'].includes(String(candidate.catalog.surface))
+    && ['sdk', 'cli', 'mcp', 'prompt'].includes(String(candidate.catalog.surface))
     && Array.isArray(candidate.catalog.actions);
 }
 
@@ -106,6 +131,7 @@ export function buildMcpToolDefinitionsFromSnapshot(snapshot: SurfaceSnapshot): 
           action.args.map((arg) => [
             arg.name,
             {
+              ...(arg.schema ?? {}),
               ...(arg.type ? { type: arg.type } : {}),
               ...(arg.description ? { description: arg.description } : {}),
             },

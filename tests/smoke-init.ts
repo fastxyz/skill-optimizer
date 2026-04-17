@@ -176,8 +176,11 @@ assert.strictEqual(typeof _a.surface, 'string');
 // MODEL_PRESETS count check
 {
   const { MODEL_PRESETS } = await import('../src/init/wizard.js');
-  assert.strictEqual(MODEL_PRESETS.length, 20, `Expected 20 presets, got ${MODEL_PRESETS.length}`);
-  assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets should be openrouter/ IDs');
+  assert.strictEqual(MODEL_PRESETS.length, 23, `Expected 23 presets, got ${MODEL_PRESETS.length}`);
+  // openrouter/ IDs use slugs from the OpenRouter catalog verbatim — dots in version segments
+  // are valid and must not be rewritten to hyphens. validate.ts exempts openrouter/ from the
+  // 'model-id-bad-format' check.
+  assert.ok(MODEL_PRESETS.every(p => p.value.startsWith('openrouter/')), 'All presets must be openrouter/ IDs');
 }
 
 // detectProject: TypeScript SDK (package.json with main, no bin)

@@ -4,7 +4,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import type { ProjectConfig } from './types.js';
-import { isSdkLanguage } from './types.js';
+import { isSdkLanguage, parseModelRef } from './types.js';
+import { resolveApiKey } from '../runtime/pi/auth.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -44,8 +45,8 @@ export async function checkConfig(
 
   const { target, benchmark, optimize } = cfg;
 
-  if (target.surface !== 'sdk' && target.surface !== 'cli' && target.surface !== 'mcp') {
-    err('invalid-surface', 'target.surface', '"target.surface" must be sdk, cli, or mcp');
+  if (target.surface !== 'sdk' && target.surface !== 'cli' && target.surface !== 'mcp' && target.surface !== 'prompt') {
+    err('invalid-surface', 'target.surface', '"target.surface" must be sdk, cli, mcp, or prompt');
   }
 
   if (target.skill !== undefined) {
@@ -108,6 +109,12 @@ export async function checkConfig(
     }
   }
 
+  if (target.surface === 'prompt') {
+    if (target.skill === undefined) {
+      err('missing-prompt-skill', 'target.skill', 'Prompt targets require target.skill (path to the markdown file)');
+    }
+  }
+
   if (target.discovery) {
     if (target.discovery.mode && target.discovery.mode !== 'auto' && target.discovery.mode !== 'manifest') {
       err('invalid-discovery-mode', 'target.discovery.mode', '"target.discovery.mode" must be auto or manifest');
@@ -134,9 +141,27 @@ export async function checkConfig(
       }
     }
 
-    for (const model of benchmark.models) {
+    for (const [i, model] of benchmark.models.entries()) {
       if (model.weight !== undefined && (!Number.isFinite(model.weight) || model.weight < 0)) {
-        err('invalid-model-weight', `benchmark.models[${model.id}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
+        err('invalid-model-weight', `benchmark.models[${i}].weight`, `model "${model.id}" has invalid weight; must be a non-negative number`);
+      }
+    }
+
+    if (benchmark.authMode === 'codex') {
+      for (const [i, model] of benchmark.models.entries()) {
+        try {
+          const { provider } = parseModelRef(model.id);
+          if (provider !== 'openai') {
+            err(
+              'codex-auth-provider-mismatch',
+              `benchmark.models[${i}].id`,
+              `benchmark.authMode="codex" only supports openai/* models, but found "${model.id}"`,
+              'Use openai/* model IDs with codex auth, or switch benchmark.authMode to "env" / "auto"',
+            );
+          }
+        } catch {
+          // model-id format issues are reported separately
+        }
       }
     }
   }
@@ -160,7 +185,33 @@ export async function checkConfig(
     err('invalid-format', 'benchmark.format', '"benchmark.format" must be pi, openai, or anthropic');
   }
 
-  if (!benchmark.taskGeneration?.enabled && !benchmark.tasks) {
+  // Check: format/model prefix compatibility — openai format requires openai/ prefix, anthropic format requires anthropic/
+  if (benchmark.format === 'openai' || benchmark.format === 'anthropic') {
+    const requiredPrefix = `${benchmark.format}/`;
+    if (Array.isArray(benchmark.models)) {
+      for (let i = 0; i < benchmark.models.length; i++) {
+        const model = benchmark.models[i]!;
+        if (model.id && !model.id.startsWith(requiredPrefix)) {
+          issues.push({
+            code: 'format-model-prefix-mismatch', severity: 'error', field: `benchmark.models[${i}].id`,
+            message: `model ID "${model.id}" does not match format "${benchmark.format}" — expected prefix "${requiredPrefix}"`,
+            hint: `Change model ID to start with "${requiredPrefix}" or change benchmark.format to match your model provider`,
+            fixable: false,
+          });
+        }
+      }
+    }
+    if (optimize?.model && !optimize.model.startsWith(requiredPrefix)) {
+      issues.push({
+        code: 'format-model-prefix-mismatch', severity: 'error', field: 'optimize.model',
+        message: `optimize.model "${optimize.model}" does not match format "${benchmark.format}" — expected prefix "${requiredPrefix}"`,
+        hint: `Change optimize.model to start with "${requiredPrefix}" or change benchmark.format to match your model provider`,
+        fixable: false,
+      });
+    }
+  }
+
+  if (benchmark.taskGeneration?.enabled !== true && !benchmark.tasks) {
     err('missing-tasks', 'benchmark.tasks', '"benchmark.tasks" is required when task generation is disabled');
   }
 
@@ -203,6 +254,27 @@ export async function checkConfig(
 
     if (optimize.requireCleanGit === false) {
       err('require-clean-git-disabled', 'optimize.requireCleanGit', '"optimize.requireCleanGit" must remain true in v1');
+    }
+
+    const effectiveOptimizeAuthMode = optimize.authMode ?? benchmark.authMode;
+    if (effectiveOptimizeAuthMode === 'codex') {
+      const optimizeModelRef = optimize.model
+        ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
+      if (typeof optimizeModelRef === 'string') {
+        try {
+          const { provider } = parseModelRef(optimizeModelRef);
+          if (provider !== 'openai') {
+            err(
+              'codex-auth-provider-mismatch',
+              'optimize.model',
+              `optimize.authMode="codex" only supports openai/* models, but found "${optimizeModelRef}"`,
+              'Use an openai/* optimize.model with codex auth, or switch optimize.authMode to "env" / "auto"',
+            );
+          }
+        } catch {
+          // model-id format issues are reported separately
+        }
+      }
     }
   }
 
@@ -295,11 +367,14 @@ export async function checkConfig(
         });
       }
 
-      if (/\d+\.\d+/.test(model.id)) {
+      // OpenAI's own API uses dots in some model slugs (e.g. gpt-4.5), so skip the
+      // dot check for openai/ IDs. OpenRouter model slugs come from the provider's
+      // own catalog and are passed verbatim to OpenRouter — don't rewrite them either.
+      if (!model.id.startsWith('openai/') && !model.id.startsWith('openrouter/') && /\d+\.\d+/.test(model.id)) {
         const corrected = model.id.replace(/(\d+)\.(\d+)/g, '$1-$2');
         issues.push({
           code: 'model-id-bad-format', severity: 'warning', field: `benchmark.models[${i}].id`,
-          message: `model ID "${model.id}" uses dots in version segment — OpenRouter expects hyphens`,
+          message: `model ID "${model.id}" uses dots in version segment — use hyphens instead`,
           hint: `Change to: ${corrected}`,
           fixable: true,
         });
@@ -323,20 +398,63 @@ export async function checkConfig(
     }
   }
 
-  // Check: API key env var
-  const apiKeyEnv = benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY';
-  if (!process.env[apiKeyEnv]) {
+  // Check: API key env var / Codex auth
+  const authMode = benchmark.authMode ?? 'env';
+  function warnMissingApiKey(provider: string, effectiveAuthMode: typeof authMode, apiKeyEnv: string | undefined, fieldPrefix: 'benchmark' | 'optimize'): void {
+    const defaultEnvName = apiKeyEnv
+      ?? (provider === 'openai' ? 'OPENAI_API_KEY'
+        : provider === 'anthropic' ? 'ANTHROPIC_API_KEY'
+        : 'OPENROUTER_API_KEY');
+    const hint = effectiveAuthMode === 'codex'
+      ? `Sign in with Codex so ~/.codex/auth.json contains a browser-login access token or OPENAI_API_KEY, or switch ${fieldPrefix}.authMode to "env"`
+      : effectiveAuthMode === 'auto' && provider === 'openai'
+        ? `Run: export ${defaultEnvName}=... or sign in with Codex`
+        : `Run: export ${defaultEnvName}=...`;
     issues.push({
-      code: 'api-key-not-set', severity: 'warning', field: 'benchmark.apiKeyEnv',
-      message: `env var "${apiKeyEnv}" is not set`,
-      hint: `Run: export ${apiKeyEnv}=sk-or-...`,
+      code: 'api-key-not-set', severity: 'warning',
+      field: effectiveAuthMode === 'codex' ? `${fieldPrefix}.authMode` : `${fieldPrefix}.apiKeyEnv`,
+      message: effectiveAuthMode === 'codex'
+        ? 'Codex auth is enabled but no usable browser-login access token or OPENAI_API_KEY was found in ~/.codex/auth.json'
+        : `No API key was found for authMode "${effectiveAuthMode}"`,
+      hint,
       fixable: false,
     });
   }
 
-  // Check: dirty git (injection-safe: fixed arg array, no shell)
-  // Skipped when called from within the optimizer benchmark loop — the loop manages
-  // git state itself via ensureReady (run once before the loop starts).
+  if (benchmark.format === 'openai' || benchmark.format === 'anthropic') {
+    // Single direct-API provider — one credential to check
+    const benchmarkProvider = benchmark.format === 'openai' ? 'openai' : 'anthropic';
+    const apiKey = resolveApiKey({ provider: benchmarkProvider, authMode, apiKeyEnv: benchmark.apiKeyEnv });
+    if (!apiKey) warnMissingApiKey(benchmarkProvider, authMode, benchmark.apiKeyEnv, 'benchmark');
+  } else {
+    // Pi format: each model may route through a different provider — check all unique ones
+    const modelList = Array.isArray(benchmark.models) ? benchmark.models : [];
+    const providers = Array.from(new Set(
+      modelList.length > 0
+        ? modelList.map(m => String(m.id ?? '').split('/')[0] || 'openrouter')
+        : ['openrouter'],
+    ));
+    for (const provider of providers) {
+      const apiKey = resolveApiKey({ provider, authMode, apiKeyEnv: benchmark.apiKeyEnv });
+      if (!apiKey) warnMissingApiKey(provider, authMode, benchmark.apiKeyEnv, 'benchmark');
+    }
+  }
+
+  // Check: optimize API key env var / Codex auth (skip when optimization is disabled)
+  if (optimize !== undefined && optimize.enabled !== false) {
+    const optimizeAuthMode = optimize.authMode ?? benchmark.authMode ?? 'env';
+    const optimizeModelRef = optimize.model
+      ?? (Array.isArray(benchmark.models) && benchmark.models.length > 0 ? benchmark.models[0]!.id : undefined);
+    const optimizeProvider = typeof optimizeModelRef === 'string'
+      ? (optimizeModelRef.split('/')[0] || 'openrouter')
+      : 'openrouter';
+    const optimizeApiKeyEnv = optimize.apiKeyEnv ?? benchmark.apiKeyEnv;
+    const optimizeApiKey = resolveApiKey({ provider: optimizeProvider, authMode: optimizeAuthMode, apiKeyEnv: optimizeApiKeyEnv });
+    if (!optimizeApiKey) warnMissingApiKey(optimizeProvider, optimizeAuthMode, optimizeApiKeyEnv, 'optimize');
+  }
+
+  // Check: dirty git (uses a fixed arg array, not a shell string, to prevent injection)
+  // Skipped inside the optimizer loop — the loop manages git state itself via ensureReady.
   if (!opts?.skipDirtyGitCheck && optimize !== undefined && optimize.requireCleanGit !== false && target.repoPath) {
     const absRepo = isAbsolute(target.repoPath) ? target.repoPath : resolve(configDir, target.repoPath);
     if (existsSync(absRepo)) {
@@ -363,27 +481,6 @@ export async function checkConfig(
         // Not a git repo or git unavailable — skip silently
       }
     }
-  }
-
-  // Check: deprecated benchmark.tasks field
-  if (benchmark.tasks !== undefined && benchmark.taskGeneration?.enabled === true) {
-    issues.push({
-      code: 'deprecated-tasks-field', severity: 'warning', field: 'benchmark.tasks',
-      message: '"benchmark.tasks" is set but task generation is enabled — the tasks field is deprecated',
-      hint: `Remove "tasks" from benchmark — task generation replaces it`,
-      fixable: true,
-    });
-  }
-
-  // Check: legacy skill-benchmark.json alongside skill-optimizer.json
-  const legacyPath = resolve(dirname(_configPath), 'skill-benchmark.json');
-  if (existsSync(legacyPath)) {
-    issues.push({
-      code: 'legacy-config-name', severity: 'warning', field: '(config file)',
-      message: `Found legacy "skill-benchmark.json" alongside "skill-optimizer.json"`,
-      hint: `Delete skill-benchmark.json — it is no longer used`,
-      fixable: false,
-    });
   }
 
   return issues;

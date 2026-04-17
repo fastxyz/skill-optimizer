@@ -1,8 +1,8 @@
 import type { ExtractedCall, BenchmarkConfig, LLMResponse } from '../types.js';
-import { extractCodeBlock, extractSdkCodeBlock } from './code-extractor.js';
+import { extractSdkCodeBlock } from './code-extractor.js';
 import { extractFromCliMarkdown, extractShellBlock } from './cli-extractor.js';
 import { extractFromToolCalls } from './mcp-extractor.js';
-import { extractSdkFromCode, getSdkAdapter } from './sdk/registry.js';
+import { extractSdkFromCode } from './sdk/registry.js';
 
 /**
  * Extract SDK/tool calls from an LLM response based on the configured surface.
@@ -16,7 +16,7 @@ export async function extract(
   config: BenchmarkConfig,
 ): Promise<{ calls: ExtractedCall[]; generatedCode: string | null; bindings?: Map<string, string> }> {
   const extended = config as BenchmarkConfig & {
-    surface?: 'sdk' | 'cli' | 'mcp';
+    surface?: 'sdk' | 'cli' | 'mcp' | 'prompt';
     mode?: 'code' | 'mcp';
     sdk?: unknown;
     cli?: { commandDefinitions?: Array<{ command: string }> };
@@ -27,6 +27,11 @@ export async function extract(
   const knownCommands = Array.isArray(extended.cli?.commandDefinitions)
     ? extended.cli.commandDefinitions.map((definition) => definition.command)
     : undefined;
+
+  if (surface === 'prompt') {
+    // Prompt surface: no extraction — response is plain text, not tool calls or code.
+    return { calls: [], generatedCode: null };
+  }
 
   if (surface === 'mcp' || extended.mode === 'mcp') {
     const calls = extractFromToolCalls(response);
@@ -51,10 +56,3 @@ export async function extract(
   const { calls, bindings } = await extractSdkFromCode(generatedCode, sdkConfig.language);
   return { calls, generatedCode, bindings };
 }
-
-// Re-export for direct access
-export { extractCodeBlock, extractSdkCodeBlock } from './code-extractor.js';
-export { extractShellBlock, extractFromCliMarkdown, parseShellCommands } from './cli-extractor.js';
-export { extractFromCode } from './code-analyzer.js';
-export { extractFromToolCalls } from './mcp-extractor.js';
-export { extractSdkFromCode, getSdkAdapter } from './sdk/registry.js';

@@ -10,7 +10,7 @@ import type {
   SdkSurfaceConfig,
   SkillConfig,
 } from '../benchmark/types.js';
-import type { ActionArgSchema, ActionCatalog, ActionDefinition } from '../actions/types.js';
+import type { ActionCatalog, ActionDefinition } from '../actions/types.js';
 
 export interface ProjectTaskGenerationConfig {
   enabled?: boolean;
@@ -52,6 +52,7 @@ export interface ProjectBenchmarkVerdictConfig {
 export interface ProjectBenchmarkConfig {
   format?: LLMConfig['format'];
   baseUrl?: string;
+  authMode?: LLMConfig['authMode'];
   apiKeyEnv?: string;
   timeout?: number;
   headers?: Record<string, string>;
@@ -68,6 +69,7 @@ export interface ProjectOptimizeConfig {
   enabled?: boolean;
   mode?: 'stable-surface' | 'surface-changing';
   model?: string;
+  authMode?: LLMConfig['authMode'];
   apiKeyEnv?: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   allowedPaths?: string[];
@@ -114,6 +116,7 @@ export interface ResolvedProjectTargetConfig {
 export interface ResolvedProjectBenchmarkConfig {
   format: LLMConfig['format'];
   baseUrl?: string;
+  authMode: NonNullable<LLMConfig['authMode']>;
   apiKeyEnv?: string;
   timeout: number;
   headers?: Record<string, string>;
@@ -130,6 +133,7 @@ export interface ResolvedProjectOptimizeConfig {
   enabled: boolean;
   mode: 'stable-surface' | 'surface-changing';
   model: string;
+  authMode: NonNullable<LLMConfig['authMode']>;
   apiKeyEnv?: string;
   thinkingLevel: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   allowedPaths: string[];
@@ -149,8 +153,6 @@ export interface ResolvedProjectConfig {
   benchmark: ResolvedProjectBenchmarkConfig;
   optimize?: ResolvedProjectOptimizeConfig;
 }
-
-export type SurfaceSnapshotArg = ActionArgSchema;
 
 export type SurfaceSnapshotAction = Omit<ActionDefinition, 'key'>;
 

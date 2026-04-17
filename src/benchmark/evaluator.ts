@@ -1,7 +1,7 @@
 import type {
-  ExpectedTool,
+  ExpectedAction,
   ExtractedCall,
-  ToolMatch,
+  ActionMatch,
   TaskDefinition,
   TaskResult,
   ModelConfig,
@@ -168,19 +168,19 @@ function matchExpectedValue(
 // ── Tool matching ──────────────────────────────────────────────────────────
 
 /**
- * Match extracted calls against expected tools.
- * Returns ToolMatch[] with match details.
+ * Match extracted calls against expected actions.
+ * Returns ActionMatch[] with match details.
  *
- * Each extracted call can only be matched to ONE expected tool (greedy, first match wins).
+ * Each extracted call can only be matched to ONE expected action (greedy, first match wins).
  */
-export function matchTools(
-  expectedTools: ExpectedTool[],
+export function matchActions(
+  expectedActions: ExpectedAction[],
   extractedCalls: ExtractedCall[],
-): ToolMatch[] {
+): ActionMatch[] {
   // Track which extracted call indices have already been consumed
   const usedIndices = new Set<number>();
 
-  return expectedTools.map((expected) => {
+  return expectedActions.map((expected) => {
     const expectedMethod = getExpectedActionName(expected);
     // If there are args to check, try to find a perfect match (method + args) first.
     // Otherwise, find the first unused extracted call that matches the method name.
@@ -222,7 +222,7 @@ export function matchTools(
           argsCorrect: true,
           matched: true,
           argResults,
-        } satisfies ToolMatch;
+        } satisfies ActionMatch;
       }
 
       // Pass 2: no perfect match — fall back to the first method-name match.
@@ -244,7 +244,7 @@ export function matchTools(
           methodFound: false,
           argsCorrect: false,
           matched: false,
-        } satisfies ToolMatch;
+        } satisfies ActionMatch;
       }
 
       // Consume the fallback index so it can't be re-matched
@@ -264,7 +264,7 @@ export function matchTools(
         argsCorrect: allArgsMatch,
         matched: allArgsMatch,
         argResults,
-      } satisfies ToolMatch;
+      } satisfies ActionMatch;
     }
 
     // No args to check — find the first unused extracted call matching the method name.
@@ -285,7 +285,7 @@ export function matchTools(
         methodFound: false,
         argsCorrect: false,
         matched: false,
-      } satisfies ToolMatch;
+      } satisfies ActionMatch;
     }
 
     // No args to check — method match is sufficient
@@ -296,7 +296,7 @@ export function matchTools(
       methodFound: true,
       argsCorrect: true,
       matched: true,
-    } satisfies ToolMatch;
+    } satisfies ActionMatch;
   });
 }
 
@@ -316,7 +316,7 @@ export function matchTools(
 function resolveCallsFromBindings(
   extractedCalls: ExtractedCall[],
   bindings: Map<string, string>,
-  expectedTools: ExpectedTool[],
+  expectedTools: ExpectedAction[],
 ): ExtractedCall[] {
   // 1. Collect type prefixes from expected tools.
   const expectedPrefixes = new Set<string>();
@@ -418,7 +418,7 @@ export function evaluateTask(params: {
   error?: string;
   knownMethods: Set<string>;
   bindings?: Map<string, string>;  // variable → source function/class from extractor
-  surface: 'sdk' | 'cli' | 'mcp';
+  surface: 'sdk' | 'cli' | 'mcp' | 'prompt';
 }): TaskResult {
   const {
     task,
@@ -433,17 +433,14 @@ export function evaluateTask(params: {
     surface,
   } = params;
 
-  // ── Resolve raw calls if bindings provided ──
   let extractedCalls = params.extractedCalls;
   const expectedActions = getExpectedActions(task);
   if (bindings && bindings.size > 0) {
     extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, expectedActions);
   }
 
-  // ── Tool matching ──
-  const toolMatches = matchTools(expectedActions, extractedCalls);
+  const actionMatches = matchActions(expectedActions, extractedCalls);
 
-  // ── Code pattern checks ──
   const codePatternResults: Record<string, boolean> = {};
   let allCodePatternsPass = true;
 
@@ -463,7 +460,6 @@ export function evaluateTask(params: {
       }
     }
   } else if (task.verify) {
-    // generatedCode is null — any code_pattern check fails
     for (const verification of task.verify) {
       if (verification.code_pattern) {
         codePatternResults[verification.code_pattern] = false;
@@ -472,37 +468,32 @@ export function evaluateTask(params: {
     }
   }
 
-  // ── Metrics ──
   const expectedCount = expectedActions.length;
-  const matchedCount = toolMatches.filter((m) => m.matched).length;
+  const matchedCount = actionMatches.filter((m) => m.matched).length;
 
-  // Recall: matched / expected. If 0 expected, recall = 1.0
+  // recall = matched / expected; 1.0 when there are no expectations
   const toolRecall = expectedCount === 0 ? 1.0 : matchedCount / expectedCount;
 
-  // Precision: matched / total known calls extracted. If 0 extracted known calls, precision = 0.0
+  // precision = matched / known calls extracted; 0.0 when nothing was extracted
   const knownCallCount = extractedCalls.filter((c) => knownMethods.has(c.method)).length;
   const toolPrecision = knownCallCount === 0 ? 0.0 : matchedCount / knownCallCount;
 
-  // Task passes if all expected tools matched AND all code_pattern checks passed
   const hasCodePatterns = Object.keys(codePatternResults).length > 0;
   const taskPassed =
     matchedCount === expectedCount &&
     (expectedCount > 0 || matchedCount === 0) &&
     (!hasCodePatterns || allCodePatternsPass);
 
-  // Tool selection accuracy: how many expected methods were found (ignoring args)?
-  const methodsFoundCount = toolMatches.filter(m => m.methodFound).length;
+  const methodsFoundCount = actionMatches.filter(m => m.methodFound).length;
   const toolSelectionAccuracy = expectedCount === 0 ? 1.0 : methodsFoundCount / expectedCount;
 
-  // Arg accuracy: of methods found, how many had correct args?
   const argAccuracy = methodsFoundCount === 0 ? 1.0
-    : toolMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
+    : actionMatches.filter(m => m.methodFound && m.argsCorrect).length / methodsFoundCount;
 
-  // Surface-aware hallucination tracking
   const allExtractedMethods = extractedCalls.map(c => c.method);
   const expectedMethods = new Set(expectedActions.map((action) => getExpectedActionName(action)));
 
-  // Derive SDK prefixes from knownMethods
+  // Collect known class/type prefixes for SDK hallucination filtering (e.g. "FastClient" from "FastClient.setup")
   const sdkPrefixes = new Set<string>();
   for (const m of knownMethods) {
     if (m.includes('.')) {
@@ -510,12 +501,11 @@ export function evaluateTask(params: {
     }
   }
 
-  // Unnecessary: valid SDK methods that weren't expected for this task
-  const unnecessaryCalls = allExtractedMethods.filter(
+  const unnecessaryActions = allExtractedMethods.filter(
     m => knownMethods.has(m) && !expectedMethods.has(m)
   );
 
-  const hallucinatedCalls = allExtractedMethods.filter(m => {
+  const hallucinatedActions = allExtractedMethods.filter(m => {
     if (knownMethods.has(m)) return false;
 
     if (surface === 'sdk') {
@@ -532,7 +522,7 @@ export function evaluateTask(params: {
   });
 
   const hallucinationRate = extractedCalls.length === 0 ? 0
-    : hallucinatedCalls.length / extractedCalls.length;
+    : hallucinatedActions.length / extractedCalls.length;
 
   return {
     task,
@@ -540,8 +530,7 @@ export function evaluateTask(params: {
     generatedCode,
     rawResponse,
     extractedCalls,
-    actionMatches: toolMatches,
-    toolMatches,
+    actionMatches,
     codePatternResults: hasCodePatterns ? codePatternResults : undefined,
     metrics: {
       toolPrecision,
@@ -549,10 +538,8 @@ export function evaluateTask(params: {
       taskPassed,
       toolSelectionAccuracy,
       argAccuracy,
-      unnecessaryActions: unnecessaryCalls,
-      unnecessaryCalls,
-      hallucinatedActions: hallucinatedCalls,
-      hallucinatedCalls,
+      unnecessaryActions,
+      hallucinatedActions,
       hallucinationRate,
     },
     llmLatencyMs,

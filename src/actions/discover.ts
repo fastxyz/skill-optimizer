@@ -1,4 +1,4 @@
-import { loadCliCommands, loadMcpTools } from '../benchmark/config.js';
+import { loadCliCommands, loadMcpTools } from './loaders.js';
 import type { ResolvedProjectConfig } from '../project/types.js';
 import type { ActionCatalog } from './types.js';
 import { readCliActionsFromSources } from './readers/cli.js';
@@ -95,6 +95,9 @@ export function discoverActions(project: ResolvedProjectConfig): ActionCatalog {
         required: (tool.function.parameters?.required ?? []).includes(name),
         type: typeof schema === 'object' && schema && 'type' in schema ? String((schema as { type?: unknown }).type ?? '') || undefined : undefined,
         description: typeof schema === 'object' && schema && 'description' in schema ? String((schema as { description?: unknown }).description ?? '') || undefined : undefined,
+        schema: typeof schema === 'object' && schema && !Array.isArray(schema)
+          ? schema as Record<string, unknown>
+          : undefined,
       })),
       source: 'mcp.tools',
     })),

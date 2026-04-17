@@ -1,6 +1,7 @@
 import type { ResolvedProjectConfig } from '../project/types.js';
 import type { Issue } from '../project/validate.js';
 import { discoverActionsOnly, resolveScope } from '../tasks/index.js';
+import { requireConfiguredApiKey } from '../runtime/pi/index.js';
 
 /**
  * Tier-2: discover actions and verify scope + maxTasks.
@@ -12,10 +13,14 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
   try {
     discovered = discoverActionsOnly(project);
   } catch (err) {
+    const isPrompt = project.target.surface === 'prompt';
+    const discoveryHint = isPrompt
+      ? `Check the skill file at target.skill — ensure it has parseable capability headings`
+      : `Check target.discovery.sources and your manifest file`;
     issues.push({
       code: 'discovery-failed', severity: 'error', field: 'target.discovery',
       message: `Discovery threw an error: ${err instanceof Error ? err.message : String(err)}`,
-      hint: `Check target.discovery.sources and your manifest file`,
+      hint: discoveryHint,
       fixable: false,
     });
     return issues;
@@ -29,6 +34,8 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
       surfaceHint = `Add target.cli.commands pointing at a cli-commands.json manifest, or fix target.discovery.sources`;
     } else if (project.target.surface === 'mcp') {
       surfaceHint = `Add target.mcp.tools pointing at a tools.json manifest, or fix target.discovery.sources`;
+    } else if (project.target.surface === 'prompt') {
+      surfaceHint = `Ensure the skill file (target.skill) contains parseable capability headings`;
     } else {
       surfaceHint = `Fix target.discovery.sources to point at your SDK entry file`;
     }
@@ -40,7 +47,7 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
     });
   } else {
     const maxTasks = project.benchmark.taskGeneration?.maxTasks ?? 0;
-    if (project.benchmark.taskGeneration?.enabled && maxTasks < inScope.length) {
+    if (project.target.surface !== 'prompt' && project.benchmark.taskGeneration?.enabled && maxTasks < inScope.length) {
       issues.push({
         code: 'max-tasks-too-low', severity: 'error', field: 'benchmark.taskGeneration.maxTasks',
         message: `maxTasks (${maxTasks}) is less than the number of in-scope actions (${inScope.length})`,
@@ -63,21 +70,46 @@ export function checkDiscovery(project: ResolvedProjectConfig): Issue[] {
  */
 export async function checkModelReachability(project: ResolvedProjectConfig): Promise<Issue[]> {
   const issues: Issue[] = [];
-  const apiKey = process.env[project.benchmark.apiKeyEnv ?? 'OPENROUTER_API_KEY'];
-  if (!apiKey) return issues; // already reported by checkConfig
 
   // Only PI format uses OpenRouter; skip reachability for other formats
   if (project.benchmark.format && project.benchmark.format !== 'pi') {
     issues.push({
       code: 'reachability-skipped', severity: 'info', field: 'benchmark.format',
-      message: `Skipping reachability check (--check-models only supports format "pi" for now)`,
+      message: `Skipping reachability check — model probing is only implemented for openrouter/* model IDs via the OpenRouter API`,
       fixable: false,
     });
     return issues;
   }
 
-  for (let i = 0; i < project.benchmark.models.length; i++) {
-    const model = project.benchmark.models[i]!;
+  const openrouterEntries = project.benchmark.models
+    .map((model, i) => ({ model, i }))
+    .filter(({ model }) => model.id.startsWith('openrouter/'));
+  const skippedCount = project.benchmark.models.length - openrouterEntries.length;
+
+  if (skippedCount > 0) {
+    issues.push({
+      code: 'reachability-skipped', severity: 'info', field: 'benchmark.models',
+      message: `Skipping reachability for ${skippedCount} non-OpenRouter model(s) (only OpenRouter models can be probed)`,
+      fixable: false,
+    });
+  }
+
+  if (openrouterEntries.length === 0) {
+    return issues;
+  }
+
+  let apiKey: string;
+  try {
+    apiKey = requireConfiguredApiKey({
+      provider: 'openrouter',
+      authMode: project.benchmark.authMode,
+      apiKeyEnv: project.benchmark.apiKeyEnv,
+    });
+  } catch {
+    return issues; // already reported by checkConfig
+  }
+
+  for (const { model, i } of openrouterEntries) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',

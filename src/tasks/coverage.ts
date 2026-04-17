@@ -3,8 +3,11 @@ import type { GeneratedTask } from './types.js';
 import type { CoverageReport } from '../benchmark/types.js';
 
 function actionNamesOf(task: GeneratedTask): string[] {
-  const list = task.expected_actions ?? task.expected_tools ?? [];
-  return list.map((a) => a.name ?? a.method ?? '').filter(Boolean);
+  const fromActions = task.expected_actions.map((a) => a.name).filter(Boolean);
+  if (fromActions.length > 0) return fromActions;
+  // Prompt surface: tasks use capabilityId instead of expected_actions.
+  // action.key === action.name for prompt capabilities, so capabilityId matches.
+  return task.capabilityId ? [task.capabilityId] : [];
 }
 
 export function computeCoverage(

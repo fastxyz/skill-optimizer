@@ -50,7 +50,10 @@ export function computeVerdict(
     );
   }
 
-  if (report.scopeCoverage?.coverageViolation) {
+  // Prompt surface: coverage is reported but does not veto the verdict.
+  // Prompt tasks are not required to map 1:1 to capabilities, so a
+  // coverage gap here is informational rather than a failure condition.
+  if (report.scopeCoverage?.coverageViolation && report.config.surface !== 'prompt') {
     reasons.push('coverage violation: some in-scope actions have zero tasks');
   }
 
@@ -67,7 +70,7 @@ export function accept(
   models: ModelConfig[],
   policy: VerdictPolicy & { minImprovement: number },
 ): boolean {
-  // When no model configs are provided (legacy path), fall back to simple overall pass rate comparison
+  // When no model configs are provided, fall back to simple overall pass rate comparison
   if (models.length === 0) {
     return after.summary.overallPassRate - before.summary.overallPassRate >= policy.minImprovement;
   }

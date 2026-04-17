@@ -4,7 +4,7 @@
 import { z } from 'zod/v3';
 
 const ModelConfigSchema = z.object({
-  id: z.string().describe('OpenRouter model ID, e.g. openrouter/anthropic/claude-sonnet-4-6'),
+  id: z.string().describe('Provider-prefixed model ID — openrouter/<provider>/<slug>, anthropic/<slug>, or openai/<slug>. Example: openrouter/anthropic/claude-sonnet-4.6'),
   name: z.string().describe('Human-readable model name for reports'),
   tier: z.enum(['flagship', 'mid', 'low']).optional().describe('Model tier — affects weighting in weighted average'),
   weight: z.number().optional().describe('Weight in weighted average (default 1.0). Higher = more influence'),
@@ -36,7 +36,7 @@ const ScopeConfigSchema = z.object({
 });
 
 const TargetConfigSchema = z.object({
-  surface: z.enum(['sdk', 'cli', 'mcp']).describe('Type of callable surface'),
+  surface: z.enum(['sdk', 'cli', 'mcp', 'prompt']).describe('Type of callable surface'),
   repoPath: z.string().optional().describe('Path to the target repo (default ".")'),
   skill: z.union([
     z.string(),
@@ -62,8 +62,9 @@ const VerdictConfigSchema = z.object({
 });
 
 const BenchmarkConfigSchema = z.object({
-  format: z.enum(['pi', 'openai', 'anthropic']).optional().describe('LLM transport format: pi, openai, or anthropic'),
-  apiKeyEnv: z.string().optional().describe('Env var name for the API key (default OPENROUTER_API_KEY)'),
+  format: z.enum(['pi', 'openai', 'anthropic']).optional().describe('LLM transport format: "pi" routes through OpenRouter/Pi (use openrouter/* or openai/* model refs); "openai" calls the OpenAI API directly (supports Codex auth); "anthropic" calls the Anthropic API directly'),
+  authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
+  apiKeyEnv: z.string().optional().describe('Env var name for the API key (default is determined by the model provider prefix: openrouter/ → OPENROUTER_API_KEY, openai/ → OPENAI_API_KEY, anthropic/ → ANTHROPIC_API_KEY; leave unset to use the per-provider default)'),
   timeout: z.number().int().positive().optional().describe('Milliseconds per model call (default 240000)'),
   models: z.array(ModelConfigSchema).describe('Models to benchmark — at least one required'),
   taskGeneration: TaskGenerationConfigSchema.optional().describe('Automatic task generation config'),
@@ -74,7 +75,8 @@ const BenchmarkConfigSchema = z.object({
 });
 
 const OptimizeConfigSchema = z.object({
-  model: z.string().optional().describe('Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4-6'),
+  model: z.string().optional().describe('Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4.6'),
+  authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve optimizer credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
   apiKeyEnv: z.string().optional().describe('Env var for the optimizer API key'),
   thinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional()
     .describe('Reasoning depth for mutation calls (default "medium")'),

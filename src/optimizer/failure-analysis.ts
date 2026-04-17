@@ -36,8 +36,8 @@ export function analyzeFailures(report: BenchmarkReport): FailureBucket[] {
 
 function classifyFailure(result: BenchmarkReport['results'][number]): FailureBucketKind | null {
   if (result.error) return 'error';
-  if ((result.metrics.hallucinatedActions ?? result.metrics.hallucinatedCalls).length > 0) return 'hallucination';
-  if ((result.actionMatches ?? result.toolMatches).some((match) => match.methodFound && !match.argsCorrect)) return 'bad-args';
-  if ((result.actionMatches ?? result.toolMatches).some((match) => !match.methodFound)) return 'missing-tool';
+  if (result.metrics.hallucinatedActions.length > 0) return 'hallucination';
+  if (result.actionMatches.some((match) => match.methodFound && !match.argsCorrect)) return 'bad-args';
+  if (result.actionMatches.some((match) => !match.methodFound)) return 'missing-tool';
   return null;
 }
