@@ -185,6 +185,31 @@ export async function checkConfig(
     err('invalid-format', 'benchmark.format', '"benchmark.format" must be pi, openai, or anthropic');
   }
 
+  // Check: format/model prefix compatibility — openai format requires openai/ prefix, anthropic format requires anthropic/
+  if (benchmark.format === 'openai' || benchmark.format === 'anthropic') {
+    const requiredPrefix = `${benchmark.format}/`;
+    if (Array.isArray(benchmark.models)) {
+      for (let i = 0; i < benchmark.models.length; i++) {
+        const model = benchmark.models[i]!;
+        if (model.id && !model.id.startsWith(requiredPrefix)) {
+          issues.push({
+            code: 'format-model-prefix-mismatch', severity: 'error', field: `benchmark.models[${i}].id`,
+            message: `model ID "${model.id}" does not match format "${benchmark.format}" — expected prefix "${requiredPrefix}"`,
+            hint: `Change model ID to start with "${requiredPrefix}" or change benchmark.format to match your model provider`,
+            fixable: false,
+          });
+        }
+      }
+    }
+    if (optimize?.model && !optimize.model.startsWith(requiredPrefix)) {
+      issues.push({
+        code: 'format-model-prefix-mismatch', severity: 'error', field: 'optimize.model',
+        message: `optimize.model "${optimize.model}" does not match format "${benchmark.format}" — expected prefix "${requiredPrefix}"`,
+        hint: `Change optimize.model to start with "${requiredPrefix}" or change benchmark.format to match your model provider`,
+        fixable: false,
+      });
+    }
+  }
 
   if (benchmark.taskGeneration?.enabled !== true && !benchmark.tasks) {
     err('missing-tasks', 'benchmark.tasks', '"benchmark.tasks" is required when task generation is disabled');
