@@ -34,6 +34,11 @@ The config file `skill-benchmark.json` is no longer auto-detected. Rename it to 
 - **benchmark:** Strip provider prefix from model ID when using direct `anthropic` or `openai` formats. Previously, `anthropic/claude-sonnet-4-6` was sent as-is to the Anthropic API, which expects `claude-sonnet-4-6`. The `pi` format is unaffected.
 - **model IDs:** OpenRouter model slugs now preserve dots in version numbers (e.g. `openrouter/anthropic/claude-sonnet-4.6`). Presets updated to match OpenRouter's catalog exactly. The dot→hyphen rewrite in `validate`/`fix` now applies only to the `anthropic/` direct-API prefix; `openrouter/` and `openai/` slugs are exempt.
 - **error message:** `E_MODEL_ID_FORMAT` now lists all three valid provider prefixes (`openrouter/`, `anthropic/`, `openai/`) instead of directing all users to use `openrouter/`.
+- Prompt-surface benchmarks no longer hard-FAIL on `scopeCoverage.coverageViolation`; coverage is informational for prompt runs (`src/benchmark/scoring.ts`).
+- Prompt-surface tasks are now scored against the specific capability they exercise via a required `capabilityId` on `GeneratedTask`. Previously every task was scored against the first discovered capability (`src/benchmark/runner.ts`, `src/benchmark/prompt-criteria.ts`, `src/tasks/generate.ts`).
+- Prompt evaluator surfaces `noActiveCriteria: true` (score 0, runner-level FAIL with an actionable message) when a capability's section produces empty criteria, replacing the previous vacuous 1.0 pass (`src/benchmark/prompt-evaluator.ts`).
+- `openai/` direct-API model IDs are exempt from dot→hyphen rewriting in `applyFixes`. OpenAI's API slugs use dots (`gpt-5.4`, `gpt-4.1`). (`src/project/fix.ts`)
+- Removed dead `src/discovery/prompt.ts`. Active discovery path is `src/project/discover-prompt.ts`.
 
 ## 1.0.0 — 2026-04-14
 

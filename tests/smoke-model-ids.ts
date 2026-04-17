@@ -60,3 +60,26 @@ await test('openai/ direct-API IDs with dots are NOT rewritten', async () => {
   assert.equal(result, 'openai/gpt-5.4',
     'openai/ direct API dots must be preserved (OpenAI uses gpt-5.4 not gpt-5-4)');
 });
+
+await test('applyFixes directly: openai/ IDs are NOT rewritten even if model-id-bad-format issue is present', async () => {
+  const { applyFixes } = await import('../src/project/fix.js');
+  const raw = {
+    name: 'test',
+    target: { surface: 'mcp' as const, repoPath: '.' },
+    benchmark: {
+      format: 'pi',
+      models: [{ id: 'openai/gpt-5.4', name: 'GPT-5.4', tier: 'flagship' as const }],
+      taskGeneration: { enabled: true, maxTasks: 5 },
+    },
+  };
+  // Manufacture the issue that validate.ts would normally never emit for openai/,
+  // so we exercise fix.ts's defense-in-depth exemption directly.
+  // fixable: true is required so the filter in applyFixes actually processes it.
+  const issues = [
+    { code: 'model-id-bad-format' as const, field: 'benchmark.models[0].id', message: 'synthetic', severity: 'warning' as const, fixable: true },
+  ];
+  const fixed = applyFixes(raw as never, issues as never, '/tmp');
+  const id = (fixed as { benchmark: { models: Array<{ id: string }> } }).benchmark.models[0]!.id;
+  assert.equal(id, 'openai/gpt-5.4',
+    'fix.ts must exempt openai/ from dot→hyphen rewrite (defense-in-depth; OpenAI API uses dots)');
+});

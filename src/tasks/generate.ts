@@ -27,7 +27,14 @@ export async function generateCandidateTasks(
 
   const prompt = buildPrompt(surface, config);
   const completion = await deps.complete({ system, prompt });
-  const tasks = parseGeneratedTasks(completion);
+
+  // For prompt surface, pass the known capability keys so parseGeneratedTasks
+  // can attach capabilityId to each task; membership validation is in ground.ts.
+  const knownCapabilityKeys = surface.snapshot.surface === 'prompt'
+    ? surface.snapshot.actions.map((a) => a.name)
+    : undefined;
+
+  const tasks = parseGeneratedTasks(completion, knownCapabilityKeys);
   return tasks.slice(0, Math.max(1, Math.floor(config.maxTasks)));
 }
 
@@ -35,18 +42,22 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
   const clampedMax = Math.max(1, Math.floor(config.maxTasks));
 
   if (surface.snapshot.surface === 'prompt') {
+    const capKeys = surface.snapshot.actions.map((a) => a.name);
     return [
       'Generate benchmark evaluation tasks for a prompt/skill document.',
       'These tasks will be evaluated by content quality, not action matching.',
       '',
       'Return a JSON object with EXACTLY this shape:',
-      '{"tasks":[{"id":"string","prompt":"string","expected_actions":[]}]}',
+      '{"tasks":[{"id":"string","prompt":"string","expected_actions":[],"capabilityId":"string"}]}',
       '',
       'RULES:',
-      '- Each task has EXACTLY three keys: id, prompt, expected_actions.',
+      '- Each task has EXACTLY four keys: id, prompt, expected_actions, capabilityId.',
       '- expected_actions MUST always be an empty array [].',
       '- id: short snake_case identifier (e.g. "deploy_service_to_staging").',
       '- prompt: ask the model to perform a realistic task from the skill.',
+      '- capabilityId: set to the action key of the discovered capability this task exercises.',
+      `- Valid capabilityId values: ${capKeys.join(', ')}.`,
+      '- Every task MUST have a capabilityId from the valid list above — no other values are accepted.',
       `- Produce at most ${clampedMax} tasks. Seed: ${config.seed}.`,
       '',
       'Full SKILL.md:',
@@ -102,7 +113,7 @@ function stripCodeFence(raw: string): string {
   return match ? match[1].trim() : trimmed;
 }
 
-function parseGeneratedTasks(raw: string): GeneratedTask[] {
+function parseGeneratedTasks(raw: string, knownCapabilityKeys?: string[]): GeneratedTask[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(stripCodeFence(raw));
@@ -119,7 +130,7 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
     throw new Error('Task generator response must contain a top-level "tasks" array');
   }
 
-  const validated = tasks.map((task, index) => validateTask(task, index));
+  const validated = tasks.map((task, index) => validateTask(task, index, knownCapabilityKeys));
 
   // Sort by (id, prompt) before deduplication so the numeric suffix assigned to
   // colliding IDs is determined by content order, not by the LLM's output order.
@@ -164,7 +175,7 @@ function pickLongestStringValue(obj: Record<string, unknown>): string | null {
   return best;
 }
 
-function validateTask(task: unknown, index: number): GeneratedTask {
+function validateTask(task: unknown, index: number, knownCapabilityKeys?: string[]): GeneratedTask {
   if (!task || typeof task !== 'object') {
     throw new Error(`Task at index ${index} must be an object`);
   }
@@ -221,10 +232,16 @@ function validateTask(task: unknown, index: number): GeneratedTask {
 
   const expected_actions = rawExpectedActions.map((action, actionIndex) => validateExpectedAction(taskId, action, actionIndex));
 
+  // Extract capabilityId for prompt-surface tasks. The field is stored as-is here;
+  // grounding validates it against the known capability keys and rejects bad values.
+  const rawCapabilityId = typeof candidate['capabilityId'] === 'string' ? candidate['capabilityId'].trim() : undefined;
+  const capabilityId = knownCapabilityKeys !== undefined && rawCapabilityId ? rawCapabilityId : undefined;
+
   return {
     id: taskId,
     prompt: taskPrompt,
     expected_actions,
+    ...(capabilityId !== undefined ? { capabilityId } : {}),
   };
 }
 

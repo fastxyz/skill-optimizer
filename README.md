@@ -134,10 +134,14 @@ skill-optimizer run
 
 The prompt surface discovers phases and capabilities from your SKILL.md,
 generates scenario-based tasks, and evaluates output quality — not just
-tool calls. It scores responses on required sections, format patterns,
-forbidden keywords, and structural elements (code blocks, numbered lists,
-tables). This lets you optimize prompt templates the same way you optimize
-SDK/CLI/MCP guidance.
+tool calls. Each task is tagged with the specific capability it exercises
+(`capabilityId`), and scoring is performed against that capability's
+criteria — not the first discovered capability. It scores responses on
+required sections, format patterns, forbidden keywords, and structural
+elements (code blocks, numbered lists, tables). Coverage violations do
+not hard-fail prompt runs; coverage is informational for the prompt
+surface. This lets you optimize prompt templates the same way you
+optimize SDK/CLI/MCP guidance.
 
 ## How it works
 

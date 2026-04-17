@@ -145,6 +145,7 @@ export interface TaskDefinition {
   expected_actions: ExpectedAction[];
   verify?: TaskVerification[];
   expected_fetches?: string[];
+  capabilityId?: string;
 }
 
 // === Extracted from generated code or tool_calls ===

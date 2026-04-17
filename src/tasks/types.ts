@@ -5,6 +5,7 @@ export interface GeneratedTask {
   id: string;
   prompt: string;
   expected_actions: ExpectedAction[];
+  capabilityId?: string;  // prompt surface only; SDK/CLI/MCP don't set this
 }
 
 export interface TaskGeneratorConfig {

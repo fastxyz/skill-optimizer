@@ -238,6 +238,7 @@ kubectl apply -f manifests/
   assertEqual(result.categoryScores.keywords, 1.0, 'all keywords present, no forbidden');
   assertEqual(result.categoryScores.structure, 1.0, 'code blocks and numbered list found');
   assertEqual(result.score, 1.0, 'overall score should be 1.0 when all criteria met');
+  assertEqual(result.noActiveCriteria, false, 'populated criteria must have noActiveCriteria: false');
 });
 
 // ---------------------------------------------------------------------------
@@ -336,13 +337,20 @@ await test('minLength enforced as format check', () => {
 });
 
 // ---------------------------------------------------------------------------
-// No criteria -> vacuous pass
+// No criteria -> noActiveCriteria + score 0 (regression guard for P3)
 // ---------------------------------------------------------------------------
 
-await test('no criteria specified -> score 1.0 (vacuous pass)', () => {
+await test('no criteria specified -> noActiveCriteria: true, score: 0', () => {
   const criteria: PromptEvaluationCriteria = {};
   const result = evaluatePromptResponse('Any response at all.', criteria);
-  assertEqual(result.score, 1.0, 'no criteria should vacuously pass');
+  assertEqual(result.noActiveCriteria, true, 'empty criteria must set noActiveCriteria: true');
+  assertEqual(result.score, 0, 'empty criteria must score 0, not vacuously pass');
+});
+
+await test('non-empty criteria -> noActiveCriteria: false', () => {
+  const criteria: PromptEvaluationCriteria = { requiredKeywords: ['alpha'] };
+  const result = evaluatePromptResponse('alpha present here.', criteria);
+  assertEqual(result.noActiveCriteria, false, 'non-empty criteria must not set noActiveCriteria');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
