@@ -129,10 +129,10 @@ function readCodexApiKey(provider: string): ResolvedApiCredential {
       // JWT is expired — fall through to static key fallbacks below
     }
     if (typeof parsed.tokens?.OPENAI_API_KEY === 'string' && parsed.tokens.OPENAI_API_KEY.trim()) {
-      return { apiKey: parsed.tokens.OPENAI_API_KEY, source: 'codex' };
+      return { apiKey: parsed.tokens.OPENAI_API_KEY, source: 'env' };
     }
     if (typeof parsed.OPENAI_API_KEY === 'string' && parsed.OPENAI_API_KEY.trim()) {
-      return { apiKey: parsed.OPENAI_API_KEY, source: 'codex' };
+      return { apiKey: parsed.OPENAI_API_KEY, source: 'env' };
     }
     return {};
   } catch {
