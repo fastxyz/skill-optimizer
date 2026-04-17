@@ -132,7 +132,7 @@ Complete reference for `skill-optimizer.json`. For auto-generated schema docs, s
 |-------|----------|---------|-------------|
 | `enabled` | No | `true` | Whether optimization is allowed |
 | `mode` | No | `"stable-surface"` | `"stable-surface"` (reuse tasks) or `"surface-changing"` (regenerate per iteration) |
-| `model` | No | `"openrouter/anthropic/claude-opus-4.6"` | Which LLM writes mutations |
+| `model` | No | `"openrouter/anthropic/claude-sonnet-4.6"` | Which LLM writes mutations |
 | `maxIterations` | No | `5` | Maximum optimization rounds |
 | `minImprovement` | No | `0.02` | Minimum delta in weighted average required to accept a mutation |
 | `allowedPaths` | No | `["SKILL.md"]` | Files the mutation agent may edit |

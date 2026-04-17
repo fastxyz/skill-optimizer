@@ -53,7 +53,7 @@ npx skill-optimizer init cli       # or: init sdk, init mcp, init prompt
 ```
 
 The wizard asks for your repo path, models to benchmark, and where your `SKILL.md` lives. It creates a `.skill-optimizer/` directory:
-- `skill-optimizer.json` — the main config (commit this)
+- `.skill-optimizer/skill-optimizer.json` — the main config (commit this)
 - `.skill-optimizer/cli-commands.json` — CLI surface manifest (template to edit, or auto-extracted)
 - `.skill-optimizer/tools.json` — MCP surface manifest (template to edit)
 
@@ -218,7 +218,7 @@ export OPENROUTER_API_KEY=sk-or-...
 
 **Dirty git**: The optimizer requires a clean git state in the target repo (`requireCleanGit: true` by default). Commit or stash uncommitted changes before running. Note: the optimizer never writes to the target repo's skill file — it works from local versioned copies in `.skill-optimizer/`.
 
-**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx skill-optimizer --dry-run --config ./skill-optimizer.json` to see the count without making LLM calls.
+**`maxTasks < scope_size`**: `benchmark.taskGeneration.maxTasks` must be >= the number of in-scope actions. Run `npx skill-optimizer --dry-run --config .skill-optimizer/skill-optimizer.json` to see the count without making LLM calls.
 
 **Empty scope**: `target.scope.include` matched nothing. Check your glob patterns — remember `*` matches everything including dots.
 
