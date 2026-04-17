@@ -7,6 +7,7 @@ import {
   undefinedIfEmpty,
   normalizeUsage,
 } from './shared.js';
+import { createToolNameAliasCodec } from './tool-name-aliases.js';
 
 interface CallParams {
   baseUrl: string;
@@ -68,15 +69,16 @@ export async function chatAnthropic(params: CallParams): Promise<LLMResponse> {
  * POST {baseUrl}/v1/messages with tools array
  */
 export async function chatWithToolsAnthropic(params: CallWithToolsParams): Promise<LLMResponse> {
+  const toolCodec = createToolNameAliasCodec(params.tools);
   const body = {
     model: params.modelId,
     max_tokens: 8192,
     system: params.system,
     messages: [{ role: 'user', content: params.user }],
-    tools: params.tools.map(toAnthropicTool),
+    tools: toolCodec.tools.map(toAnthropicTool),
     temperature: 0.2,
   };
-  return callWithRetry(params, body);
+  return callWithRetry(params, body, toolCodec.toCanonical);
 }
 
 async function doFetch(params: CallParams, body: Record<string, unknown>): Promise<LLMResponse> {
@@ -161,6 +163,7 @@ interface AgentLoopParams extends CallWithToolsParams {
 }
 
 export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<LLMResponse> {
+  const toolCodec = createToolNameAliasCodec(params.tools);
   const messages: Array<Record<string, unknown>> = [{ role: 'user', content: params.user }];
   const allToolCalls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
   const totalUsage = { prompt: 0, completion: 0, total: 0 };
@@ -168,9 +171,9 @@ export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<L
   for (let turn = 0; turn < params.maxTurns; turn++) {
     const body: Record<string, unknown> = {
       model: params.modelId, max_tokens: 8192, system: params.system,
-      messages, tools: params.tools.map(toAnthropicTool), temperature: 0.2,
+      messages, tools: toolCodec.tools.map(toAnthropicTool), temperature: 0.2,
     };
-    const response = await callWithRetry(params, body);
+    const response = await callWithRetry(params, body, toolCodec.toCanonical);
     if (response.usage) {
       totalUsage.prompt += response.usage.prompt;
       totalUsage.completion += response.usage.completion;
@@ -182,7 +185,7 @@ export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<L
     allToolCalls.push(...response.toolCalls);
     const assistantContent = [
       ...(response.content ? [{ type: 'text', text: response.content }] : []),
-      ...response.toolCalls.map((tc, i) => ({ type: 'tool_use', id: `toolu_${turn}_${i}`, name: tc.name, input: tc.arguments })),
+      ...response.toolCalls.map((tc, i) => ({ type: 'tool_use', id: `toolu_${turn}_${i}`, name: toolCodec.toProvider(tc.name), input: tc.arguments })),
     ];
     messages.push({ role: 'assistant', content: assistantContent });
     const toolResults = [];
@@ -201,14 +204,26 @@ export async function chatAgentLoopAnthropic(params: AgentLoopParams): Promise<L
 async function callWithRetry(
   params: CallParams,
   body: Record<string, unknown>,
+  toCanonicalToolName: (name: string) => string = (name) => name,
 ): Promise<LLMResponse> {
+  const applyCodec = (response: LLMResponse): LLMResponse => {
+    if (!response.toolCalls || response.toolCalls.length === 0) return response;
+    return {
+      ...response,
+      toolCalls: response.toolCalls.map((toolCall) => ({
+        ...toolCall,
+        name: toCanonicalToolName(toolCall.name),
+      })),
+    };
+  };
+
   try {
-    return await doFetch(params, body);
+    return applyCodec(await doFetch(params, body));
   } catch (err) {
     if (isAbortError(err)) throw err;
     if (!isRetryableError(err)) throw err;
     // Retry once after 3s
     await sleep(3_000);
-    return doFetch(params, body);
+    return applyCodec(await doFetch(params, body));
   }
 }

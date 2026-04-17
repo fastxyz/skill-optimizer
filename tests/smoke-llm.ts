@@ -1089,6 +1089,42 @@ await test('anthropic format: converts McpToolDefinition to Anthropic tool forma
   );
 });
 
+await test('anthropic format: sanitizes dotted tool names in requests and maps them back in responses', async () => {
+  let capturedBody: any = null;
+
+  globalThis.fetch = mockFetch((_url, init) => {
+    capturedBody = JSON.parse(init.body as string);
+    return {
+      status: 200,
+      body: {
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu_01',
+            name: 'auth_status',
+            input: {},
+          },
+        ],
+        usage: { input_tokens: 5, output_tokens: 2 },
+      },
+    };
+  }) as any;
+
+  const client = createLLMClient(anthropicConfig);
+  const result = await client.chatWithTools('claude-3-5-sonnet-20241022', 'sys', 'user', dottedSampleTools);
+
+  assertEqual(
+    capturedBody.tools[0].name,
+    'auth_status',
+    'dotted tool name should be sanitized in the request body (Anthropic uses tools[].name)',
+  );
+  assertEqual(
+    result.toolCalls?.[0]?.name,
+    'auth.status',
+    'sanitized tool call names should map back to canonical form',
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Provider prefix stripping for direct API formats
 // ---------------------------------------------------------------------------
