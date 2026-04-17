@@ -142,7 +142,8 @@ export async function runOptimizeLoop(
         `[optimize] Changed files: ${changedFiles.length > 0 ? changedFiles.join(', ') : '(none)'}`,
       );
       // In local-skill mode: restore the repo to undo any rogue writes the agent may have made
-      // (it runs with cwd=targetRepo), then skip scope validation (the local file is always in scope).
+      // (the agent cwd is dirname(localSkillPath), not the target repo, so rogue writes are unlikely but not impossible),
+      // then skip scope validation (the local file is always in scope).
       if (localSkillPath) {
         await deps.repo.restoreCheckpoint(resolvedManifest.targetRepo, acceptedCheckpoint);
       }
