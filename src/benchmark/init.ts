@@ -97,6 +97,9 @@ export function initBenchmark(targetDir: string = process.cwd(), surface: 'sdk' 
     console.log('       target.discovery.sources → CLI entry file (for code-first discovery)');
     console.log('       .skill-optimizer/cli-commands.json → replace template with your real commands');
     console.log('       (cli-commands.json is used as a fallback if code-first discovery finds nothing)');
+  } else if (surface === 'prompt') {
+    console.log('       target.skill → path to your SKILL.md or prompt document');
+    console.log('       (no discovery sources needed — capabilities are read directly from the skill file)');
   } else {
     console.log('       target.discovery.sources → MCP server file (for code-first discovery)');
     console.log('       .skill-optimizer/tools.json → replace template with your real tools');
