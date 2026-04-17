@@ -5,7 +5,7 @@
 
 import { createLLMClient } from '../src/benchmark/llm/index.js';
 import { __setPiImplementationsForTest } from '../src/benchmark/llm/pi-format.js';
-import { resolveApiKey } from '../src/runtime/pi/auth.js';
+import { resolveApiCredential, resolveApiKey } from '../src/runtime/pi/auth.js';
 import type { LLMConfig, McpToolDefinition } from '../src/benchmark/types.js';
 
 // ---------------------------------------------------------------------------
@@ -362,6 +362,81 @@ await test('resolveApiKey: codex auth reads browser-login access token from ~/.c
     } else {
       process.env.HOME = originalHome;
     }
+  }
+});
+
+await test('resolveApiCredential: static OPENAI_API_KEY in tokens object returns source env', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-static-tokens-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ tokens: { OPENAI_API_KEY: 'sk-static-key-tokens' } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+  try {
+    const result = resolveApiCredential({ provider: 'openai', authMode: 'codex' });
+    assertEqual(result.apiKey, 'sk-static-key-tokens', 'static key from tokens object should be returned');
+    assertEqual(result.source, 'env', 'static key should have source env, not codex');
+  } finally {
+    if (originalHome === undefined) { delete process.env.HOME; } else { process.env.HOME = originalHome; }
+  }
+});
+
+await test('resolveApiCredential: static OPENAI_API_KEY at root level returns source env', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-static-root-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ OPENAI_API_KEY: 'sk-static-key-root' }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+  try {
+    const result = resolveApiCredential({ provider: 'openai', authMode: 'codex' });
+    assertEqual(result.apiKey, 'sk-static-key-root', 'static key from root object should be returned');
+    assertEqual(result.source, 'env', 'static key should have source env, not codex');
+  } finally {
+    if (originalHome === undefined) { delete process.env.HOME; } else { process.env.HOME = originalHome; }
+  }
+});
+
+await test('resolveApiCredential: browser-login JWT still returns source codex (regression)', async () => {
+  const originalHome = process.env.HOME;
+  const dir = await import('node:fs/promises').then(({ mkdtemp, mkdir, writeFile }) => ({ mkdtemp, mkdir, writeFile }));
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const tmpHome = await dir.mkdtemp(path.join(os.tmpdir(), 'codex-jwt-regression-'));
+  const codexDir = path.join(tmpHome, '.codex');
+  await dir.mkdir(codexDir, { recursive: true });
+  const futureExp = Math.floor(Date.now() / 1000) + 3600;
+  const jwt = [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify({ exp: futureExp })).toString('base64url'),
+    'sig',
+  ].join('.');
+  await dir.writeFile(
+    path.join(codexDir, 'auth.json'),
+    JSON.stringify({ auth_mode: 'chatgpt', tokens: { access_token: jwt } }),
+    'utf-8',
+  );
+  process.env.HOME = tmpHome;
+  try {
+    const result = resolveApiCredential({ provider: 'openai', authMode: 'codex' });
+    assertEqual(result.apiKey, jwt, 'JWT access token should be returned');
+    assertEqual(result.source, 'codex', 'JWT should keep source codex so openai-codex transport is used');
+  } finally {
+    if (originalHome === undefined) { delete process.env.HOME; } else { process.env.HOME = originalHome; }
   }
 });
 
