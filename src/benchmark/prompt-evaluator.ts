@@ -44,6 +44,12 @@ export interface PromptEvaluationResult {
     keywords: number;
     structure: number;
   };
+  /**
+   * True when every criteria category is empty. Evaluation cannot produce a
+   * meaningful score in this case; runner treats this as an evaluation error
+   * rather than a pass.
+   */
+  noActiveCriteria: boolean;
 }
 
 // ── Weights ───────────────────────────────────────────────────────────────────
@@ -237,9 +243,11 @@ export function evaluatePromptResponse(
   if (structureTotal > 0) activeParts.push({ weight: WEIGHT_STRUCTURE, score: structureScore });
 
   let score: number;
+  let noActiveCriteria = false;
   if (activeParts.length === 0) {
-    // No criteria specified at all — vacuously pass
-    score = 1.0;
+    // No criteria are active — treat as evaluation error, not vacuous pass.
+    score = 0;
+    noActiveCriteria = true;
   } else {
     const totalActiveWeight = activeParts.reduce((s, p) => s + p.weight, 0);
     score = activeParts.reduce((s, p) => s + (p.weight / totalActiveWeight) * p.score, 0);
@@ -255,6 +263,7 @@ export function evaluatePromptResponse(
       keywords: keywordScore,
       structure: structureScore,
     },
+    noActiveCriteria,
   };
 }
 

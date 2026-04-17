@@ -367,9 +367,17 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         try {
           const { criteria } = resolveCriteriaForTask(task, promptCaps);
           const promptResult = evaluatePromptResponse(rawResponse, criteria);
-          taskResult.metrics.toolRecall = promptResult.score;
-          taskResult.metrics.taskPassed = promptResult.score >= 0.5;
-          console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
+          if (promptResult.noActiveCriteria) {
+            const msg = `Task "${task.id}" has no extractable criteria — fix SKILL.md section for that action`;
+            taskResult.metrics.toolRecall = 0;
+            taskResult.metrics.taskPassed = false;
+            taskResult.error = taskResult.error ?? msg;
+            console.error(`  [${slug}] Prompt eval error: ${msg}`);
+          } else {
+            taskResult.metrics.toolRecall = promptResult.score;
+            taskResult.metrics.taskPassed = promptResult.score >= 0.5;
+            console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
+          }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`  [${slug}] Prompt eval error: ${msg}`);
