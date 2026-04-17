@@ -41,10 +41,13 @@ export const ERRORS = {
   },
   E_MODEL_ID_FORMAT: {
     code: 'E_MODEL_ID_FORMAT',
-    message: 'Model ID is missing the openrouter/ prefix',
+    message: 'Model ID is missing a provider prefix',
     fix: [
-      'Prefix all model IDs with openrouter/, e.g. openrouter/anthropic/claude-sonnet-4.6',
-      'Browse available models at https://openrouter.ai/models',
+      'Prefix all model IDs with a supported provider prefix:',
+      '  openrouter/<provider>/<model>  — routed via OpenRouter (e.g. openrouter/anthropic/claude-sonnet-4.6)',
+      '  anthropic/<model>              — direct Anthropic API (e.g. anthropic/claude-sonnet-4-6)',
+      '  openai/<model>                 — direct OpenAI API (e.g. openai/gpt-4.1)',
+      'Browse OpenRouter models at https://openrouter.ai/models',
     ],
   },
   E_VERDICT_OUT_OF_RANGE: {

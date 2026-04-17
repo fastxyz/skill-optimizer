@@ -1,13 +1,17 @@
+import { createHash } from 'node:crypto';
+
 import type { ExpectedAction, CoverageReport } from '../benchmark/types.js';
 
 import type { ActionDefinition } from '../actions/types.js';
 import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
 import type { DiscoveredTaskSurface, GeneratedTask, TaskGeneratorConfig, TaskGeneratorDeps } from './types.js';
 
-const SAFE_TASK_ID = /^[A-Za-z0-9._-]+$/;
-
-function isSafeTaskId(taskId: string): boolean {
-  return SAFE_TASK_ID.test(taskId) && taskId !== '.' && taskId !== '..';
+// Derive a stable task ID from the expected action names.
+// Action names are surface-stable (they come from discovered code, not LLM free-form output),
+// so the same surface produces the same IDs across regenerations.
+function stableTaskId(actionNames: string[]): string {
+  const key = [...actionNames].sort().join('\x00');
+  return createHash('sha1').update(key).digest('hex').slice(0, 12);
 }
 
 export async function generateCandidateTasks(
@@ -115,7 +119,21 @@ function parseGeneratedTasks(raw: string): GeneratedTask[] {
     throw new Error('Task generator response must contain a top-level "tasks" array');
   }
 
-  return tasks.map((task, index) => validateTask(task, index));
+  const validated = tasks.map((task, index) => validateTask(task, index));
+
+  // Sort by (id, prompt) before deduplication so the numeric suffix assigned to
+  // colliding IDs is determined by content order, not by the LLM's output order.
+  // Without this sort, swapping two same-action tasks between runs would swap their
+  // suffixes (e.g. id-1 and id-2), making --task filters unstable for multi-variant cases.
+  validated.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : a.prompt < b.prompt ? -1 : 1);
+
+  // Deduplicate IDs: two tasks with the same action-name set get a numeric suffix.
+  const seen = new Map<string, number>();
+  return validated.map(task => {
+    const n = seen.get(task.id) ?? 0;
+    seen.set(task.id, n + 1);
+    return n > 0 ? { ...task, id: `${task.id}-${n}` } : task;
+  });
 }
 
 function resolveStringField(obj: Record<string, unknown>, ...keys: string[]): string | null {
@@ -159,31 +177,11 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     resolveStringField(candidate, 'prompt', 'user_prompt', 'description', 'instruction', 'task', 'action', 'method', 'name', 'command') ??
     pickLongestStringValue(candidate);
 
-  // Resolve ID — fall back to deriving a slug from the prompt or action if omitted
-  let taskId = resolveStringField(candidate, 'id', 'task_id', 'taskId', 'name');
-  if (!taskId) {
-    const basis = taskPrompt ?? `task-${index}`;
-    taskId = basis
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 48)
-      + `-${index}`;
-  }
-
-  if (!taskPrompt) {
-    // Only reachable if the object has no string values at all.
-    const received = JSON.stringify(Object.keys(candidate));
-    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
-  }
-  if (!isSafeTaskId(taskId)) {
-    // Sanitize rather than throw — strip unsafe chars, then handle dot-only segments that
-    // survive character replacement unchanged (e.g. ".." → all chars allowed → still "..").
-    taskId = taskId.replace(/[^A-Za-z0-9._-]/g, '-').replace(/^-|-$/g, '');
-    if (taskId === '.' || taskId === '..') taskId = '';
-    taskId = taskId || `task-${index}`;
-  }
-
+  // Resolve expected_actions before computing the ID so action names can anchor the ID.
+  // LLM-supplied IDs are intentionally ignored — they vary across runs for the same task,
+  // breaking --task filters after regeneration. For SDK/CLI/MCP surfaces, action names come
+  // from the surface definition and are stable across runs. Prompt-surface tasks have no
+  // actions (expected_actions is always []), so they fall back to hashing the prompt text.
   let rawExpectedActions = (
     ['expected_actions', 'actions', 'steps', 'calls', 'expected_calls', 'tool_calls', 'cli_command'] as const
   )
@@ -198,6 +196,22 @@ function validateTask(task: unknown, index: number): GeneratedTask {
     if (actionName && actionName.trim()) {
       rawExpectedActions = [{ name: actionName.trim(), args: candidate['args'] }];
     }
+  }
+
+  const actionNamesForId = (rawExpectedActions ?? [])
+    .filter((a): a is Record<string, unknown> => !!a && typeof a === 'object')
+    .map(a => (typeof a['name'] === 'string' ? a['name'].trim() : ''))
+    .filter(Boolean);
+
+  const taskId =
+    actionNamesForId.length > 0 ? stableTaskId(actionNamesForId)
+    : taskPrompt ? stableTaskId([taskPrompt])
+    : `task-${index}`;
+
+  if (!taskPrompt) {
+    // Only reachable if the object has no string values at all.
+    const received = JSON.stringify(Object.keys(candidate));
+    throw new Error(`Task ${taskId} must include a non-empty string prompt (received keys: ${received})`);
   }
 
   if (!rawExpectedActions) {

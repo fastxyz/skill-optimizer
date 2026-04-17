@@ -6,6 +6,14 @@ skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures w
 
 **Requirements:** Node.js 20+, plus either an [OpenRouter](https://openrouter.ai) API key or a local Codex login when using direct OpenAI models.
 
+## How it works — at a glance
+
+![Optimizer Loop](https://raw.githubusercontent.com/fastxyz/skill-optimizer/main/docs/images/optimizer-loop.svg)
+
+`skill-optimizer run` benchmarks your callable surface against multiple LLMs — it discovers actions, generates tasks, calls each model, and statically evaluates action recall and argument accuracy to produce a PASS/FAIL verdict (exit 0/1) usable in CI.
+
+`skill-optimizer optimize` runs the benchmark as a feedback loop: it copies your SKILL.md, mutates it with an LLM agent, re-benchmarks, accepts only when scores improve, and repeats until stable. Your original SKILL.md is never modified.
+
 ## Installation
 
 ```bash
@@ -89,7 +97,7 @@ npx skill-optimizer init --answers answers.json
   "models": [
     "openrouter/anthropic/claude-sonnet-4.6",
     "openrouter/deepseek/deepseek-v3.2",
-    "openrouter/google/gemini-2-5-flash",
+    "openrouter/google/gemini-2.5-flash",
     "openrouter/qwen/qwen3.5-397b-a17b",
     "openrouter/moonshotai/kimi-k2.5",
     "openrouter/z-ai/glm-5.1",
@@ -119,7 +127,7 @@ Benchmark how well models follow your prompt templates:
 
 ```bash
 skill-optimizer init prompt
-skill-optimizer benchmark
+skill-optimizer run
 ```
 
 The prompt surface discovers phases and capabilities from your SKILL.md,
@@ -142,9 +150,9 @@ SDK/CLI/MCP guidance.
 
 ## Configuration reference
 
-See [docs/reference/config-schema.md](docs/reference/config-schema.md) for the full generated config reference — auto-updated at every build.
+See [docs/reference/config-schema.md](https://github.com/fastxyz/skill-optimizer/blob/main/docs/reference/config-schema.md) for the full generated config reference — auto-updated at every build.
 
-See [docs/reference/errors.md](docs/reference/errors.md) for all error codes, descriptions, and fix instructions.
+See [docs/reference/errors.md](https://github.com/fastxyz/skill-optimizer/blob/main/docs/reference/errors.md) for all error codes, descriptions, and fix instructions.
 
 ## Interpreting the verdict
 
@@ -210,4 +218,4 @@ export OPENROUTER_API_KEY=sk-or-...
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/fastxyz/skill-optimizer/blob/main/CONTRIBUTING.md).
