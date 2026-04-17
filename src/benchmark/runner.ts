@@ -25,8 +25,8 @@ import { evaluateTask } from './evaluator.js';
 import { computeCoverage } from './coverage.js';
 import { computeVerdict } from './scoring.js';
 import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
-import { evaluatePromptResponse, generateCriteriaFromCapability } from './prompt-evaluator.js';
-import type { PromptEvaluationCriteria } from './prompt-evaluator.js';
+import { evaluatePromptResponse } from './prompt-evaluator.js';
+import { resolveCriteriaForTask } from './prompt-criteria.js';
 import { discoverPromptCapabilitiesWithSections } from '../project/discover-prompt.js';
 
 function buildWebFetchTool(): McpToolDefinition {
@@ -178,15 +178,12 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     console.log('[skill] No skill configured — using generic system prompt\n');
   }
 
-  // Pre-compute evaluation criteria for prompt surface.
-  let promptEvalCriteria: PromptEvaluationCriteria | undefined;
-  if (config.surface === 'prompt' && skill) {
-    const caps = discoverPromptCapabilitiesWithSections(skill.content);
-    if (caps.length > 0) {
-      // Use the primary capability's section to derive criteria.
-      promptEvalCriteria = generateCriteriaFromCapability(caps[0].action, caps[0].section);
-      console.log(`[prompt] Evaluation criteria derived from ${caps.length} discovered capabilities`);
-    }
+  // Discover prompt capabilities once; criteria are resolved per-task inside the loop.
+  const promptCaps = (config.surface === 'prompt' && skill)
+    ? discoverPromptCapabilitiesWithSections(skill.content)
+    : [];
+  if (config.surface === 'prompt') {
+    console.log(`[prompt] ${promptCaps.length} capabilities discovered`);
   }
 
 
@@ -365,16 +362,20 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         surface: config.surface,
       });
 
-      // Prompt surface: replace vacuous tool-recall with content-based score.
-      if (config.surface === 'prompt' && promptEvalCriteria) {
+      // Prompt surface: replace vacuous tool-recall with per-capability content score.
+      if (config.surface === 'prompt') {
         try {
-          const promptResult = evaluatePromptResponse(rawResponse, promptEvalCriteria);
+          const { criteria } = resolveCriteriaForTask(task, promptCaps);
+          const promptResult = evaluatePromptResponse(rawResponse, criteria);
           taskResult.metrics.toolRecall = promptResult.score;
           taskResult.metrics.taskPassed = promptResult.score >= 0.5;
           console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
         } catch (err) {
-          console.error(`  [${slug}] Prompt eval error: ${err instanceof Error ? err.message : err}`);
-          // Leave vacuous scores in place — task shows as PASS rather than crashing the run
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`  [${slug}] Prompt eval error: ${msg}`);
+          taskResult.metrics.toolRecall = 0;
+          taskResult.metrics.taskPassed = false;
+          taskResult.error = taskResult.error ?? msg;
         }
       }
 
