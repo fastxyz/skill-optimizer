@@ -28,6 +28,15 @@ interface PiSimpleCompleteInput {
   prompt: string;
 }
 
+export class NoTextBlocksError extends Error {
+  readonly contentTypes: string;
+  constructor(contentTypes: string) {
+    super(`Model returned no text blocks${contentTypes ? ` (content types: ${contentTypes})` : ''}`);
+    this.name = 'NoTextBlocksError';
+    this.contentTypes = contentTypes;
+  }
+}
+
 /**
  * Resolve a Pi model, call completeSimple with a timeout, check for errors,
  * and return the concatenated text from all text blocks.
@@ -74,7 +83,7 @@ export async function piSimpleComplete(
 
   if (!text) {
     const contentTypes = response.content.map((b) => b.type).join(', ');
-    throw new Error(`Model returned no text blocks${contentTypes ? ` (content types: ${contentTypes})` : ''}`);
+    throw new NoTextBlocksError(contentTypes);
   }
 
   return text;

@@ -1,5 +1,5 @@
 import type { CriticDeps } from '../verdict/recommendations.js';
-import { piSimpleComplete } from './pi-simple-complete.js';
+import { piSimpleComplete, NoTextBlocksError } from './pi-simple-complete.js';
 import type { PiAuthMode } from '../runtime/pi/auth.js';
 
 export interface DefaultPiCriticOptions {
@@ -31,7 +31,7 @@ export function createDefaultPiCritic(options: DefaultPiCriticOptions): CriticDe
         // A model that returns no text blocks is treated as "no recommendations"
         // rather than a hard failure — the verdict flow continues with an empty list.
         // Real provider errors (stopReason === 'error') are re-thrown.
-        if (err instanceof Error && err.message.startsWith('Model returned no text blocks')) {
+        if (err instanceof NoTextBlocksError) {
           return '[]';
         }
         throw err;
