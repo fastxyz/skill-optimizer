@@ -4,6 +4,8 @@ Benchmark and self-optimize SDK, CLI, and MCP guidance so every agent model can 
 
 skill-optimizer runs your SDK / CLI / MCP docs against multiple LLMs, measures whether they call the right actions with the right arguments, and iteratively rewrites your `SKILL.md` / docs until a floor score is met across every model.
 
+Built by the team at [Fast](https://fast.xyz/) — payment infrastructure for AI agents. [Give your agent a wallet](https://github.com/fastxyz/fast-sdk) in 3 lines of code.
+
 **Requirements:** Node.js 20+, plus either an [OpenRouter](https://openrouter.ai) API key or a local Codex login when using direct OpenAI models.
 
 ## How it works — at a glance
