@@ -4,7 +4,7 @@
 import { z } from 'zod/v3';
 
 const ModelConfigSchema = z.object({
-  id: z.string().describe('OpenRouter model ID, e.g. openrouter/anthropic/claude-sonnet-4.6'),
+  id: z.string().describe('Provider-prefixed model ID — openrouter/<provider>/<slug>, anthropic/<slug>, or openai/<slug>. Example: openrouter/anthropic/claude-sonnet-4.6'),
   name: z.string().describe('Human-readable model name for reports'),
   tier: z.enum(['flagship', 'mid', 'low']).optional().describe('Model tier — affects weighting in weighted average'),
   weight: z.number().optional().describe('Weight in weighted average (default 1.0). Higher = more influence'),

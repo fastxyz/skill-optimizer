@@ -53,7 +53,7 @@ The optimizer can take several minutes per iteration (it runs a full benchmark e
 |---------|---------|------------------|
 | `optimize.maxIterations` | `5` | Upper bound on optimization rounds |
 | `optimize.mode` | `"stable-surface"` | `"stable-surface"`: reuse tasks across iterations (faster, apples-to-apples). `"surface-changing"`: regenerate tasks each iteration (if skill changes might affect task phrasing) |
-| `optimize.model` | `"openrouter/anthropic/claude-opus-4.6"` | Which LLM writes mutations |
+| `optimize.model` | `"openrouter/anthropic/claude-sonnet-4.6"` | Which LLM writes mutations |
 | `optimize.enabled` | `true` | Set to `false` to skip optimization (useful in CI) |
 | `optimize.requireCleanGit` | `true` | Block optimizer if target repo has uncommitted changes |
 

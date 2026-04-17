@@ -364,29 +364,31 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
 
       // Prompt surface: replace vacuous tool-recall with per-capability content score.
       if (config.surface === 'prompt') {
-        try {
-          const { criteria } = resolveCriteriaForTask(task, promptCaps);
-          const promptResult = evaluatePromptResponse(rawResponse, criteria);
-          if (promptResult.noActiveCriteria) {
-            const msg = `Task "${task.id}" has no extractable criteria — fix SKILL.md section for that action`;
+        // toolPrecision is vacuously 1.0 for prompt tasks (no tool calls = no wrong calls).
+        taskResult.metrics.toolPrecision = 1.0;
+        // Only evaluate if the model call succeeded; error already records the failure.
+        if (!error) {
+          try {
+            const { criteria } = resolveCriteriaForTask(task, promptCaps);
+            const promptResult = evaluatePromptResponse(rawResponse, criteria);
+            if (promptResult.noActiveCriteria) {
+              const msg = `Task "${task.id}" has no extractable criteria — fix SKILL.md section for that action`;
+              taskResult.metrics.toolRecall = 0;
+              taskResult.metrics.taskPassed = false;
+              taskResult.error = taskResult.error ?? msg;
+              console.error(`  [${slug}] Prompt eval error: ${msg}`);
+            } else {
+              taskResult.metrics.toolRecall = promptResult.score;
+              taskResult.metrics.taskPassed = promptResult.score >= 0.5;
+              console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`  [${slug}] Prompt eval error: ${msg}`);
             taskResult.metrics.toolRecall = 0;
-            taskResult.metrics.toolPrecision = 1.0;
             taskResult.metrics.taskPassed = false;
             taskResult.error = taskResult.error ?? msg;
-            console.error(`  [${slug}] Prompt eval error: ${msg}`);
-          } else {
-            taskResult.metrics.toolRecall = promptResult.score;
-            taskResult.metrics.toolPrecision = 1.0;
-            taskResult.metrics.taskPassed = promptResult.score >= 0.5;
-            console.log(`  [${slug}] Prompt score: ${promptResult.score.toFixed(3)} → ${taskResult.metrics.taskPassed ? 'PASS' : 'FAIL'}`);
           }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(`  [${slug}] Prompt eval error: ${msg}`);
-          taskResult.metrics.toolRecall = 0;
-          taskResult.metrics.toolPrecision = 1.0;
-          taskResult.metrics.taskPassed = false;
-          taskResult.error = taskResult.error ?? msg;
         }
       }
 
