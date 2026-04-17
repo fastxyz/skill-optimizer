@@ -12,7 +12,7 @@ The following public API exports have been removed. Update imports to use the ca
 | `McpModeConfig` | `McpSurfaceConfig` |
 | `ExpectedTool` | `ExpectedAction` |
 | `ToolMatch` | `ActionMatch` |
-| `LEGACY_PROJECT_CONFIG_NAME` | hard-code `"skill-optimizer.json"` |
+| `LEGACY_PROJECT_CONFIG_NAME` | hard-code `".skill-optimizer/skill-optimizer.json"` |
 | `toLegacyOptimizeManifest` | removed with no replacement |
 | `SurfaceSnapshotArg` | removed with no replacement |
 

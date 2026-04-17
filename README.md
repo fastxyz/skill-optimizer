@@ -32,12 +32,12 @@ npm link        # makes `skill-optimizer` available globally
 export OPENROUTER_API_KEY=sk-or-...
 ```
 
-For direct OpenAI runs you can also use your local Codex browser login instead of exporting `OPENAI_API_KEY`:
+For direct OpenAI API calls you can use your local Codex browser login instead of exporting `OPENAI_API_KEY` — set `format: "openai"` and `authMode: "codex"`:
 
 ```json
 {
   "benchmark": {
-    "format": "pi",
+    "format": "openai",
     "authMode": "codex",
     "models": [
       { "id": "openai/gpt-5.4", "name": "GPT-5.4", "tier": "flagship" }
@@ -45,6 +45,8 @@ For direct OpenAI runs you can also use your local Codex browser login instead o
   }
 }
 ```
+
+Codex auth reads a browser-login JWT or a static `OPENAI_API_KEY` from `~/.codex/auth.json`. It only applies to `openai/` model refs; `openrouter/` models always use `OPENROUTER_API_KEY`.
 
 **Step 1 — Scaffold config** (run from your project root):
 
