@@ -5,7 +5,7 @@ import type { ProjectConfig, ResolvedProjectConfig } from './types.js';
 import { resolveProjectConfig } from './resolve.js';
 import { validateProjectConfig } from './validate.js';
 
-export const DEFAULT_PROJECT_CONFIG_NAME = 'skill-optimizer.json';
+export const DEFAULT_PROJECT_CONFIG_NAME = '.skill-optimizer/skill-optimizer.json';
 
 export async function loadProjectConfig(configPath?: string, opts?: { skipDirtyGitCheck?: boolean }): Promise<ResolvedProjectConfig> {
   const resolvedPath = configPath
