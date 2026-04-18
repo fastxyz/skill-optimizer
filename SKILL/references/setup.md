@@ -65,9 +65,20 @@ The wizard prompts for:
 
 **Non-interactive mode** (for CI or scripting):
 
+The `--auto` and `--yes` flags are independent and serve different purposes:
+
+| Flag | Effect |
+|------|--------|
+| `--yes` | Accept all defaults without prompting. Still requires a surface name unless combined with `--auto`. |
+| `--auto` | Auto-detect the surface type from the current directory. Still opens the interactive wizard (pre-filled) unless combined with `--yes`. |
+| `--auto --yes` | **Fully non-interactive**: detect surface + accept all defaults. Use this for automated pipelines where the surface type isn't known in advance. |
+
 ```bash
-# Accept all defaults
+# Explicit surface, no prompts
 npx skill-optimizer init cli --yes
+
+# Auto-detect surface + no prompts (fully automated, zero interaction)
+npx skill-optimizer init --auto --yes
 
 # Load answers from a file
 npx skill-optimizer init --answers answers.json
@@ -103,12 +114,25 @@ npx skill-optimizer run --dry-run --config <config-path>
 **Manual / import** — if auto-discovery yields nothing or misses actions:
 
 ```bash
-# Extract from TypeScript source
-npx skill-optimizer import-commands --from ./src/cli.ts
+# Extract from TypeScript source, write to file
+npx skill-optimizer import-commands --from ./src/cli.ts --out ./.skill-optimizer/cli-commands.json
 
-# Extract from a compiled binary's help text
-npx skill-optimizer import-commands --from my-cli --scrape
+# Overwrite an existing output file (required when the file already exists)
+npx skill-optimizer import-commands --from ./src/cli.ts --out ./.skill-optimizer/cli-commands.json --force
+
+# Extract from a compiled binary's help text, limit subcommand depth
+npx skill-optimizer import-commands --from my-cli --scrape --depth 3
 ```
+
+Key `import-commands` flags:
+
+| Flag | Meaning |
+|------|---------|
+| `--from <path>` | Source file or binary name (required) |
+| `--out <path>` | Write output to this file. Without `--out`, output goes to stdout. Do not use `>` shell redirection — it produces malformed output. |
+| `--force` | Overwrite `--out` file if it already exists. Required on re-runs. |
+| `--scrape` | Invoke as a binary and parse `--help` output instead of reading source |
+| `--depth <n>` | Max subcommand depth during scrape. Flag is `--depth`, not `--max-depth`. |
 
 This populates `.skill-optimizer/cli-commands.json` (CLI) or `.skill-optimizer/tools.json` (MCP). You can also edit these manifest files by hand.
 
@@ -124,6 +148,21 @@ If issues are found, auto-fix what's fixable:
 
 ```bash
 npx skill-optimizer doctor --fix --config <config-path>
+```
+
+Two optional flags activate additional checks that are off by default:
+
+| Flag | Effect | Note |
+|------|--------|------|
+| `--static` | Skip live code discovery (tree-sitter). Validates config and manifests only. | Flag is `--static`, not `--no-discovery`. |
+| `--check-models` | Ping each configured model to verify API credentials and routing. | Flag is `--check-models`, not `--ping` or `--verify-models`. |
+
+```bash
+# Validate config without running discovery (fast, works without project source)
+npx skill-optimizer doctor --config <config-path> --static
+
+# Verify model API keys are working
+npx skill-optimizer doctor --config <config-path> --check-models
 ```
 
 ## 6. What You Should Have Now
