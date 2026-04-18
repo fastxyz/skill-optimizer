@@ -39,6 +39,24 @@ No LLM calls are made. Use this to verify your scope and estimate cost (N models
 npx skill-optimizer run --config <config-path>
 ```
 
+Optional run flags:
+
+| Flag | Effect | Note |
+|------|--------|------|
+| `--tier <name>` | Only run models whose tier matches. | Valid values: `flagship`, `mid`, `budget`. Flag is `--tier`, not `--model-tier`. |
+| `--model <id>` | Run a single specific model. | Pass the full model ID. |
+| `--task <id>` | Run a single task by ID. | Stable IDs from `tasks.generated.json`. |
+| `--no-cache` | Force fresh skill fetch. | |
+| `--dry-run` | Preview scope without making LLM calls. | |
+
+```bash
+# Run only flagship models
+npx skill-optimizer run --config <config-path> --tier flagship
+
+# Debug a single task
+npx skill-optimizer run --config <config-path> --task <task-id>
+```
+
 What happens at each stage:
 
 1. **Discover** — find callable actions via tree-sitter or manifest

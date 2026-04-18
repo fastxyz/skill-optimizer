@@ -143,6 +143,71 @@ await test('known commands keep trailing positional args out of method', async (
   assertEqual(calls[0].args._positional_0 as string, 'my-service', 'trailing token should be positional');
 });
 
+await test('multi-token runner prefix resolves to known command', async () => {
+  const config = {
+    name: 'test-cli',
+    surface: 'cli',
+    cli: {
+      commands: 'commands.json',
+      commandDefinitions: [{ command: 'doctor' }],
+    },
+    tasks: 'tasks.json',
+    llm: {
+      baseUrl: '',
+      apiKeyEnv: 'OPENROUTER_API_KEY',
+      format: 'openai',
+      models: [],
+    },
+  } as BenchmarkConfig & {
+    surface: 'cli';
+    cli: { commands: string; commandDefinitions: Array<{ command: string }> };
+  };
+
+  const response: LLMResponse = {
+    content: '```bash\nnpx skill-optimizer doctor --config ./foo.json\n```',
+  };
+
+  const { calls } = await extract(response, config);
+  assertEqual(calls.length, 1, 'one call expected');
+  assertEqual(calls[0].method, 'doctor', 'method should be the known command, not the prefix');
+  assertEqual(calls[0].args.config as string, './foo.json', 'config flag value should be parsed');
+});
+
+await test('flag value before subcommand does not match as method', async () => {
+  const config = {
+    name: 'test-cli',
+    surface: 'cli',
+    cli: {
+      commands: 'commands.json',
+      commandDefinitions: [{ command: 'run' }],
+    },
+    tasks: 'tasks.json',
+    llm: {
+      baseUrl: '',
+      apiKeyEnv: 'OPENROUTER_API_KEY',
+      format: 'openai',
+      models: [],
+    },
+  } as BenchmarkConfig & {
+    surface: 'cli';
+    cli: { commands: string; commandDefinitions: Array<{ command: string }> };
+  };
+
+  // Pathological shape: subcommand sits at index 4 (past the skip<=2 window).
+  // The fix caps skip at 2 so we don't reach past a flag-and-value pair and
+  // accidentally anchor on a value token. The heuristic fallback applies here.
+  const response: LLMResponse = {
+    content: '```bash\nnpx skill-optimizer --config ./foo.json run\n```',
+  };
+
+  const { calls } = await extract(response, config);
+  assertEqual(calls.length, 1, 'one call expected');
+  assert(
+    calls[0].method !== 'run',
+    `method should not spuriously match past the flag-value pair (got "${calls[0].method}")`,
+  );
+});
+
 await test('command with env assignment', () => {
   const calls = parseShellCommands('FAST_NETWORK=testnet FAST_PROFILE=dev fast wallet status');
   const env = calls[0].args.env as Record<string, string>;
