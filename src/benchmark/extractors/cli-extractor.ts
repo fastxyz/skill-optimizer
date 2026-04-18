@@ -262,9 +262,11 @@ function resolveMethod(
   if (knownCommands && knownCommands.length > 0) {
     const knownSet = new Set(knownCommands.map((command) => command.trim()).filter(Boolean));
 
-    // Try matching from startIndex, then skip 1–3 tokens to handle prefixes like "npx skill-optimizer" or "fast"
+    // Try matching from startIndex, then skip up to 2 tokens to handle prefixes like "npx skill-optimizer" or "fast".
+    // Capped at 2 because wider skips can land on a flag's value (e.g. "--config run" would match "run") when the
+    // command precedes the subcommand in the invocation.
     let match: ReturnType<typeof findKnownCommand> = null;
-    for (let skip = 0; skip <= 3 && !match; skip++) {
+    for (let skip = 0; skip <= 2 && !match; skip++) {
       if (startIndex + skip < tokens.length) {
         match = findKnownCommand(tokens, startIndex + skip, knownSet);
       }
