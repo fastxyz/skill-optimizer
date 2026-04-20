@@ -34,6 +34,12 @@ Paths in the config are relative to the config file location.
 | `benchmark.output.dir` | `string` | — | Directory where reports are saved (default "benchmark-results/") |
 | `benchmark.verdict.perModelFloor` | `number` | — | Minimum per-model pass fraction for PASS verdict (default 0.6) |
 | `benchmark.verdict.targetWeightedAverage` | `number` | — | Minimum weighted average across all models for PASS (default 0.7) |
+| `benchmark.agentic.references.baseUrl` | `string` | — | Base URL for the reference doc-fetch tool |
+| `benchmark.agentic.references.allowedPaths` | `string[]` | — | Allowlist of documentation paths the agent may fetch |
+| `benchmark.agentic.coding.enabled` | `boolean` | — | Opt-in flag. When true, prompt-surface tasks are evaluated by a coding-agent session with real Read/Bash/Grep access instead of a single-shot chat completion |
+| `benchmark.agentic.coding.cwd` | `string` | — | Absolute path the agent may read. All tool access is scoped here — typically a fixture repo prepared for the benchmark |
+| `benchmark.agentic.coding.thinkingLevel` | `"off" | "minimal" | "low" | "medium" | "high" | "xhigh"` | — | Reasoning depth for the coding orchestrator (default "medium") |
+| `benchmark.agentic.maxTurns` | `integer` | — | Maximum agent turns per task (default 5, applies to references mode only) |
 | `optimize.model` | `string` | — | Model for mutation, e.g. openrouter/anthropic/claude-sonnet-4.6 |
 | `optimize.authMode` | `"env" | "codex" | "auto"` | — | How to resolve optimizer credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback |
 | `optimize.apiKeyEnv` | `string` | — | Env var for the optimizer API key |
