@@ -61,6 +61,22 @@ const VerdictConfigSchema = z.object({
   targetWeightedAverage: z.number().min(0).max(1).optional().describe('Minimum weighted average across all models for PASS (default 0.7)'),
 });
 
+const AgenticCodingConfigSchema = z.object({
+  enabled: z.boolean().describe('Opt-in flag. When true, prompt-surface tasks are evaluated by a coding-agent session with real Read/Bash/Grep access instead of a single-shot chat completion'),
+  cwd: z.string().describe('Absolute path the agent may read. All tool access is scoped here — typically a fixture repo prepared for the benchmark'),
+  thinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']).optional()
+    .describe('Reasoning depth for the coding orchestrator (default "medium")'),
+});
+
+const AgenticConfigSchema = z.object({
+  references: z.object({
+    baseUrl: z.string().describe('Base URL for the reference doc-fetch tool'),
+    allowedPaths: z.array(z.string()).describe('Allowlist of documentation paths the agent may fetch'),
+  }).optional().describe('Doc-fetch mode: expose a web_fetch tool with a URL allowlist'),
+  coding: AgenticCodingConfigSchema.optional().describe('Coding-orchestrator mode: route prompt-surface tasks through a pi-coding-agent session with real filesystem and bash tool access'),
+  maxTurns: z.number().int().positive().optional().describe('Maximum agent turns per task (default 5, applies to references mode only)'),
+});
+
 const BenchmarkConfigSchema = z.object({
   format: z.enum(['pi', 'openai', 'anthropic']).optional().describe('LLM transport format: "pi" routes through OpenRouter/Pi (use openrouter/* or openai/* model refs); "openai" calls the OpenAI API directly (supports Codex auth); "anthropic" calls the Anthropic API directly'),
   authMode: z.enum(['env', 'codex', 'auto']).optional().describe('How to resolve credentials: env var, ~/.codex/auth.json browser-login tokens, or env-then-codex fallback'),
@@ -72,6 +88,7 @@ const BenchmarkConfigSchema = z.object({
     dir: z.string().optional().describe('Directory where reports are saved (default "benchmark-results/")'),
   }).optional().describe('Output configuration'),
   verdict: VerdictConfigSchema.optional().describe('PASS/FAIL thresholds'),
+  agentic: AgenticConfigSchema.optional().describe('Agentic execution modes. Off by default; opt in to give the benchmark model a tool-using session instead of a single-shot chat completion'),
 });
 
 const OptimizeConfigSchema = z.object({

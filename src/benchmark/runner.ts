@@ -28,6 +28,12 @@ import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
 import { evaluatePromptResponse } from './prompt-evaluator.js';
 import { resolveCriteriaForTask } from './prompt-criteria.js';
 import { discoverPromptCapabilitiesWithSections } from '../project/discover-prompt.js';
+import {
+  normalizeAgenticCodingConfig,
+  runAgenticCodingTask,
+  type AgenticCodingDeps,
+} from './agentic-coding.js';
+import { createCodingOrchestratorSession } from '../runtime/pi/index.js';
 
 function buildWebFetchTool(): McpToolDefinition {
   return {
@@ -241,7 +247,31 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
 
       const start = Date.now();
       try {
-        if (config.agentic) {
+        const codingConfig = normalizeAgenticCodingConfig(config.agentic?.coding);
+        if (codingConfig) {
+          const deps: AgenticCodingDeps = {
+            createSession: (opts) => createCodingOrchestratorSession({
+              cwd: opts.cwd,
+              modelRef: opts.modelRef,
+              authMode: opts.authMode,
+              apiKeyEnv: opts.apiKeyEnv,
+              thinkingLevel: opts.thinkingLevel,
+            }),
+          };
+          const result = await runAgenticCodingTask(deps, {
+            cwd: codingConfig.cwd,
+            modelRef: model.id,
+            systemPrompt,
+            taskPrompt: buildTaskPrompt(task, promptOptions),
+            thinkingLevel: codingConfig.thinkingLevel,
+            authMode: config.llm.authMode,
+            apiKeyEnv: config.llm.apiKeyEnv,
+          });
+          llmResponse = { content: result.content, toolCalls: [], usage: undefined };
+          if (result.toolActivity.length > 0) {
+            console.log(`  [${slug}] Agentic coding: ${result.toolActivity.length} tool activity entries`);
+          }
+        } else if (config.agentic?.references) {
           const ref = createReferenceExecutor(
             config.agentic.references.baseUrl, config.agentic.references.allowedPaths,
           );
@@ -392,7 +422,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         }
       }
 
-      if (config.agentic && task.expected_fetches) {
+      if (config.agentic?.references && task.expected_fetches) {
         const actualFetches = fetchedPaths;
         const expectedSet = new Set(task.expected_fetches);
         const actualSet = new Set(actualFetches);

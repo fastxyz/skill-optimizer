@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Agentic coding benchmark mode** (`benchmark.agentic.coding`) — route prompt-surface tasks through a pi-coding-agent session so the model has real Read/Bash/Grep/Edit access against a fixture directory, instead of being evaluated on a single-shot chat completion. Required for skills that direct the model to exercise tools (PR review skills, migration skills, repo-navigation skills); without it the model hallucinates `<tool_call>` blocks and the evaluator grades fabricated output. Off by default — opt in by setting `benchmark.agentic.coding.enabled: true` and providing `cwd`. Reuses the same `createCodingOrchestratorSession` the optimizer already uses for mutations, so no new dependencies are introduced.
+- **Agentic config schema** — `benchmark.agentic` (existing `references` mode plus new `coding` mode) is now documented in `docs/reference/config-schema.md` via the Zod schema.
+
+### Changed
+
+- `AgenticConfig.references` is now optional (was required). Existing configs with `references` set are unaffected; configs without either `references` or `coding` produce the same single-shot behaviour as before.
+
 ## 1.1.0 — 2026-04-16
 
 ### Breaking Changes

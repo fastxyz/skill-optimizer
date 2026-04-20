@@ -92,9 +92,26 @@ export interface OutputConfig {
 }
 
 export interface AgenticConfig {
-  references: {
+  /**
+   * HTTP doc-fetch mode. The model is given a `web_fetch` tool and an
+   * allowlist of documentation paths. Used for SDK/CLI skills that reference
+   * external docs.
+   */
+  references?: {
     baseUrl: string;
     allowedPaths: string[];
+  };
+  /**
+   * Coding-orchestrator mode. Route prompt-surface tasks through a
+   * pi-coding-agent session so the model has real Read/Bash/Grep access
+   * against a fixture repo. Opt-in; off by default.
+   */
+  coding?: {
+    enabled: boolean;
+    /** Absolute path the agent may read. All tool access is scoped here. */
+    cwd: string;
+    /** Thinking level. Defaults to `medium`. */
+    thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   };
   maxTurns?: number;
 }
