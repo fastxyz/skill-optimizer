@@ -40,6 +40,7 @@ export async function generateCandidateTasks(
 
 function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig): string {
   const clampedMax = Math.max(1, Math.floor(config.maxTasks));
+  const referenceContext = buildReferenceContext(surface);
 
   if (surface.snapshot.surface === 'prompt') {
     const capKeys = surface.snapshot.actions.map((a) => a.name);
@@ -64,6 +65,7 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
       '---BEGIN SKILL---',
       surface.skillMarkdown,
       '---END SKILL---',
+      referenceContext,
       '',
       'Discovered prompt surface snapshot (capabilities for reference):',
       '---BEGIN SURFACE SNAPSHOT---',
@@ -77,13 +79,15 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
     '',
     'Return a JSON object with EXACTLY this shape and no other keys:',
     '{"tasks":[{"id":"string","prompt":"string","expected_actions":[{"name":"string","args":{"key":"value"}}]}]}',
+    'Optional when a task requires a companion skill file: add "expected_reads":["exact/reference/path.md"].',
     '',
     'STRICT SCHEMA RULES - violations cause test failures:',
-    '- Each task object has EXACTLY three keys: id, prompt, expected_actions.',
+    '- Each task object has id, prompt, expected_actions, and may include expected_reads.',
     '- Do NOT add keys like: cli_command, instruction, action, description, expected_outcome, expected_args, source, steps, calls.',
     '- expected_actions is an ARRAY of objects, each with exactly two keys: name and args.',
     '- name is the action name string (e.g. "account create", "network list").',
     '- args is a flat object of key-value argument pairs (e.g. {"name": "my-wallet"}).',
+    '- expected_reads must use exact paths from the Companion skill references section when the task requires them.',
     '',
     `Task count limit: produce at most ${clampedMax} tasks.`,
     `Seed for deterministic variety: ${config.seed}.`,
@@ -99,11 +103,28 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
     '---BEGIN SKILL---',
     surface.skillMarkdown,
     '---END SKILL---',
+    referenceContext,
     '',
     `Discovered ${surface.snapshot.surface} surface snapshot:`,
     '---BEGIN SURFACE SNAPSHOT---',
     JSON.stringify(surface.snapshot, null, 2),
     '---END SURFACE SNAPSHOT---',
+  ].join('\n');
+}
+
+function buildReferenceContext(surface: DiscoveredTaskSurface): string {
+  const references = surface.skillReferences ?? [];
+  if (references.length === 0) return '';
+
+  return [
+    '',
+    'Companion skill references available at benchmark runtime via skill_read(path):',
+    'If generated tasks depend on these companion instructions, include expected_reads with the exact path.',
+    ...references.flatMap((reference) => [
+      `---BEGIN REFERENCE path="${reference.path}"---`,
+      reference.content,
+      '---END REFERENCE---',
+    ]),
   ].join('\n');
 }
 
@@ -235,6 +256,7 @@ function validateTask(task: unknown, index: number, knownCapabilityKeys?: string
   }
 
   const expected_actions = rawExpectedActions.map((action, actionIndex) => validateExpectedAction(taskId, action, actionIndex));
+  const expected_reads = validateExpectedReads(candidate['expected_reads'], taskId);
 
   // Extract capabilityId for prompt-surface tasks. The field is stored as-is here;
   // grounding validates it against the known capability keys and rejects bad values.
@@ -245,8 +267,22 @@ function validateTask(task: unknown, index: number, knownCapabilityKeys?: string
     id: taskId,
     prompt: taskPrompt,
     expected_actions,
+    ...(expected_reads ? { expected_reads } : {}),
     ...(capabilityId !== undefined ? { capabilityId } : {}),
   };
+}
+
+function validateExpectedReads(rawReads: unknown, taskId: string): string[] | undefined {
+  if (rawReads === undefined) return undefined;
+  if (!Array.isArray(rawReads)) {
+    throw new Error(`Task ${taskId} expected_reads must be an array when present`);
+  }
+  for (const [index, entry] of rawReads.entries()) {
+    if (typeof entry !== 'string' || entry.trim() === '') {
+      throw new Error(`Task ${taskId} expected_reads[${index}] must be a non-empty string`);
+    }
+  }
+  return rawReads.map((entry) => entry.trim());
 }
 
 function validateExpectedAction(taskId: string, action: unknown, actionIndex: number): ExpectedAction {

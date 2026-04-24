@@ -222,6 +222,7 @@ function fetchFromFileWithReferences(skillConfig: SkillConfig): FetchedSkill {
   const source = skillConfig.source;
   const references = skillConfig.references ?? [];
   const resolved = resolve(process.cwd(), source);
+  const referenceBaseResolved = resolve(process.cwd(), skillConfig.referenceBaseSource ?? source);
 
   if (!existsSync(resolved)) {
     throw new Error(`Skill file not found: ${resolved} (from source: "${source}")`);
@@ -255,7 +256,7 @@ function fetchFromFileWithReferences(skillConfig: SkillConfig): FetchedSkill {
   });
 
   const commonDirectory = getCommonDirectory([
-    dirname(resolved),
+    dirname(referenceBaseResolved),
     ...resolvedReferenceFiles.map((ref) => dirname(ref.resolvedPath)),
   ]);
 

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 
 import { extractShellBlock, parseShellCommands, extractFromCliMarkdown } from '../src/benchmark/extractors/cli-extractor.js';
 import { extract } from '../src/benchmark/extractors/index.js';
-import { loadCliCommands } from '../src/benchmark/config.js';
+import { loadCliCommands, loadTasks } from '../src/benchmark/config.js';
 import { evaluateTask } from '../src/benchmark/evaluator.js';
 import { createSkillReadExecutor } from '../src/benchmark/runner.js';
 import { evaluateExpectedReads } from '../src/benchmark/read-evaluator.js';
@@ -313,6 +313,34 @@ await test('loadCliCommands: rejects entries without command', () => {
   }
 });
 
+await test('loadTasks: preserves CLI required flag metadata', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-cli-tasks-'));
+  try {
+    const tasksPath = join(dir, 'tasks.json');
+    writeFileSync(tasksPath, JSON.stringify({
+      tasks: [
+        {
+          id: 'cli-required',
+          prompt: 'List permissions.',
+          expected_actions: [
+            {
+              name: 'gws drive permissions list',
+              args: { 'params.fileId': 'FILE_ID' },
+              cli: { required: ['--params', '--page-all'] },
+            },
+          ],
+        },
+      ],
+    }), 'utf-8');
+
+    const tasks = loadTasks(tasksPath);
+    assertEqual((tasks[0].expected_actions[0] as any).cli.required[0], '--params', 'first required flag should be preserved');
+    assertEqual((tasks[0].expected_actions[0] as any).cli.required[1], '--page-all', 'second required flag should be preserved');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 await test('fetchSkill loads local companion skill references', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-skill-'));
   try {
@@ -338,6 +366,38 @@ await test('fetchSkill loads local companion skill references', async () => {
     assertEqual(references.length, 1, 'one local reference should be loaded');
     assertEqual(references[0].path, 'gws-shared/SKILL.md', 'reference path should be slash-normalized and stable');
     assert(references[0].content.includes('Expected shared companion text'), 'shared reference content should be loaded');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('fetchSkill keeps reference paths stable for optimized local skill copies', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-skill-override-'));
+  try {
+    const mainDir = join(dir, 'repo', 'skills', 'gws-drive');
+    const sharedDir = join(dir, 'repo', 'skills', 'gws-shared');
+    const artifactDir = join(dir, 'artifacts');
+    mkdirSync(mainDir, { recursive: true });
+    mkdirSync(sharedDir, { recursive: true });
+    mkdirSync(artifactDir, { recursive: true });
+
+    const mainPath = join(mainDir, 'SKILL.md');
+    const sharedPath = join(sharedDir, 'SKILL.md');
+    const localCopyPath = join(artifactDir, 'skill-v1.md');
+
+    writeFileSync(mainPath, '# Main skill\n', 'utf-8');
+    writeFileSync(localCopyPath, '# Main skill copy\n', 'utf-8');
+    writeFileSync(sharedPath, '# Shared skill\n', 'utf-8');
+
+    const fetched = await fetchSkill({
+      source: localCopyPath,
+      referenceBaseSource: mainPath,
+      references: [sharedPath],
+      cache: false,
+    } as any);
+
+    assert(fetched !== null, 'fetchSkill should return skill content');
+    assertEqual((fetched as any).references[0].path, 'gws-shared/SKILL.md', 'optimized skill copy should keep original reference path');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

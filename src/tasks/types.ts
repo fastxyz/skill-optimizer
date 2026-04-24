@@ -5,6 +5,7 @@ export interface GeneratedTask {
   id: string;
   prompt: string;
   expected_actions: ExpectedAction[];
+  expected_reads?: string[];
   capabilityId?: string;  // prompt surface only; SDK/CLI/MCP don't set this
 }
 
@@ -21,6 +22,7 @@ export interface DiscoveredTaskSurface {
   project: ResolvedProjectConfig;
   skillMarkdown: string;
   skillPath: string;
+  skillReferences?: Array<{ path: string; source: string; content: string }>;
   snapshot: SurfaceSnapshot;
 }
 

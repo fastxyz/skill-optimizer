@@ -137,7 +137,7 @@ function normalizeExpectedAction(
     throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} must be an object`);
   }
 
-  const candidate = rawAction as { name?: unknown; args?: unknown };
+  const candidate = rawAction as { name?: unknown; args?: unknown; cli?: unknown };
   const name = typeof candidate.name === 'string' ? candidate.name : null;
 
   if (!name || name.trim() === '') {
@@ -148,10 +148,33 @@ function normalizeExpectedAction(
     throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} args must be an object when present`);
   }
 
+  const cli = normalizeExpectedActionCli(candidate.cli, resolvedPath, taskIndex, actionIndex);
+
   return {
     name,
     args: (candidate.args as Record<string, unknown> | undefined) ?? {},
+    ...(cli ? { cli } : {}),
   };
+}
+
+function normalizeExpectedActionCli(
+  rawCli: unknown,
+  resolvedPath: string,
+  taskIndex: number,
+  actionIndex: number,
+): ExpectedAction['cli'] | undefined {
+  if (rawCli === undefined) return undefined;
+  if (!rawCli || typeof rawCli !== 'object' || Array.isArray(rawCli)) {
+    throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} cli must be an object when present`);
+  }
+
+  const required = (rawCli as { required?: unknown }).required;
+  if (required === undefined) return {};
+  if (!Array.isArray(required) || required.some((entry) => typeof entry !== 'string' || entry.trim() === '')) {
+    throw new Error(`Tasks file ${resolvedPath}: task ${taskIndex} action ${actionIndex} cli.required must be an array of non-empty strings`);
+  }
+
+  return { required: [...required] as string[] };
 }
 
 /**

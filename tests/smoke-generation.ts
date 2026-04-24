@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -120,6 +120,38 @@ await test('discoverTaskSurface: resolves and loads skill/snapshot', async () =>
   }
 });
 
+await test('discoverTaskSurface: loads configured companion skill references', async () => {
+  const fixture = makeFixture();
+  try {
+    const sharedDir = join(fixture.root, 'shared');
+    const sharedPath = join(sharedDir, 'SKILL.md');
+    mkdirSync(sharedDir, { recursive: true });
+    writeFileSync(sharedPath, '# Shared reference\nUse --params for resource identifiers.\n', 'utf-8');
+    writeFileSync(fixture.benchmarkConfigPath, JSON.stringify({
+      name: 'gen-smoke',
+      target: {
+        surface: 'mcp',
+        repoPath: '.',
+        skill: { source: './SKILL.md', references: ['./shared/SKILL.md'], cache: false },
+        discovery: { mode: 'auto', sources: ['./server.ts'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openai/test', name: 'Test', tier: 'flagship' }],
+      },
+    }, null, 2), 'utf-8');
+
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    const references = (surface as any).skillReferences as Array<{ path: string; content: string }>;
+    assertEqual(references.length, 1, 'one companion reference should be loaded');
+    assertEqual(references[0].path, 'shared/SKILL.md', 'reference path should match benchmark skill_read path');
+    assert(references[0].content.includes('Use --params'), 'reference content should be loaded for task generation');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 await test('generateCandidateTasks: parses strict JSON response', async () => {
   const fixture = makeFixture();
   try {
@@ -145,6 +177,56 @@ await test('generateCandidateTasks: parses strict JSON response', async () => {
     // ID is derived from action names (content-stable hash), not the LLM-supplied id field
     assert(/^[0-9a-f]{12}$/.test(generated[0].id), 'task id should be a 12-char hex hash of action names');
     assertEqual(generated[0].prompt, 'Create a wallet named alpha.', 'task prompt should match');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+await test('generateCandidateTasks: includes references in prompt and preserves expected_reads', async () => {
+  const fixture = makeFixture();
+  try {
+    const sharedDir = join(fixture.root, 'shared');
+    const sharedPath = join(sharedDir, 'SKILL.md');
+    mkdirSync(sharedDir, { recursive: true });
+    writeFileSync(sharedPath, '# Shared reference\nUse --params for resource identifiers.\n', 'utf-8');
+    writeFileSync(fixture.benchmarkConfigPath, JSON.stringify({
+      name: 'gen-smoke',
+      target: {
+        surface: 'mcp',
+        repoPath: '.',
+        skill: { source: './SKILL.md', references: ['./shared/SKILL.md'], cache: false },
+        discovery: { mode: 'auto', sources: ['./server.ts'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openai/test', name: 'Test', tier: 'flagship' }],
+      },
+    }, null, 2), 'utf-8');
+
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    const deps: TaskGeneratorDeps = {
+      async complete(input) {
+        assert(input.prompt.includes('Companion skill references'), 'task generator prompt should mention companion references');
+        assert(input.prompt.includes('path="shared/SKILL.md"'), 'task generator prompt should include exact skill_read path');
+        assert(input.prompt.includes('Use --params for resource identifiers.'), 'task generator prompt should include reference content');
+        return JSON.stringify({
+          tasks: [
+            {
+              id: 'task-create',
+              prompt: 'Create a wallet named alpha after reading the shared reference.',
+              expected_reads: ['shared/SKILL.md'],
+              expected_actions: [
+                { name: 'create_wallet', args: { label: 'alpha' } },
+              ],
+            },
+          ],
+        });
+      },
+    };
+
+    const generated = await generateCandidateTasks(surface, { maxTasks: 5, seed: 7 }, deps);
+    assertEqual((generated[0] as any).expected_reads?.[0], 'shared/SKILL.md', 'expected_reads should be preserved');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }
@@ -274,6 +356,34 @@ await test('groundTasks: rejects unknown methods and invalid args', async () => 
   }
 });
 
+await test('groundTasks: rejects expected_reads outside configured references', async () => {
+  const fixture = makeFixture();
+  try {
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    const tasks: GeneratedTask[] = [
+      {
+        id: 'ok-read-task',
+        prompt: 'Create a wallet after reading allowed reference.',
+        expected_actions: [{ name: 'create_wallet', args: { label: 'alpha' } }],
+        expected_reads: ['shared/SKILL.md'],
+      } as any,
+      {
+        id: 'bad-read-task',
+        prompt: 'Create a wallet after reading forbidden reference.',
+        expected_actions: [{ name: 'create_wallet', args: { label: 'beta' } }],
+        expected_reads: ['../secret.md'],
+      } as any,
+    ];
+
+    const result = groundTasks(tasks, surface.snapshot, new Set(['shared/SKILL.md']) as any);
+    assertEqual(result.kept.length, 1, 'only task with configured expected_reads should remain');
+    assertEqual(result.kept[0].id, 'ok-read-task', 'allowed read task should be kept');
+    assert(result.rejected.some((entry) => entry.reason.includes('unknown expected_reads')), 'should reject unknown expected_reads');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
 await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', async () => {
   const fixture = makeFixture();
   try {
@@ -334,6 +444,62 @@ await test('freezeGeneratedBenchmark: writes artifacts and absolute paths', asyn
     assertEqual(benchmark.benchmark.tasks, frozen.tasksPath, 'tasks should point at generated tasks path');
     assertEqual(benchmark.benchmark.surfaceSnapshot, frozen.snapshotPath, 'surface snapshot should be pinned in generated config');
     assertEqual(benchmark.optimize, undefined, 'generated benchmark config should omit optimize-only settings');
+  } finally {
+    rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+await test('freezeGeneratedBenchmark: preserves skill references and generated expected_reads', async () => {
+  const fixture = makeFixture();
+  try {
+    const sharedDir = join(fixture.root, 'shared');
+    const sharedPath = join(sharedDir, 'SKILL.md');
+    mkdirSync(sharedDir, { recursive: true });
+    writeFileSync(sharedPath, '# Shared reference\n', 'utf-8');
+    writeFileSync(fixture.benchmarkConfigPath, JSON.stringify({
+      name: 'gen-smoke',
+      target: {
+        surface: 'mcp',
+        repoPath: '.',
+        skill: { source: './SKILL.md', references: ['./shared/SKILL.md'], cache: false },
+        discovery: { mode: 'auto', sources: ['./server.ts'] },
+      },
+      benchmark: {
+        tasks: './tasks.json',
+        format: 'pi',
+        models: [{ id: 'openai/test', name: 'Test', tier: 'flagship' }],
+      },
+    }, null, 2), 'utf-8');
+
+    const outDir = join(fixture.root, 'generated');
+    const kept: GeneratedTask[] = [
+      {
+        id: 'frozen-task',
+        prompt: 'Create wallet after reading shared reference.',
+        expected_reads: ['shared/SKILL.md'],
+        expected_actions: [{ name: 'create_wallet', args: { label: 'frozen' } }],
+      } as any,
+    ];
+
+    const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
+    const frozen = freezeTaskArtifacts({
+      project: surface.project,
+      snapshot: surface.snapshot,
+      outputDir: outDir,
+      kept,
+      rejected: [],
+    });
+
+    const benchmark = JSON.parse(readFileSync(frozen.benchmarkPath, 'utf-8')) as {
+      target: { skill: { references?: string[] } };
+    };
+    const tasks = JSON.parse(readFileSync(frozen.tasksPath, 'utf-8')) as {
+      tasks: Array<{ expected_reads?: string[] }>;
+    };
+
+    assertEqual(benchmark.target.skill.references?.length, 1, 'skill references should be preserved in generated config');
+    assert(benchmark.target.skill.references![0].endsWith('/shared/SKILL.md'), 'skill reference should remain absolute in generated config');
+    assertEqual(tasks.tasks[0].expected_reads?.[0], 'shared/SKILL.md', 'generated tasks should preserve expected_reads');
   } finally {
     rmSync(fixture.root, { recursive: true, force: true });
   }

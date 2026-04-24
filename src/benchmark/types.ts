@@ -75,6 +75,7 @@ export interface McpSurfaceConfig {
 export interface SkillConfig {
   source: string;                  // "github:org/repo/path", "./file.md", "https://url"
   references?: string[];           // local companion markdown/text files
+  referenceBaseSource?: string;     // internal: original skill source when benchmarking a local optimized copy
   cache?: boolean;                 // default true
 }
 

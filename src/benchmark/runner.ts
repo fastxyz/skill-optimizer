@@ -221,7 +221,12 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
 
   const skillConfig = options.skillOverride
-    ? { ...(config.skill ?? {}), source: options.skillOverride, cache: false } as typeof config.skill
+    ? {
+        ...(config.skill ?? {}),
+        source: options.skillOverride,
+        referenceBaseSource: config.skill?.source,
+        cache: false,
+      } as typeof config.skill
     : config.skill;
   const skill = await fetchSkill(options.noCache
     ? { ...skillConfig, cache: false } as typeof skillConfig
