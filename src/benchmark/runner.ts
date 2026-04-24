@@ -30,6 +30,7 @@ import { evaluatePromptResponse } from './prompt-evaluator.js';
 import { resolveCriteriaForTask } from './prompt-criteria.js';
 import { discoverPromptCapabilitiesWithSections } from '../project/discover-prompt.js';
 import { evaluateExpectedReads } from './read-evaluator.js';
+import { normalizePathForPrompt } from '../project/skill-references.js';
 
 function buildWebFetchTool(): McpToolDefinition {
   return {
@@ -96,26 +97,48 @@ export function createSkillReadExecutor(
   references: FetchedSkill['references'] | undefined,
 ): { executor: ToolExecutor; readPaths: string[] } {
   const reads: string[] = [];
-  const byPath = new Map<string, string>();
+  const referenceLookup = new Map<string, { content: string; canonicalPath: string }>();
   for (const ref of references ?? []) {
-    byPath.set(ref.path, ref.content);
+    referenceLookup.set(normalizePathForPrompt(ref.path), { content: ref.content, canonicalPath: ref.path });
+    for (const alias of ref.aliases ?? []) {
+      referenceLookup.set(normalizePathForPrompt(alias), { content: ref.content, canonicalPath: ref.path });
+    }
   }
 
   const executor: ToolExecutor = async (name, args) => {
     if (name !== 'skill_read') return `Error: Unknown tool "${name}"`;
     const rawPath = String(args.path ?? '');
-    const requestedPath = rawPath.trim();
+    const requestedPath = normalizePathForPrompt(rawPath.trim());
     if (!requestedPath) return 'Error: Missing required argument "path"';
-    if (requestedPath.includes('..')) return 'Error: Path traversal is not allowed';
-    const content = byPath.get(requestedPath);
-    if (!content) {
-      return `Error: Companion skill path "${requestedPath}" not found. Available: ${[...byPath.keys()].join(', ')}`;
+    const resolved = referenceLookup.get(requestedPath) ?? findSkillReadSuffixMatch(requestedPath, references ?? []);
+    if (!resolved) {
+      return `Error: Companion skill path "${requestedPath}" not found. Available: ${[...referenceLookup.keys()].join(', ')}`;
     }
-    reads.push(requestedPath);
-    return content;
+    reads.push(resolved.canonicalPath);
+    return resolved.content;
   };
 
   return { executor, readPaths: reads };
+}
+
+function findSkillReadSuffixMatch(
+  requestedPath: string,
+  references: NonNullable<FetchedSkill['references']>,
+): { content: string; canonicalPath: string } | undefined {
+  const matches = references.filter((reference) => {
+    const canonical = normalizePathForPrompt(reference.path);
+    const source = normalizePathForPrompt(reference.source);
+    const canonicalSuffixMatch =
+      requestedPath !== `/${canonical}` && requestedPath.endsWith(`/${canonical}`);
+    const sourceSuffixMatch =
+      requestedPath !== `/${source}` && requestedPath.endsWith(`/${source}`);
+    return requestedPath === source || canonicalSuffixMatch || sourceSuffixMatch;
+  });
+  if (matches.length !== 1) return undefined;
+  return {
+    content: matches[0]!.content,
+    canonicalPath: matches[0]!.path,
+  };
 }
 
 function combineExecutors(executors: ToolExecutor[]): ToolExecutor {
@@ -158,6 +181,8 @@ export interface RunnerOptions {
    * one committed in the target repo.
    */
   skillOverride?: string;
+  /** Local optimized companion references paired with their stable skill_read paths. */
+  skillReferenceOverrides?: Array<{ source: string; promptPath: string; baseSource?: string }>;
 }
 
 /**
@@ -224,6 +249,9 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
     ? {
         ...(config.skill ?? {}),
         source: options.skillOverride,
+        references: options.skillReferenceOverrides?.map((reference) => reference.source) ?? config.skill?.references,
+        referenceBaseSources: options.skillReferenceOverrides?.map((reference) => reference.baseSource ?? reference.source),
+        referencePromptPaths: options.skillReferenceOverrides?.map((reference) => reference.promptPath),
         referenceBaseSource: config.skill?.source,
         cache: false,
       } as typeof config.skill

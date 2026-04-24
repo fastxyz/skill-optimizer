@@ -583,6 +583,79 @@ await test('runOptimizeLoop: applies defaults to partially specified manifests',
   assertEqual(result.iterations[0]?.accepted, true, 'default minImprovement should still allow acceptance');
 });
 
+await test('runOptimizeLoop: local skill mode versions companion references', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-local-refs-'));
+  try {
+    const repoDir = join(dir, 'repo');
+    const outputDir = join(dir, 'artifacts');
+    const skillPath = join(repoDir, 'skills', 'main', 'SKILL.md');
+    const refPath = join(repoDir, 'skills', 'shared', 'SKILL.md');
+    mkdirSync(join(repoDir, 'skills', 'main'), { recursive: true });
+    mkdirSync(join(repoDir, 'skills', 'shared'), { recursive: true });
+    writeFileSync(skillPath, '# Main skill\nRead the shared skill.\n', 'utf-8');
+    writeFileSync(refPath, '# Shared skill\nOriginal params guidance.\n', 'utf-8');
+
+    const manifest = makeManifest() as OptimizeManifest & {
+      skillPath: string;
+      skillReferences: Array<{ source: string; promptPath: string }>;
+    };
+    manifest.skillPath = skillPath;
+    manifest.skillReferences = [{ source: refPath, promptPath: 'shared/SKILL.md' }];
+    manifest.targetRepo.path = repoDir;
+    manifest.optimizer!.maxIterations = 1;
+    manifest.optimizer!.minImprovement = 0;
+    manifest.optimizer!.taskGeneration!.outputDir = outputDir;
+
+    const benchmarkReferenceContents: string[] = [];
+    const deps: OptimizeLoopDependencies = {
+      benchmark: {
+        run: async (_configPath, opts) => {
+          const referenceOverride = opts.skillReferenceOverrides?.[0];
+          assert(referenceOverride !== undefined, `${opts.label} should pass a local reference override`);
+          assertEqual(referenceOverride.promptPath, 'shared/SKILL.md', 'reference prompt path should stay stable');
+          benchmarkReferenceContents.push(readFileSync(referenceOverride.source, 'utf-8'));
+          const score = opts.label === 'baseline' ? 0.1 : 0.5;
+          return makeBenchmarkRunResult(makeReport(score), opts);
+        },
+      },
+      repo: {
+        ensureReady: async () => 'clean',
+        captureCheckpoint: async () => 'checkpoint-1',
+        restoreCheckpoint: async () => {},
+        updateAcceptedCheckpoint: async () => 'checkpoint-2',
+      },
+      mutation: {
+        apply: async (context) => {
+          const localReferences = context.localSkillReferences ?? [];
+          assertEqual(localReferences.length, 1, 'mutation context should include one editable local reference');
+          assert(localReferences[0]!.localPath.includes('references-v1'), 'iteration should use a versioned local reference copy');
+          writeFileSync(localReferences[0]!.localPath, '# Shared skill\nImproved params guidance.\n', 'utf-8');
+          return { summary: 'update shared reference', changedFiles: [localReferences[0]!.localPath] };
+        },
+      },
+      validation: {
+        run: async () => ({ ok: true, commands: [] }),
+      },
+      ledger: {
+        record: async () => {},
+      },
+    };
+
+    const result = await runOptimizeLoop(manifest, deps);
+    assertEqual(result.iterations[0]?.accepted, true, 'reference-only edit should be accepted when score improves');
+    assertEqual(result.iterations[0]?.changedFiles.length, 1, 'changed files should only include the file actually edited');
+    assert(result.iterations[0]?.changedFiles[0]?.includes('references-v1'), 'changed files should include the edited local reference copy');
+    assertEqual(result.iterations[0]?.editableFiles?.length, 2, 'editable files should expose the whole local skill bundle');
+    assert(result.iterations[0]?.editableFiles?.some((file) => file.endsWith('skill-v1.md')), 'editable files should include the primary local skill copy');
+    assert(result.iterations[0]?.editableFiles?.some((file) => file.includes('references-v1')), 'editable files should include the local reference copy');
+    assert(benchmarkReferenceContents[0]!.includes('Original params guidance'), 'baseline should benchmark original local reference copy');
+    assert(benchmarkReferenceContents[1]!.includes('Improved params guidance'), 'iteration should benchmark edited local reference copy');
+    assert(readFileSync(refPath, 'utf-8').includes('Original params guidance'), 'target repo reference file must remain untouched');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 await test('runOptimizeLoop: rejects requireCleanGit=false even for programmatic manifests', async () => {
   const manifest = makeManifest();
   manifest.targetRepo.requireCleanGit = false;

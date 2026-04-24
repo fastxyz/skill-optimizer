@@ -76,6 +76,8 @@ export interface SkillConfig {
   source: string;                  // "github:org/repo/path", "./file.md", "https://url"
   references?: string[];           // local companion markdown/text files
   referenceBaseSource?: string;     // internal: original skill source when benchmarking a local optimized copy
+  referenceBaseSources?: string[];  // internal: original companion sources when benchmarking local optimized copies
+  referencePromptPaths?: string[];  // internal: stable skill_read paths for optimized local reference copies
   cache?: boolean;                 // default true
 }
 
@@ -132,6 +134,7 @@ export interface FetchedSkill {
     path: string;
     source: string;
     content: string;
+    aliases?: string[];
   }>;
 }
 

@@ -424,9 +424,19 @@ await test('skill_read serves only frozen allowed skill references', async () =>
   assert(String(leadingSlash).startsWith('Error:'), 'leading slash variant should not match configured path');
   assertEqual(reads.length, 1, 'unconfigured leading slash variant must not be recorded as successful');
 
+  const repoRelative = await executor('skill_read', { path: '../gws-shared/SKILL.md' });
+  assert(String(repoRelative).includes('Expected shared reference body'), 'repo-relative alias should resolve to companion content');
+  assertEqual(reads.length, 2, 'resolved alias read should be recorded');
+  assertEqual(reads[1], 'gws-shared/SKILL.md', 'alias read should normalize to canonical prompt path');
+
+  const fullPath = await executor('skill_read', { path: '/tmp/references-v1/gws-shared/SKILL.md' });
+  assert(String(fullPath).includes('Expected shared reference body'), 'full-path alias should resolve to companion content');
+  assertEqual(reads.length, 3, 'full-path alias read should be recorded');
+  assertEqual(reads[2], 'gws-shared/SKILL.md', 'full-path alias should normalize to canonical prompt path');
+
   const denied = await executor('skill_read', { path: '../secret.md' });
   assert(String(denied).startsWith('Error:'), 'path traversal read should be rejected');
-  assertEqual(reads.length, 1, 'rejected read must not be recorded as successful');
+  assertEqual(reads.length, 3, 'rejected read must not be recorded as successful');
 });
 
 await test('expected_reads pass/fail helper', () => {

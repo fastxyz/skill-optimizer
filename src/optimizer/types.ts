@@ -52,6 +52,8 @@ export interface ResolvedOptimizeManifest {
   benchmarkConfig: string;
   /** Absolute path to the source SKILL.md in the target repo, if it is a local file. */
   skillPath?: string;
+  /** Companion skill references that compose the skill and may be versioned locally. */
+  skillReferences?: Array<{ source: string; promptPath: string }>;
   targetRepo: {
     path: string;
     surface: BenchmarkSurface;
@@ -97,7 +99,14 @@ export interface FailureBucket {
 export interface MutationCandidate {
   summary: string;
   changedFiles: string[];
+  editableFiles?: string[];
   toolActivity?: string[];
+}
+
+export interface LocalSkillReference {
+  source: string;
+  localPath: string;
+  promptPath: string;
 }
 
 export interface ValidationCommandResult {
@@ -118,6 +127,7 @@ export interface OptimizeIteration {
   accepted: boolean;
   summary: string;
   changedFiles: string[];
+  editableFiles?: string[];
   validation: ValidationResult;
   scoreBefore: number;
   scoreAfter?: number;
@@ -147,13 +157,21 @@ export interface MutationContext {
    * executor must write its changes to this path instead of the target repo.
    */
   localSkillPath?: string;
+  /** Local editable copies of companion references for this iteration. */
+  localSkillReferences?: LocalSkillReference[];
 }
 
 export interface OptimizeLoopDependencies {
   benchmark: {
     run(
       configPath: string,
-      opts: { outputDir: string; label: string; verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number }; skillOverride?: string },
+      opts: {
+        outputDir: string;
+        label: string;
+        verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
+        skillOverride?: string;
+        skillReferenceOverrides?: Array<{ source: string; promptPath: string; baseSource?: string }>;
+      },
     ): Promise<{ report: BenchmarkReport; reportPath: string }>;
   };
   repo: {

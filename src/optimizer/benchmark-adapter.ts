@@ -10,6 +10,8 @@ interface BenchmarkAdapterRunOptions {
   verdictPolicy?: { perModelFloor: number; targetWeightedAverage: number };
   /** Override the skill source for this benchmark run (local versioned copy). */
   skillOverride?: string;
+  /** Override companion skill reference files while preserving stable skill_read paths. */
+  skillReferenceOverrides?: Array<{ source: string; promptPath: string; baseSource?: string }>;
 }
 
 interface BenchmarkAdapterRunResult {
@@ -25,7 +27,13 @@ export function createBenchmarkAdapter(): {
       const runOutputDir = resolve(opts.outputDir, opts.label);
       mkdirSync(runOutputDir, { recursive: true });
 
-      const report = await runBenchmark({ configPath, outputDir: runOutputDir, verdictPolicy: opts.verdictPolicy, skillOverride: opts.skillOverride });
+      const report = await runBenchmark({
+        configPath,
+        outputDir: runOutputDir,
+        verdictPolicy: opts.verdictPolicy,
+        skillOverride: opts.skillOverride,
+        skillReferenceOverrides: opts.skillReferenceOverrides,
+      });
       return {
         report,
         reportPath: resolve(runOutputDir, 'report.json'),
