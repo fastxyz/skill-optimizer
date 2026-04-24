@@ -6,6 +6,7 @@ import { extractShellBlock, parseShellCommands, extractFromCliMarkdown } from '.
 import { extract } from '../src/benchmark/extractors/index.js';
 import { loadCliCommands, loadTasks } from '../src/benchmark/config.js';
 import { evaluateTask } from '../src/benchmark/evaluator.js';
+import { buildSystemPrompt } from '../src/benchmark/prompts.js';
 import { createSkillReadExecutor } from '../src/benchmark/runner.js';
 import { evaluateExpectedReads } from '../src/benchmark/read-evaluator.js';
 import { fetchSkill } from '../src/benchmark/skill-fetcher.js';
@@ -402,6 +403,38 @@ await test('fetchSkill keeps reference paths stable for optimized local skill co
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+await test('prompt surface system prompt lists bundled companion files', () => {
+  const systemPrompt = buildSystemPrompt(
+    {
+      version: { source: 'local', commitSha: 'local', ref: 'file', fetchedAt: new Date(0).toISOString() },
+      content: '# Main skill\nRead the references when needed.\n',
+      references: [
+        {
+          path: 'forms.md',
+          source: '/tmp/forms.md',
+          content: '# Forms\n',
+        },
+        {
+          path: 'reference.md',
+          source: '/tmp/reference.md',
+          content: '# Reference\n',
+        },
+      ],
+    },
+    'pdf-skill',
+    {
+      surface: 'prompt',
+      companionSkillPaths: ['forms.md', 'reference.md'],
+    },
+  );
+
+  assert(systemPrompt.includes('# Main skill'), 'prompt surface should still include main skill content');
+  assert(systemPrompt.includes('Companion skill files available:'), 'prompt surface should list bundled companion files');
+  assert(systemPrompt.includes('- forms.md'), 'prompt surface should include forms.md in bundled file list');
+  assert(systemPrompt.includes('- reference.md'), 'prompt surface should include reference.md in bundled file list');
+  assert(systemPrompt.includes('skill_read(path)'), 'prompt surface should mention skill_read for bundled files');
 });
 
 await test('skill_read serves only frozen allowed skill references', async () => {

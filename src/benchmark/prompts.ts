@@ -47,9 +47,10 @@ export function buildSystemPrompt(
 
   if (options.surface === 'prompt') {
     // For prompt surface, the skill IS the system prompt.
-    // If skill content is available, use it directly; otherwise use a generic wrapper.
+    // Keep SKILL.md as the main system prompt, but append bundled references
+    // so the model knows what companion files it can read with skill_read(path).
     if (skill) {
-      return skill.content;
+      return `${skill.content}${companionSection}${companionToolGuidance}`;
     }
     return `You are a helpful assistant for ${sdkName}. Follow the instructions and complete the task.`;
   }
