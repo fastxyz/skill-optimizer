@@ -334,8 +334,9 @@ await test('loadTasks: preserves CLI required flag metadata', () => {
     }), 'utf-8');
 
     const tasks = loadTasks(tasksPath);
-    assertEqual((tasks[0].expected_actions[0] as any).cli.required[0], '--params', 'first required flag should be preserved');
-    assertEqual((tasks[0].expected_actions[0] as any).cli.required[1], '--page-all', 'second required flag should be preserved');
+    const required = tasks[0].expected_actions[0].cli?.required ?? [];
+    assertEqual(required[0], '--params', 'first required flag should be preserved');
+    assertEqual(required[1], '--page-all', 'second required flag should be preserved');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -359,10 +360,10 @@ await test('fetchSkill loads local companion skill references', async () => {
       source: mainPath,
       references: [sharedPath],
       cache: false,
-    } as any);
+    });
 
     assert(fetched !== null, 'fetchSkill should return skill content');
-    const references = (fetched as any).references as Array<{ path: string; content: string }>;
+    const references = fetched.references ?? [];
     assertEqual(references.length, 1, 'one local reference should be loaded');
     assertEqual(references[0].path, 'gws-shared/SKILL.md', 'reference path should be slash-normalized and stable');
     assert(references[0].content.includes('Expected shared companion text'), 'shared reference content should be loaded');
@@ -394,25 +395,25 @@ await test('fetchSkill keeps reference paths stable for optimized local skill co
       referenceBaseSource: mainPath,
       references: [sharedPath],
       cache: false,
-    } as any);
+    });
 
     assert(fetched !== null, 'fetchSkill should return skill content');
-    assertEqual((fetched as any).references[0].path, 'gws-shared/SKILL.md', 'optimized skill copy should keep original reference path');
+    assertEqual(fetched.references?.[0]?.path, 'gws-shared/SKILL.md', 'optimized skill copy should keep original reference path');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 await test('skill_read serves only frozen allowed skill references', async () => {
-  const built = (createSkillReadExecutor as any)([
+  const built = createSkillReadExecutor([
     {
       path: 'gws-shared/SKILL.md',
       source: '/tmp/gws-shared/SKILL.md',
       content: 'Expected shared reference body',
     },
   ]);
-  const executor = typeof built === 'function' ? built : built.executor;
-  const reads: string[] = built.reads ?? built.successfulReads ?? built.readPaths ?? [];
+  const { executor } = built;
+  const reads = built.readPaths;
 
   const ok = await executor('skill_read', { path: 'gws-shared/SKILL.md' });
   assert(String(ok).includes('Expected shared reference body'), 'skill_read should return allowed reference content');
