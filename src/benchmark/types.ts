@@ -74,6 +74,10 @@ export interface McpSurfaceConfig {
 
 export interface SkillConfig {
   source: string;                  // "github:org/repo/path", "./file.md", "https://url"
+  references?: string[];           // local companion markdown/text files
+  referenceBaseSource?: string;     // internal: original skill source when benchmarking a local optimized copy
+  referenceBaseSources?: string[];  // internal: original companion sources when benchmarking local optimized copies
+  referencePromptPaths?: string[];  // internal: stable skill_read paths for optimized local reference copies
   cache?: boolean;                 // default true
 }
 
@@ -92,7 +96,7 @@ export interface OutputConfig {
 }
 
 export interface AgenticConfig {
-  references: {
+  references?: {
     baseUrl: string;
     allowedPaths: string[];
   };
@@ -126,6 +130,12 @@ export interface SkillVersion {
 export interface FetchedSkill {
   version: SkillVersion;
   content: string;
+  references?: Array<{
+    path: string;
+    source: string;
+    content: string;
+    aliases?: string[];
+  }>;
 }
 
 // === Task Definition (loaded from tasks.json) ===
@@ -133,6 +143,9 @@ export interface FetchedSkill {
 export interface ExpectedAction {
   name: string;                    // Unified action name (SDK method, CLI command, or MCP tool)
   args?: Record<string, unknown>;  // expected arg values (supports nested objects/arrays, strings, regexes, sentinels)
+  cli?: {
+    required?: string[];
+  };
 }
 
 export interface TaskVerification {
@@ -145,6 +158,7 @@ export interface TaskDefinition {
   expected_actions: ExpectedAction[];
   verify?: TaskVerification[];
   expected_fetches?: string[];
+  expected_reads?: string[];
   capabilityId?: string;
 }
 
@@ -202,6 +216,13 @@ export interface TaskResult {
     fetchRecall?: number;
     fetchPrecision?: number;
     actualFetches?: string[];
+    readPassed?: boolean;
+    readRecall?: number;
+    readPrecision?: number;
+    matchedReads?: string[];
+    missingReads?: string[];
+    extraReads?: string[];
+    actualReads?: string[];
   };
   llmLatencyMs: number;
   tokenUsage?: TokenUsage;

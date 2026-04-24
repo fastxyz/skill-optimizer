@@ -90,7 +90,8 @@ export async function generateTasksForProject(
   console.log(`[optimize] Model proposed ${generated.length} tasks.`);
 
   console.log('[optimize] Grounding generated tasks against the discovered surface snapshot...');
-  const grounded = groundTasks(generated, filteredSurface.snapshot);
+  const allowedExpectedReads = new Set((filteredSurface.skillReferences ?? []).map((reference) => reference.path));
+  const grounded = groundTasks(generated, filteredSurface.snapshot, allowedExpectedReads);
   if (grounded.kept.length === 0) {
     throw new Error('Task generation produced zero valid tasks after grounding');
   }

@@ -40,8 +40,12 @@ const TargetConfigSchema = z.object({
   repoPath: z.string().optional().describe('Path to the target repo (default ".")'),
   skill: z.union([
     z.string(),
-    z.object({ source: z.string(), cache: z.boolean().optional() }),
-  ]).optional().describe('Path to SKILL.md or { source, cache } object'),
+    z.object({
+      source: z.string(),
+      references: z.array(z.string()).optional(),
+      cache: z.boolean().optional(),
+    }),
+  ]).optional().describe('Path to SKILL.md or { source, references, cache } object'),
   discovery: DiscoveryConfigSchema.optional().describe('How to discover callable actions'),
   sdk: SdkConfigSchema.optional().describe('SDK-specific config'),
   cli: CliConfigSchema.optional().describe('CLI-specific config'),

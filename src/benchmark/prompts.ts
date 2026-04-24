@@ -7,6 +7,7 @@ interface PromptOptions {
   agentic?: boolean;
   shell?: 'bash' | 'sh';
   sdkLanguage?: SdkLanguage;
+  companionSkillPaths?: string[];
 }
 
 const SDK_LANGUAGE_LABELS: Record<SdkLanguage, string> = {
@@ -33,15 +34,23 @@ export function buildSystemPrompt(
   sdkName: string,
   options: PromptOptions,
 ): string {
+  const companionPaths = options.companionSkillPaths ?? [];
+  const companionSection = companionPaths.length > 0
+    ? `\n\nCompanion skill files available:\n${companionPaths.map((p) => `- ${p}`).join('\n')}`
+    : '';
+  const companionToolGuidance = companionPaths.length > 0
+    ? '\nWhen tools are available, use `skill_read(path)` to read these companion files by exact path.'
+    : '';
   const guidanceSection = skill
-    ? `\n\nOptional guidance context (SKILL.md):\n--- GUIDANCE ---\n${skill.content}\n--- END GUIDANCE ---`
+    ? `\n\nOptional guidance context (SKILL.md):\n--- GUIDANCE ---\n${skill.content}\n--- END GUIDANCE ---${companionSection}${companionToolGuidance}`
     : '';
 
   if (options.surface === 'prompt') {
     // For prompt surface, the skill IS the system prompt.
-    // If skill content is available, use it directly; otherwise use a generic wrapper.
+    // Keep SKILL.md as the main system prompt, but append bundled references
+    // so the model knows what companion files it can read with skill_read(path).
     if (skill) {
-      return skill.content;
+      return `${skill.content}${companionSection}${companionToolGuidance}`;
     }
     return `You are a helpful assistant for ${sdkName}. Follow the instructions and complete the task.`;
   }

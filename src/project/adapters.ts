@@ -3,6 +3,7 @@ import type { ResolvedOptimizeManifest } from '../optimizer/types.js';
 import type { ResolvedProjectConfig } from './types.js';
 import { parseModelRef } from './types.js';
 import { buildMcpToolDefinitionsFromSnapshot, buildSurfaceSnapshot } from './snapshot.js';
+import { buildCanonicalSkillReferenceEntries } from './skill-references.js';
 
 export function toBenchmarkConfig(project: ResolvedProjectConfig): BenchmarkConfig {
   const surfaceSnapshot = buildSurfaceSnapshot(project);
@@ -53,6 +54,9 @@ export function toOptimizeManifest(project: ResolvedProjectConfig): ResolvedOpti
   return {
     benchmarkConfig: project.configPath,
     skillPath,
+    skillReferences: skillPath && project.target.skill?.references
+      ? buildCanonicalSkillReferenceEntries(skillPath, project.target.skill.references)
+      : undefined,
     targetRepo: {
       path: project.target.repoPath,
       surface: project.target.surface,

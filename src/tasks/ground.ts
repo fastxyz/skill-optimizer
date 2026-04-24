@@ -3,7 +3,11 @@ import type { SurfaceSnapshot } from '../project/types.js';
 
 import type { GeneratedTask, GroundedTasksResult } from './types.js';
 
-export function groundTasks(tasks: GeneratedTask[], snapshot: SurfaceSnapshot): GroundedTasksResult {
+export function groundTasks(
+  tasks: GeneratedTask[],
+  snapshot: SurfaceSnapshot,
+  allowedExpectedReads?: Set<string>,
+): GroundedTasksResult {
   const kept: GeneratedTask[] = [];
   const rejected: Array<{ task: GeneratedTask; reason: string }> = [];
 
@@ -11,7 +15,7 @@ export function groundTasks(tasks: GeneratedTask[], snapshot: SurfaceSnapshot): 
   const actions = new Map(snapshot.actions.map((action) => [action.name, action]));
 
   for (const task of tasks) {
-    const rejection = getRejectionReason(task, seenIds, actions, snapshot.surface);
+    const rejection = getRejectionReason(task, seenIds, actions, snapshot.surface, allowedExpectedReads);
     if (rejection) {
       rejected.push({ task, reason: rejection });
       continue;
@@ -29,6 +33,7 @@ function getRejectionReason(
   seenIds: Set<string>,
   actions: Map<string, SurfaceSnapshot['actions'][number]>,
   surface: SurfaceSnapshot['surface'],
+  allowedExpectedReads?: Set<string>,
 ): string | null {
   const expectedActions = task.expected_actions;
   if (seenIds.has(task.id)) {
@@ -74,6 +79,14 @@ function getRejectionReason(
     for (const requiredArg of action.args.filter((arg) => arg.required)) {
       if (!(requiredArg.name in args)) {
         return `task "${task.id}" is missing required param "${requiredArg.name}" for action "${actionName}"`;
+      }
+    }
+  }
+
+  if (allowedExpectedReads) {
+    for (const readPath of task.expected_reads ?? []) {
+      if (!allowedExpectedReads.has(readPath)) {
+        return `task "${task.id}" uses unknown expected_reads path "${readPath}"`;
       }
     }
   }

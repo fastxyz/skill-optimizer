@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { dirname, basename } from 'node:path';
+import { dirname, basename, relative } from 'node:path';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import type { MutationCandidate, MutationContext } from '../types.js';
 import { collectGitChangedFiles } from './git-changes.js';
@@ -23,8 +23,11 @@ export class PiCodingMutationExecutor {
       ? dirname(context.localSkillPath)
       : context.manifest.targetRepo.path;
 
-    // Snapshot the skill file before mutation so we can detect no-ops.
-    const beforeHash = context.localSkillPath ? hashFile(context.localSkillPath) : null;
+    const localSkillBundle = getLocalSkillBundleEntries(context);
+    const localSkillBundlePaths = localSkillBundle.map((file) => file.absolutePath);
+    // Snapshot the local skill bundle before mutation so we can detect no-ops and
+    // report which bundle files actually changed.
+    const beforeHashes = context.localSkillPath ? hashFiles(localSkillBundlePaths) : null;
 
     const { session } = await createCodingOrchestratorSession({
       cwd: agentCwd,
@@ -58,14 +61,15 @@ export class PiCodingMutationExecutor {
     }
 
     // Detect no-op: agent ran but the file content did not change.
-    const afterHash = context.localSkillPath ? hashFile(context.localSkillPath) : null;
-    if (beforeHash !== null && afterHash !== null && beforeHash === afterHash) {
-      console.warn('[mutation] WARNING: skill file content is identical before and after mutation');
+    const afterHashes = context.localSkillPath ? hashFiles(localSkillBundlePaths) : null;
+    if (beforeHashes !== null && afterHashes !== null && hashesEqual(beforeHashes, afterHashes)) {
+      console.warn('[mutation] WARNING: local skill bundle content is identical before and after mutation');
     }
 
-    // Local skill file: return the path directly; git detection only applies to target-repo mutations.
+    // Local skill bundle: report only files whose contents actually changed.
+    // Keep the editable bundle separately for logs/iteration metadata.
     const changedFiles = context.localSkillPath
-      ? [context.localSkillPath]
+      ? diffHashedFiles(beforeHashes, afterHashes)
       : await collectGitChangedFiles(context.manifest.targetRepo.path);
     const summary = assistantText
       ?? context.failureBuckets[0]?.kind
@@ -74,16 +78,16 @@ export class PiCodingMutationExecutor {
     return {
       summary,
       changedFiles,
+      ...(context.localSkillPath ? { editableFiles: localSkillBundlePaths } : {}),
       toolActivity,
     };
   }
 }
 
 function buildMutationPrompt(context: MutationContext): string {
-  // If we have a local skill path, that's the only file the agent should edit.
-  // The path is absolute so the agent can find it regardless of cwd.
+  const localSkillBundle = getLocalSkillBundleEntries(context);
   const allowedPaths = context.localSkillPath
-    ? `- ${basename(context.localSkillPath)}  (in current working directory)`
+    ? localSkillBundle.map((file) => `- ${file.displayPath} (${file.role})`).join('\n')
     : context.manifest.targetRepo.allowedPaths.map((p) => `- ${p}`).join('\n');
   const feedbackCtx = buildMutationContext(
     context.currentReport,
@@ -105,24 +109,24 @@ function buildMutationPrompt(context: MutationContext): string {
       ].join('\n')
     : '';
 
-  const skillFileName = context.localSkillPath ? basename(context.localSkillPath) : null;
-  const skillPreamble = skillFileName
+  const skillPreamble = context.localSkillPath
     ? [
-        `Improve the skill documentation file: ${skillFileName}`,
-        '(This file is in your current working directory.)',
+        '<task>',
+        'Improve the local skill documentation bundle for benchmark performance.',
+        'The bundle may include a primary skill file and companion reference files that compose the skill.',
+        'Benchmark models will read these same local files after your edits.',
+        '</task>',
         '',
-        'IMPORTANT: Read the file first, then make surgical edits.',
-        '- Do NOT rewrite or replace the file — patch only the sections that are weak or missing.',
-        '- Preserve every command/action that is already documented and passing.',
-        '- The skill must continue to cover ALL commands in the surface, not just the failing ones.',
-        '- Add or expand only the sections that address the benchmark failures below.',
+        '<editable_files>',
+        ...localSkillBundle.map((file) => `- ${file.displayPath}: ${file.role}`),
+        '</editable_files>',
       ].join('\n')
     : 'Improve this repository for LLM usability based on benchmark feedback.';
 
   return [
     skillPreamble,
     '',
-    'Constraints:',
+    '<constraints>',
     '- The benchmark tool schema is frozen. Do not modify benchmark tool definitions, expected tool APIs, or benchmark task contracts.',
     '- Only edit files under these allowed paths:',
     allowedPaths,
@@ -131,20 +135,63 @@ function buildMutationPrompt(context: MutationContext): string {
     '- Prefer the smallest change that improves agent usability.',
     '- If the tool names are cryptic, you may introduce a friendly alias glossary in the docs (for example, "get_ticket -> get_tkt") without changing the actual schema.',
     '- Make the docs explicit about what each parameter means and which values are allowed.',
+    '- Read the relevant editable file(s) first, then make surgical edits. Do not rewrite or replace whole files.',
+    '- Preserve every command/action that is already documented and passing.',
+    '- The skill bundle must continue to cover ALL commands in the surface, not just the failing ones.',
+    '</constraints>',
     '',
+    '<file_selection_guidance>',
+    '- Put product- or surface-specific guidance in the primary skill file.',
+    '- Put shared conventions, auth, global flags, output formatting, quoting, and cross-surface parameter patterns in companion reference files when they exist.',
+    '- If a failure comes from a shared rule used by multiple skills, edit the companion reference instead of duplicating that rule in the primary skill.',
+    '- If a failure is specific to one resource, method, command, or API concept, edit the primary skill near that topic.',
+    '- Avoid duplicating the same guidance in multiple files unless the benchmark evidence shows the model misses the companion reference.',
+    '- If you mention a companion skill file in markdown, prefer the exact logical path shown above so prompts, tasks, and reads stay consistent.',
+    '</file_selection_guidance>',
+    '',
+    '<benchmark_context>',
     `Current overall pass rate: ${context.currentReport.summary.overallPassRate.toFixed(3)}`,
     reportContext
       ? 'Use the following persisted benchmark details as the primary source of truth:'
       : 'Fallback failure summary (use this only because no persisted report context is available):',
     reportContext ?? fallbackFailureSummary,
+    '</benchmark_context>',
     '',
     skillWritingSection,
+    '<final_self_check>',
+    'Before finishing, verify:',
+    '- Edited the most appropriate file(s) in the allowed skill bundle.',
+    '- Did not modify target repo source files, benchmark tasks, or tool schemas.',
+    '- Added concrete, reusable guidance rather than overfitting to one task wording.',
+    '- Avoided conflicting or duplicated instructions across primary and companion files.',
+    '</final_self_check>',
     'Make the changes directly in the repo and stop when the changes are applied.',
     'In your final response, explain in 2-4 concise bullet points:',
     '- what you changed',
     '- why it should improve model tool use',
     '- any remaining weak spots you still see',
   ].join('\n');
+}
+
+function getLocalSkillBundleEntries(context: MutationContext): Array<{
+  absolutePath: string;
+  displayPath: string;
+  role: string;
+}> {
+  if (!context.localSkillPath) return [];
+  const root = dirname(context.localSkillPath);
+  return [
+    {
+      absolutePath: context.localSkillPath,
+      displayPath: basename(context.localSkillPath),
+      role: 'primary skill file',
+    },
+    ...(context.localSkillReferences ?? []).map((reference) => ({
+      absolutePath: reference.localPath,
+      displayPath: relative(root, reference.localPath),
+      role: `companion reference exposed to benchmark models as skill_read("${reference.promptPath}")`,
+    })),
+  ];
 }
 
 function extractLatestAssistantText(messages: AgentMessage[]): string | null {
@@ -207,10 +254,32 @@ function extractToolActivity(messages: AgentMessage[]): string[] {
   return lines;
 }
 
-function hashFile(filePath: string): string | null {
+function hashFiles(files: string[]): Map<string, string> | null {
+  const hashes = new Map<string, string>();
+
   try {
-    return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+    for (const file of files) {
+      hashes.set(file, createHash('sha256').update(readFileSync(file)).digest('hex'));
+    }
+    return hashes;
   } catch {
     return null;
   }
+}
+
+function hashesEqual(before: Map<string, string>, after: Map<string, string>): boolean {
+  if (before.size !== after.size) return false;
+  for (const [file, hash] of before) {
+    if (after.get(file) !== hash) return false;
+  }
+  return true;
+}
+
+function diffHashedFiles(before: Map<string, string> | null, after: Map<string, string> | null): string[] {
+  if (!before || !after) return [];
+  const changed: string[] = [];
+  for (const [file, hash] of after) {
+    if (before.get(file) !== hash) changed.push(file);
+  }
+  return changed;
 }

@@ -2,6 +2,7 @@ import type {
   ExpectedAction,
   ExtractedCall,
   ActionMatch,
+  CliCommandDefinition,
   TaskDefinition,
   TaskResult,
   ModelConfig,
@@ -163,6 +164,290 @@ function matchExpectedValue(
     match,
   };
   return match;
+}
+
+function normalizeCliArgKey(key: string): string {
+  return key.replace(/^-+/, '').trim();
+}
+
+function getCliRootKey(key: string): string {
+  return normalizeCliArgKey(key).split('.')[0];
+}
+
+function parseCliMaybeJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function resolveCliArgValue(
+  args: Record<string, unknown>,
+  key: string,
+  expectedValue?: unknown,
+): unknown {
+  const normalizedKey = normalizeCliArgKey(key);
+  const normalizedArgs: Record<string, unknown> = {};
+  for (const [argKey, value] of Object.entries(args)) {
+    normalizedArgs[normalizeCliArgKey(argKey)] = value;
+  }
+
+  const dotIdx = normalizedKey.indexOf('.');
+  if (dotIdx !== -1) {
+    const root = normalizedKey.slice(0, dotIdx);
+    const pathParts = normalizedKey.slice(dotIdx + 1).split('.').filter(Boolean);
+    let current = normalizedArgs[root] ?? resolveArgValue(args, root, expectedValue);
+    current = parseCliMaybeJson(current);
+    for (const segment of pathParts) {
+      if (!isPlainObject(current)) return undefined;
+      current = current[segment];
+    }
+    return current;
+  }
+
+  return normalizedArgs[normalizedKey] ?? resolveArgValue(args, normalizedKey, expectedValue);
+}
+
+type ArgResult = { expected: string; got: unknown; match: boolean };
+
+type CliArgConstraint =
+  | { kind: 'any' }
+  | { kind: 'nonempty-string' }
+  | { kind: 'exact'; value: unknown }
+  | { kind: 'one-of'; values: unknown[] }
+  | { kind: 'json-object'; requiredKeys?: string[] }
+  | { kind: string; [key: string]: unknown };
+
+function matchCliConstraint(
+  constraint: CliArgConstraint,
+  got: unknown,
+  path: string,
+  argResults: Record<string, ArgResult>,
+): boolean {
+  let match = false;
+  switch (constraint.kind) {
+    case 'any':
+      match = got !== undefined;
+      break;
+    case 'nonempty-string':
+      match = typeof got === 'string' && got.trim().length > 0;
+      break;
+    case 'exact':
+      match = matchArgValue(constraint.value, got);
+      break;
+    case 'one-of':
+      match = Array.isArray(constraint.values) && constraint.values.some((value) => matchArgValue(value, got));
+      break;
+    case 'json-object': {
+      const parsed = parseCliMaybeJson(got);
+      const requiredKeys = Array.isArray(constraint.requiredKeys) ? constraint.requiredKeys : [];
+      match = isPlainObject(parsed) && requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(parsed, key));
+      break;
+    }
+    default:
+      return matchExpectedValue(constraint, got, path, argResults);
+  }
+
+  argResults[path] = {
+    expected: stringifyExpected(constraint),
+    got,
+    match,
+  };
+  return match;
+}
+
+function getExpectedCliRequired(expected: ExpectedAction): string[] {
+  const cli = (expected as { cli?: { required?: unknown } }).cli;
+  return Array.isArray(cli?.required) ? cli.required.filter((value): value is string => typeof value === 'string') : [];
+}
+
+function findCliCommandDefinition(
+  cliCommands: readonly CliCommandDefinition[] | undefined,
+  method: string,
+): CliCommandDefinition | undefined {
+  return cliCommands?.find((command) => command.command === method);
+}
+
+function buildCliAllowedOptionSet(commandDef?: CliCommandDefinition): Set<string> | null {
+  if (!commandDef?.options || commandDef.options.length === 0) return null;
+  const allowed = new Set<string>();
+  for (const option of commandDef.options) {
+    allowed.add(normalizeCliArgKey(option.name));
+    for (const alias of option.aliases ?? []) {
+      allowed.add(normalizeCliArgKey(alias));
+    }
+  }
+  return allowed;
+}
+
+function evaluateCliArgs(
+  expected: ExpectedAction,
+  found: ExtractedCall,
+  commandDef?: CliCommandDefinition,
+): { allArgsMatch: boolean; argResults: Record<string, ArgResult> } {
+  const argResults: Record<string, ArgResult> = {};
+  let allArgsMatch = true;
+  const allowedOptions = buildCliAllowedOptionSet(commandDef);
+
+  if (allowedOptions) {
+    for (const [key, value] of Object.entries(found.args)) {
+      if (key === 'env' || key.startsWith('_positional_')) continue;
+      const normalized = normalizeCliArgKey(key);
+      if (!allowedOptions.has(normalized)) {
+        allArgsMatch = false;
+        argResults[`unsupported.${normalized}`] = {
+          expected: 'supported option',
+          got: value,
+          match: false,
+        };
+      }
+    }
+  }
+
+  const requiredKeys = new Set<string>();
+  for (const required of getExpectedCliRequired(expected)) {
+    requiredKeys.add(getCliRootKey(required));
+  }
+  if (expected.args) {
+    for (const key of Object.keys(expected.args)) {
+      requiredKeys.add(getCliRootKey(key));
+    }
+  }
+
+  for (const requiredKey of requiredKeys) {
+    const got = resolveCliArgValue(found.args, requiredKey);
+    const match = got !== undefined;
+    argResults[`required.${requiredKey}`] = {
+      expected: '<present>',
+      got,
+      match,
+    };
+    if (!match) allArgsMatch = false;
+  }
+
+  for (const [key, expectedValue] of Object.entries(expected.args ?? {})) {
+    const got = resolveCliArgValue(found.args, key, expectedValue);
+    const isConstraint = isPlainObject(expectedValue) && typeof expectedValue.kind === 'string';
+    const match = isConstraint
+      ? matchCliConstraint(expectedValue as CliArgConstraint, got, key, argResults)
+      : matchExpectedValue(expectedValue, got, key, argResults);
+    if (!match) allArgsMatch = false;
+  }
+
+  return { allArgsMatch, argResults };
+}
+
+function matchCliActions(
+  expectedActions: ExpectedAction[],
+  extractedCalls: ExtractedCall[],
+  cliCommands?: readonly CliCommandDefinition[],
+): ActionMatch[] {
+  const usedIndices = new Set<number>();
+
+  return expectedActions.map((expected) => {
+    const expectedMethod = getExpectedActionName(expected);
+    const hasExpectedArgs =
+      Object.keys(expected.args ?? {}).length > 0 ||
+      getExpectedCliRequired(expected).length > 0;
+
+    if (hasExpectedArgs) {
+      let perfectMatchIndex = -1;
+      for (let i = 0; i < extractedCalls.length; i++) {
+        if (usedIndices.has(i)) continue;
+        const candidate = extractedCalls[i];
+        if (candidate.method !== expectedMethod) continue;
+        const commandDef = findCliCommandDefinition(cliCommands, expectedMethod);
+        const { allArgsMatch } = evaluateCliArgs(expected, candidate, commandDef);
+        if (allArgsMatch) {
+          perfectMatchIndex = i;
+          break;
+        }
+      }
+
+      if (perfectMatchIndex !== -1) {
+        usedIndices.add(perfectMatchIndex);
+        const found = extractedCalls[perfectMatchIndex];
+        const commandDef = findCliCommandDefinition(cliCommands, expectedMethod);
+        const { argResults } = evaluateCliArgs(expected, found, commandDef);
+        return {
+          expected,
+          found,
+          methodFound: true,
+          argsCorrect: true,
+          matched: true,
+          argResults,
+        } satisfies ActionMatch;
+      }
+
+      let fallbackIndex = -1;
+      for (let i = 0; i < extractedCalls.length; i++) {
+        if (usedIndices.has(i)) continue;
+        if (extractedCalls[i].method === expectedMethod) {
+          fallbackIndex = i;
+          break;
+        }
+      }
+
+      if (fallbackIndex === -1) {
+        return {
+          expected,
+          found: null,
+          methodFound: false,
+          argsCorrect: false,
+          matched: false,
+        } satisfies ActionMatch;
+      }
+
+      usedIndices.add(fallbackIndex);
+      const found = extractedCalls[fallbackIndex];
+      const commandDef = findCliCommandDefinition(cliCommands, expectedMethod);
+      const { allArgsMatch, argResults } = evaluateCliArgs(expected, found, commandDef);
+      return {
+        expected,
+        found,
+        methodFound: true,
+        argsCorrect: allArgsMatch,
+        matched: allArgsMatch,
+        argResults,
+      } satisfies ActionMatch;
+    }
+
+    let foundIndex = -1;
+    for (let i = 0; i < extractedCalls.length; i++) {
+      if (usedIndices.has(i)) continue;
+      if (extractedCalls[i].method === expectedMethod) {
+        foundIndex = i;
+        break;
+      }
+    }
+
+    if (foundIndex === -1) {
+      return {
+        expected,
+        found: null,
+        methodFound: false,
+        argsCorrect: false,
+        matched: false,
+      } satisfies ActionMatch;
+    }
+
+    usedIndices.add(foundIndex);
+    const found = extractedCalls[foundIndex];
+    const commandDef = findCliCommandDefinition(cliCommands, expectedMethod);
+    const { allArgsMatch, argResults } = evaluateCliArgs(expected, found, commandDef);
+    return {
+      expected,
+      found,
+      methodFound: true,
+      argsCorrect: allArgsMatch,
+      matched: allArgsMatch,
+      argResults,
+    } satisfies ActionMatch;
+  });
 }
 
 // ── Tool matching ──────────────────────────────────────────────────────────
@@ -419,6 +704,7 @@ export function evaluateTask(params: {
   knownMethods: Set<string>;
   bindings?: Map<string, string>;  // variable → source function/class from extractor
   surface: 'sdk' | 'cli' | 'mcp' | 'prompt';
+  cliCommands?: readonly CliCommandDefinition[];
 }): TaskResult {
   const {
     task,
@@ -431,6 +717,7 @@ export function evaluateTask(params: {
     knownMethods,
     bindings,
     surface,
+    cliCommands,
   } = params;
 
   let extractedCalls = params.extractedCalls;
@@ -439,7 +726,9 @@ export function evaluateTask(params: {
     extractedCalls = resolveCallsFromBindings(extractedCalls, bindings, expectedActions);
   }
 
-  const actionMatches = matchActions(expectedActions, extractedCalls);
+  const actionMatches = surface === 'cli'
+    ? matchCliActions(expectedActions, extractedCalls, cliCommands)
+    : matchActions(expectedActions, extractedCalls);
 
   const codePatternResults: Record<string, boolean> = {};
   let allCodePatternsPass = true;

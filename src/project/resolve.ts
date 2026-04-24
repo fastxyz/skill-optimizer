@@ -16,14 +16,23 @@ const DEFAULT_PER_MODEL_FLOOR = 0.6;
 const DEFAULT_TARGET_WEIGHTED_AVERAGE = 0.7;
 const DEFAULT_REPORT_CONTEXT_MAX_BYTES = 16_000;
 
+function isRemoteSkillSource(source: string): boolean {
+  return source.startsWith('github:') || source.startsWith('https://') || source.startsWith('http://');
+}
+
+function resolveSkillSource(configDir: string, source: string): string {
+  return isRemoteSkillSource(source) ? source : resolve(configDir, source);
+}
+
 export function resolveProjectConfig(config: ProjectConfig, configPath: string): ResolvedProjectConfig {
   const configDir = dirname(configPath);
   const skill = config.target.skill
     ? typeof config.target.skill === 'string'
-      ? { source: resolve(configDir, config.target.skill), cache: true }
+      ? { source: resolveSkillSource(configDir, config.target.skill), cache: true }
       : {
           ...config.target.skill,
-          source: resolve(configDir, config.target.skill.source),
+          source: resolveSkillSource(configDir, config.target.skill.source),
+          references: config.target.skill.references?.map((ref) => resolveSkillSource(configDir, ref)),
           cache: config.target.skill.cache ?? true,
         }
     : undefined;

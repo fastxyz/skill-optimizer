@@ -10,6 +10,7 @@ import type {
   ExtractedCall,
   MethodCoverage,
   SkillVersion,
+  FetchedSkill,
   ModelSummary,
   TaskSummary,
   ToolExecutor,
@@ -28,6 +29,8 @@ import { buildSystemPrompt, buildTaskPrompt } from './prompts.js';
 import { evaluatePromptResponse } from './prompt-evaluator.js';
 import { resolveCriteriaForTask } from './prompt-criteria.js';
 import { discoverPromptCapabilitiesWithSections } from '../project/discover-prompt.js';
+import { evaluateExpectedReads } from './read-evaluator.js';
+import { normalizePathForPrompt } from '../project/skill-references.js';
 
 function buildWebFetchTool(): McpToolDefinition {
   return {
@@ -39,6 +42,23 @@ function buildWebFetchTool(): McpToolDefinition {
         type: 'object',
         properties: { url: { type: 'string', description: 'Path to the reference document' } },
         required: ['url'],
+      },
+    },
+  };
+}
+
+function buildSkillReadTool(): McpToolDefinition {
+  return {
+    type: 'function',
+    function: {
+      name: 'skill_read',
+      description: 'Read a bundled companion skill file by its path.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Companion skill file path exactly as listed in the prompt' },
+        },
+        required: ['path'],
       },
     },
   };
@@ -73,6 +93,64 @@ function createReferenceExecutor(baseUrl: string, allowedPaths: string[]): { exe
   return { executor, fetchedPaths: fetched };
 }
 
+export function createSkillReadExecutor(
+  references: FetchedSkill['references'] | undefined,
+): { executor: ToolExecutor; readPaths: string[] } {
+  const reads: string[] = [];
+  const referenceLookup = new Map<string, { content: string; canonicalPath: string }>();
+  for (const ref of references ?? []) {
+    referenceLookup.set(normalizePathForPrompt(ref.path), { content: ref.content, canonicalPath: ref.path });
+    for (const alias of ref.aliases ?? []) {
+      referenceLookup.set(normalizePathForPrompt(alias), { content: ref.content, canonicalPath: ref.path });
+    }
+  }
+
+  const executor: ToolExecutor = async (name, args) => {
+    if (name !== 'skill_read') return `Error: Unknown tool "${name}"`;
+    const rawPath = String(args.path ?? '');
+    const requestedPath = normalizePathForPrompt(rawPath.trim());
+    if (!requestedPath) return 'Error: Missing required argument "path"';
+    const resolved = referenceLookup.get(requestedPath) ?? findSkillReadSuffixMatch(requestedPath, references ?? []);
+    if (!resolved) {
+      return `Error: Companion skill path "${requestedPath}" not found. Available: ${[...referenceLookup.keys()].join(', ')}`;
+    }
+    reads.push(resolved.canonicalPath);
+    return resolved.content;
+  };
+
+  return { executor, readPaths: reads };
+}
+
+function findSkillReadSuffixMatch(
+  requestedPath: string,
+  references: NonNullable<FetchedSkill['references']>,
+): { content: string; canonicalPath: string } | undefined {
+  const matches = references.filter((reference) => {
+    const canonical = normalizePathForPrompt(reference.path);
+    const source = normalizePathForPrompt(reference.source);
+    const canonicalSuffixMatch =
+      requestedPath !== `/${canonical}` && requestedPath.endsWith(`/${canonical}`);
+    const sourceSuffixMatch =
+      requestedPath !== `/${source}` && requestedPath.endsWith(`/${source}`);
+    return requestedPath === source || canonicalSuffixMatch || sourceSuffixMatch;
+  });
+  if (matches.length !== 1) return undefined;
+  return {
+    content: matches[0]!.content,
+    canonicalPath: matches[0]!.path,
+  };
+}
+
+function combineExecutors(executors: ToolExecutor[]): ToolExecutor {
+  return async (name, args) => {
+    for (const executor of executors) {
+      const result = await executor(name, args);
+      if (!result.startsWith('Error: Unknown tool')) return result;
+    }
+    return `Error: Unknown tool "${name}"`;
+  };
+}
+
 function formatMcpResponseContent(
   textContent: string,
   toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>,
@@ -103,6 +181,8 @@ export interface RunnerOptions {
    * one committed in the target repo.
    */
   skillOverride?: string;
+  /** Local optimized companion references paired with their stable skill_read paths. */
+  skillReferenceOverrides?: Array<{ source: string; promptPath: string; baseSource?: string }>;
 }
 
 /**
@@ -166,7 +246,15 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
 
   const skillConfig = options.skillOverride
-    ? { ...(config.skill ?? {}), source: options.skillOverride, cache: false } as typeof config.skill
+    ? {
+        ...(config.skill ?? {}),
+        source: options.skillOverride,
+        references: options.skillReferenceOverrides?.map((reference) => reference.source) ?? config.skill?.references,
+        referenceBaseSources: options.skillReferenceOverrides?.map((reference) => reference.baseSource ?? reference.source),
+        referencePromptPaths: options.skillReferenceOverrides?.map((reference) => reference.promptPath),
+        referenceBaseSource: config.skill?.source,
+        cache: false,
+      } as typeof config.skill
     : config.skill;
   const skill = await fetchSkill(options.noCache
     ? { ...skillConfig, cache: false } as typeof skillConfig
@@ -187,11 +275,14 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
   }
 
 
+  const hasWebReferences = Boolean(config.agentic?.references);
+  const hasExpectedReads = tasks.some((task) => (task.expected_reads?.length ?? 0) > 0);
   const promptOptions = {
     surface: config.surface,
-    agentic: Boolean(config.agentic),
+    agentic: hasWebReferences || hasExpectedReads,
     shell: config.cli?.shell,
     sdkLanguage: config.sdk?.language,
+    companionSkillPaths: skill?.references?.map((ref) => ref.path) ?? [],
   };
   const systemPrompt = buildSystemPrompt(skill, config.name, promptOptions);
   console.log(`[prompt] Surface: ${config.surface}`);
@@ -238,18 +329,53 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
       let error: string | undefined;
       let llmResponse;
       let fetchedPaths: string[] = [];
+      let readPaths: string[] = [];
+
+      const taskHasExpectedReads = Array.isArray(task.expected_reads) && task.expected_reads.length > 0;
+      const shouldUseAgentLoop = hasWebReferences || taskHasExpectedReads;
+
+      if (taskHasExpectedReads && config.surface === 'mcp') {
+        throw new Error(
+          `Task "${task.id}" uses expected_reads, which is not supported for MCP benchmarks because it can interfere with structured MCP tool-call evaluation.`,
+        );
+      }
+
+      if (taskHasExpectedReads && (skill?.references?.length ?? 0) === 0) {
+        throw new Error(
+          `Task "${task.id}" uses expected_reads, but no bundled skill references are available. Configure target.skill.references with local files.`,
+        );
+      }
 
       const start = Date.now();
       try {
-        if (config.agentic) {
-          const ref = createReferenceExecutor(
-            config.agentic.references.baseUrl, config.agentic.references.allowedPaths,
-          );
+        if (shouldUseAgentLoop) {
+          const tools: McpToolDefinition[] = [];
+          const executors: ToolExecutor[] = [];
+
+          if (config.agentic?.references) {
+            const ref = createReferenceExecutor(
+              config.agentic.references.baseUrl, config.agentic.references.allowedPaths,
+            );
+            tools.push(buildWebFetchTool());
+            executors.push(ref.executor);
+            fetchedPaths = ref.fetchedPaths;
+          }
+
+          if (taskHasExpectedReads) {
+            const reader = createSkillReadExecutor(skill?.references);
+            tools.push(buildSkillReadTool());
+            executors.push(reader.executor);
+            readPaths = reader.readPaths;
+          }
+
+          if (tools.length === 0 || executors.length === 0) {
+            throw new Error('Agent loop requested without any configured tools');
+          }
+
           llmResponse = await client.chatAgentLoop(
             model.id, systemPrompt, buildTaskPrompt(task, promptOptions),
-            [buildWebFetchTool()], ref.executor, config.agentic.maxTurns ?? 5,
+            tools, combineExecutors(executors), config.agentic?.maxTurns ?? 5,
           );
-          fetchedPaths = ref.fetchedPaths;
         } else if (config.surface === 'mcp' && mcpToolDefs) {
           llmResponse = await client.chatWithTools(
             model.id,
@@ -360,7 +486,8 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         knownMethods,
         bindings,
         surface: config.surface,
-      });
+        ...(cliCommands ? { cliCommands } : {}),
+      } as Parameters<typeof evaluateTask>[0]);
 
       // Prompt surface: replace vacuous tool-recall with per-capability content score.
       if (config.surface === 'prompt') {
@@ -392,7 +519,7 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         }
       }
 
-      if (config.agentic && task.expected_fetches) {
+      if (config.agentic?.references && task.expected_fetches) {
         const actualFetches = fetchedPaths;
         const expectedSet = new Set(task.expected_fetches);
         const actualSet = new Set(actualFetches);
@@ -403,6 +530,20 @@ export async function runBenchmark(options: RunnerOptions = {}): Promise<Benchma
         taskResult.metrics.taskPassed = taskResult.metrics.taskPassed && taskResult.metrics.fetchRecall === 1.0;
         const fetchStatus = taskResult.metrics.fetchRecall === 1.0 ? 'correct' : 'WRONG';
         console.log(`  [${slug}] Fetched: [${actualFetches.join(', ')}] (${fetchStatus})`);
+      }
+
+      if (task.expected_reads) {
+        const readEval = evaluateExpectedReads(task.expected_reads, readPaths);
+        taskResult.metrics.readPassed = readEval.passed;
+        taskResult.metrics.readRecall = readEval.recall;
+        taskResult.metrics.readPrecision = readEval.precision;
+        taskResult.metrics.matchedReads = readEval.matched;
+        taskResult.metrics.missingReads = readEval.missing;
+        taskResult.metrics.extraReads = readEval.extra;
+        taskResult.metrics.actualReads = readEval.actual;
+        taskResult.metrics.taskPassed = taskResult.metrics.taskPassed && readEval.passed;
+        const readStatus = readEval.passed ? 'correct' : 'MISSING_REQUIRED';
+        console.log(`  [${slug}] Reads: [${readEval.actual.join(', ')}] (${readStatus})`);
       }
 
       const status = taskResult.metrics.taskPassed ? '✅ PASS' : '❌ FAIL';

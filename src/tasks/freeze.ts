@@ -37,6 +37,7 @@ export function freezeTaskArtifacts(params: FreezeTaskArtifactsParams): FrozenTa
       repoPath: params.project.target.repoPath,
       skill: {
         source: params.project.target.skill.source,
+        references: params.project.target.skill.references,
         cache: params.project.target.skill.cache,
       },
       discovery: params.project.target.discovery,

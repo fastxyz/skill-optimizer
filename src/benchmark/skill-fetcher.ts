@@ -1,6 +1,11 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import type { FetchedSkill, SkillConfig, SkillVersion } from './types.js';
+import {
+  buildSkillReferenceAliases,
+  getCommonDirectory,
+  normalizePathForPrompt,
+} from '../project/skill-references.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -26,6 +31,10 @@ function writeCache(cachePath: string, result: FetchedSkill): void {
   const cacheDir = resolve(cachePath, '..');
   mkdirSync(cacheDir, { recursive: true });
   writeFileSync(cachePath, JSON.stringify(result, null, 2), 'utf-8');
+}
+
+function isRemoteSkillSource(source: string): boolean {
+  return source.startsWith('github:') || source.startsWith('https://') || source.startsWith('http://');
 }
 
 // ── GitHub source ──────────────────────────────────────────────────────────
@@ -167,29 +176,100 @@ async function fetchFromUrl(source: string, useCache: boolean): Promise<FetchedS
  * Read skill from local filesystem: "./path" or "/absolute/path"
  */
 function fetchFromFile(source: string): FetchedSkill {
-  const resolved = resolve(process.cwd(), source);
+  const { content } = readLocalSkillFile(source);
+  const version = buildLocalFileVersion(source);
 
-  if (!existsSync(resolved)) {
-    throw new Error(`Skill file not found: ${resolved} (from source: "${source}")`);
+  return { version, content };
+}
+
+function fetchFromFileWithReferences(skillConfig: SkillConfig): FetchedSkill {
+  const source = skillConfig.source;
+  const references = skillConfig.references ?? [];
+  const referenceBaseSources = skillConfig.referenceBaseSources ?? references;
+  const { resolvedPath: resolvedSkillPath, content } = readLocalSkillFile(source);
+  const resolvedBaseSkillPath = resolve(process.cwd(), skillConfig.referenceBaseSource ?? source);
+
+  const referenceFiles = references.map((referenceSource, index) => {
+    const baseSource = referenceBaseSources[index] ?? referenceSource;
+    const { resolvedPath: resolvedReferencePath, content: referenceContent } = readLocalReferenceFile(referenceSource);
+    const resolvedBaseReferencePath = resolve(process.cwd(), baseSource);
+    return {
+      source: referenceSource,
+      resolvedPath: resolvedReferencePath,
+      resolvedBasePath: resolvedBaseReferencePath,
+      content: referenceContent,
+    };
+  });
+
+  const commonDirectory = getCommonDirectory([
+    dirname(resolvedBaseSkillPath),
+    ...referenceFiles.map((ref) => dirname(ref.resolvedPath)),
+  ]);
+
+  const frozenReferences = referenceFiles.map((ref, index) => ({
+    path: skillConfig.referencePromptPaths?.[index] !== undefined
+      ? normalizePathForPrompt(skillConfig.referencePromptPaths[index]!)
+      : normalizePathForPrompt(relative(commonDirectory, ref.resolvedPath)),
+    source: ref.source,
+    content: ref.content,
+    aliases: buildSkillReferenceAliases(
+      resolvedSkillPath,
+      ref.resolvedPath,
+      resolvedBaseSkillPath,
+      ref.resolvedBasePath,
+      skillConfig.referencePromptPaths?.[index],
+    ),
+  }));
+
+  const version = buildLocalFileVersion(source);
+
+  return {
+    version,
+    content,
+    references: frozenReferences,
+  };
+}
+
+function readLocalSkillFile(source: string): { resolvedPath: string; content: string } {
+  const resolvedPath = resolve(process.cwd(), source);
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`Skill file not found: ${resolvedPath} (from source: "${source}")`);
   }
 
-  console.log(`[skill] Reading skill from file: ${resolved}`);
+  console.log(`[skill] Reading skill from file: ${resolvedPath}`);
+  return {
+    resolvedPath,
+    content: readLocalTextFile(resolvedPath, 'skill file'),
+  };
+}
 
-  let content: string;
+function readLocalReferenceFile(source: string): { resolvedPath: string; content: string } {
+  const resolvedPath = resolve(process.cwd(), source);
+  if (!existsSync(resolvedPath)) {
+    throw new Error(`Skill reference file not found: ${resolvedPath} (from source: "${source}")`);
+  }
+
+  return {
+    resolvedPath,
+    content: readLocalTextFile(resolvedPath, 'skill reference file'),
+  };
+}
+
+function readLocalTextFile(resolvedPath: string, label: string): string {
   try {
-    content = readFileSync(resolved, 'utf-8');
+    return readFileSync(resolvedPath, 'utf-8');
   } catch (err) {
-    throw new Error(`Failed to read skill file ${resolved}: ${err instanceof Error ? err.message : err}`);
+    throw new Error(`Failed to read ${label} ${resolvedPath}: ${err instanceof Error ? err.message : err}`);
   }
+}
 
-  const version: SkillVersion = {
+function buildLocalFileVersion(source: string): SkillVersion {
+  return {
     source,
     commitSha: 'local',
     ref: 'file',
     fetchedAt: new Date().toISOString(),
   };
-
-  return { version, content };
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -210,11 +290,18 @@ export async function fetchSkill(skillConfig: SkillConfig | undefined): Promise<
   const source = skillConfig.source;
   const useCache = skillConfig.cache !== false;
 
+  if (isRemoteSkillSource(source) && (skillConfig.references?.length ?? 0) > 0) {
+    throw new Error('target.skill.references is only supported for local file-based target.skill.source values');
+  }
+
   if (source.startsWith('github:')) {
     return fetchFromGitHub(source, useCache);
   } else if (source.startsWith('https://') || source.startsWith('http://')) {
     return fetchFromUrl(source, useCache);
   } else {
+    if ((skillConfig.references?.length ?? 0) > 0) {
+      return fetchFromFileWithReferences(skillConfig);
+    }
     return fetchFromFile(source);
   }
 }
