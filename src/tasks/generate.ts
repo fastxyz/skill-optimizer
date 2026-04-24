@@ -6,6 +6,8 @@ import type { ActionDefinition } from '../actions/types.js';
 import { computeUncovered, buildRetryPrompt, computeCoverage } from './coverage.js';
 import type { DiscoveredTaskSurface, GeneratedTask, TaskGeneratorConfig, TaskGeneratorDeps } from './types.js';
 
+type SnapshotAction = DiscoveredTaskSurface['snapshot']['actions'][number];
+
 // Derive a stable task ID from the expected action names.
 // Action names are surface-stable (they come from discovered code, not LLM free-form output),
 // so the same surface produces the same IDs across regenerations.
@@ -20,9 +22,10 @@ export async function generateCandidateTasks(
   deps: TaskGeneratorDeps,
 ): Promise<GeneratedTask[]> {
   const system = [
-    `You generate ${surface.snapshot.surface.toUpperCase()} benchmark tasks.`,
-    'Output strict JSON only with no markdown and no extra prose.',
-    'Never invent action names or arguments that are not present in the provided discovered surface snapshot.',
+    'You are an expert benchmark dataset designer for LLM tool-selection evals.',
+    `Design ${surface.snapshot.surface.toUpperCase()} tasks that are realistic, discriminative, and automatically scorable.`,
+    'Return strict JSON only: no markdown, no code fences, no explanatory prose.',
+    'Use only action names, capability ids, and argument keys present in the supplied surface snapshot.',
   ].join(' ');
 
   const prompt = buildPrompt(surface, config);
@@ -43,89 +46,309 @@ function buildPrompt(surface: DiscoveredTaskSurface, config: TaskGeneratorConfig
   const referenceContext = buildReferenceContext(surface);
 
   if (surface.snapshot.surface === 'prompt') {
-    const capKeys = surface.snapshot.actions.map((a) => a.name);
-    return [
-      'Generate benchmark evaluation tasks for a prompt/skill document.',
-      'These tasks will be evaluated by content quality, not action matching.',
-      '',
-      'Return a JSON object with EXACTLY this shape:',
-      '{"tasks":[{"id":"string","prompt":"string","expected_actions":[],"capabilityId":"string"}]}',
-      '',
-      'RULES:',
-      '- Each task has EXACTLY four keys: id, prompt, expected_actions, capabilityId.',
-      '- expected_actions MUST always be an empty array [].',
-      '- id: short snake_case identifier (e.g. "deploy_service_to_staging").',
-      '- prompt: ask the model to perform a realistic task from the skill.',
-      '- capabilityId: set to the action key of the discovered capability this task exercises.',
-      `- Valid capabilityId values: ${capKeys.join(', ')}.`,
-      '- Every task MUST have a capabilityId from the valid list above — no other values are accepted.',
-      `- Produce at most ${clampedMax} tasks. Seed: ${config.seed}.`,
-      '',
-      'Full SKILL.md:',
-      '---BEGIN SKILL---',
-      surface.skillMarkdown,
-      '---END SKILL---',
-      referenceContext,
-      '',
-      'Discovered prompt surface snapshot (capabilities for reference):',
-      '---BEGIN SURFACE SNAPSHOT---',
-      JSON.stringify(surface.snapshot, null, 2),
-      '---END SURFACE SNAPSHOT---',
-    ].join('\n');
+    return buildPromptSurfacePrompt(surface, clampedMax, config.seed, referenceContext);
   }
 
+  return buildCallableSurfacePrompt(surface, clampedMax, config.seed, referenceContext);
+}
+
+function buildCallableSurfacePrompt(
+  surface: DiscoveredTaskSurface,
+  clampedMax: number,
+  seed: number,
+  referenceContext: string,
+): string {
   return [
+    '<task>',
     `Generate benchmark tasks for a ${surface.snapshot.surface} callable surface.`,
+    'Each task is a user-facing prompt plus the exact gold action trace that should satisfy it.',
+    'The benchmark is static: generate only task data, never executable code or shell commands.',
+    '</task>',
     '',
+    '<context>',
+    '<skill_document path="SKILL.md">',
+    surface.skillMarkdown,
+    '</skill_document>',
+    referenceContext,
+    `<surface_snapshot surface="${surface.snapshot.surface}">`,
+    JSON.stringify(surface.snapshot, null, 2),
+    '</surface_snapshot>',
+    '</context>',
+    '',
+    '<objective>',
+    `Produce at most ${clampedMax} tasks. Seed for deterministic variety: ${seed}.`,
+    'Optimize for benchmark signal: tasks should expose whether a model can identify the right callable action and arguments from skill/docs context.',
+    '</objective>',
+    '',
+    '<dataset_quality_bar>',
+    '- Write realistic user requests, not action-name wrappers. The prompt should sound like a real user goal.',
+    '- Include a balanced mix of happy path, edge/constraint, prerequisite/read-dependent, and multi-step tasks when the surface supports them.',
+    '- Prefer concrete values over placeholders: names, ids, dates, paths, addresses, filters, limits, or options.',
+    '- Make each task automatically scorable from expected_actions; avoid vague outcomes that require human judgment.',
+    '- Cover different actions and argument combinations. Do not generate near-duplicates with only cosmetic wording changes.',
+    '- Keep expected_actions minimal: include exactly the call(s) needed, in the order a correct model should perform them.',
+    '- Do not ask for behavior outside the surface snapshot, external services, hidden state, or execution of generated code.',
+    '</dataset_quality_bar>',
+    '',
+    '<surface_specific_rules>',
+    ...surfaceSpecificRules(surface.snapshot.surface),
+    '</surface_specific_rules>',
+    '',
+    '<output_schema>',
     'Return a JSON object with EXACTLY this shape and no other keys:',
     '{"tasks":[{"id":"string","prompt":"string","expected_actions":[{"name":"string","args":{"key":"value"}}]}]}',
     'Optional when a task requires a companion skill file: add "expected_reads":["exact/reference/path.md"].',
+    '</output_schema>',
     '',
-    'STRICT SCHEMA RULES - violations cause test failures:',
+    '<field_rules>',
     '- Each task object has id, prompt, expected_actions, and may include expected_reads.',
-    '- Do NOT add keys like: cli_command, instruction, action, description, expected_outcome, expected_args, source, steps, calls.',
-    '- expected_actions is an ARRAY of objects, each with exactly two keys: name and args.',
-    '- name is the action name string (e.g. "account create", "network list").',
-    '- args is a flat object of key-value argument pairs (e.g. {"name": "my-wallet"}).',
-    '- expected_reads must use exact paths from the Companion skill references section when the task requires them.',
+    '- Do not add keys like cli_command, instruction, action, description, expected_outcome, expected_args, source, steps, or calls.',
+    '- expected_actions is an array of objects. Each object has exactly name and args.',
+    '- name must exactly match an action name from <surface_snapshot>. Preserve spaces, dots, dashes, underscores, and casing.',
+    '- args must include every required argument from the action definition.',
+    '- args keys must exactly match argument names from that action definition. Do not invent aliases.',
+    '- args values should be concrete and type-appropriate. Use nested JSON only when the argument itself expects structured JSON.',
+    '- expected_actions must never be empty for callable surfaces.',
+    '- expected_reads may only contain exact paths listed in <companion_skill_references>. Do not use ../ paths, leading slashes, or inferred aliases.',
+    '</field_rules>',
     '',
-    `Task count limit: produce at most ${clampedMax} tasks.`,
-    `Seed for deterministic variety: ${config.seed}.`,
-    'Variety requirement: include a mix of simple, medium, and multi-step tasks using different actions and argument combinations.',
+    '<good_examples>',
+    buildCallableExamples(surface),
+    '</good_examples>',
     '',
-    'Additional rules:',
-    '1) Use ONLY action names that exist in the provided discovered surface snapshot.',
-    '2) For each expected_actions entry, args keys MUST match discovered action argument names.',
-    '3) Include required params in args when an action marks them as required.',
-    '4) expected_actions must never be empty.',
+    '<bad_patterns_to_avoid>',
+    '- A task that names an action but omits required args.',
+    '- A prompt that says "call create_wallet" instead of describing the user goal.',
+    '- expected_reads for a file that is not listed in <companion_skill_references>.',
+    '- Extra schema keys that the loader will ignore or reject.',
+    '</bad_patterns_to_avoid>',
     '',
-    'Full SKILL.md:',
-    '---BEGIN SKILL---',
+    '<final_self_check>',
+    'Before responding, silently verify every task against this checklist:',
+    '- JSON parses as one object with a top-level tasks array.',
+    `- tasks.length <= ${clampedMax}.`,
+    '- Every action name appears exactly in <surface_snapshot>.',
+    '- Every args key appears exactly under that action in <surface_snapshot>.',
+    '- Every required arg is present.',
+    '- Every expected_reads path, if any, appears exactly in <companion_skill_references>.',
+    '- Prompts are realistic, concrete, and not near-duplicates.',
+    'If any check fails, fix the JSON before returning it. Return the JSON only.',
+    '</final_self_check>',
+  ].join('\n');
+}
+
+function buildPromptSurfacePrompt(
+  surface: DiscoveredTaskSurface,
+  clampedMax: number,
+  seed: number,
+  referenceContext: string,
+): string {
+  const capKeys = surface.snapshot.actions.map((a) => a.name);
+
+  return [
+    '<task>',
+    'Generate benchmark evaluation tasks for a prompt/skill document.',
+    'These tasks will be evaluated by content quality against the specific capability they exercise, not by action matching.',
+    '</task>',
+    '',
+    '<context>',
+    '<skill_document path="SKILL.md">',
     surface.skillMarkdown,
-    '---END SKILL---',
+    '</skill_document>',
     referenceContext,
-    '',
-    `Discovered ${surface.snapshot.surface} surface snapshot:`,
-    '---BEGIN SURFACE SNAPSHOT---',
+    '<surface_snapshot surface="prompt">',
     JSON.stringify(surface.snapshot, null, 2),
-    '---END SURFACE SNAPSHOT---',
+    '</surface_snapshot>',
+    '</context>',
+    '',
+    '<objective>',
+    `Produce at most ${clampedMax} tasks. Seed for deterministic variety: ${seed}.`,
+    'Optimize for benchmark signal: tasks should reveal whether a model follows the skill instructions for one discovered capability.',
+    '</objective>',
+    '',
+    '<dataset_quality_bar>',
+    '- Write realistic user requests that exercise the skill, not meta-prompts about the benchmark.',
+    '- Include concrete inputs and success criteria the response can be judged against.',
+    '- Cover different valid capabilityId values when possible. Avoid near-duplicate prompts.',
+    '- Include harder cases when the skill supports them: ambiguous input, constraints, formatting requirements, or missing context that the skill explains how to handle.',
+    '- Do not ask for tools, APIs, files, or actions outside the skill document and discovered capabilities.',
+    '</dataset_quality_bar>',
+    '',
+    '<prompt_surface_rules>',
+    '- expected_actions must always be [].',
+    '- capabilityId must exactly match one discovered capability key.',
+    `- Valid capabilityId values: ${capKeys.join(', ')}.`,
+    '- Each task should primarily exercise one capabilityId so scoring is attributable.',
+    '</prompt_surface_rules>',
+    '',
+    '<output_schema>',
+    'Return a JSON object with EXACTLY this shape and no other keys:',
+    '{"tasks":[{"id":"string","prompt":"string","expected_actions":[],"capabilityId":"string"}]}',
+    '</output_schema>',
+    '',
+    '<field_rules>',
+    '- Each task has exactly four keys: id, prompt, expected_actions, capabilityId.',
+    '- id is a short snake_case identifier.',
+    '- prompt is a realistic user request from the skill domain.',
+    '- expected_actions must be an empty array [].',
+    '- capabilityId must be one of the valid values above.',
+    '</field_rules>',
+    '',
+    '<good_examples>',
+    buildPromptSurfaceExamples(surface),
+    '</good_examples>',
+    '',
+    '<final_self_check>',
+    'Before responding, silently verify every task against this checklist:',
+    '- JSON parses as one object with a top-level tasks array.',
+    `- tasks.length <= ${clampedMax}.`,
+    '- expected_actions is [] for every task.',
+    '- every capabilityId appears exactly in the valid list.',
+    '- prompts are concrete, realistic, and not near-duplicates.',
+    'If any check fails, fix the JSON before returning it. Return the JSON only.',
+    '</final_self_check>',
   ].join('\n');
 }
 
 function buildReferenceContext(surface: DiscoveredTaskSurface): string {
   const references = surface.skillReferences ?? [];
-  if (references.length === 0) return '';
+  if (references.length === 0) {
+    return [
+      '<companion_skill_references>',
+      'No companion skill references are configured for this benchmark.',
+      '</companion_skill_references>',
+    ].join('\n');
+  }
 
   return [
-    '',
+    '<companion_skill_references>',
     'Companion skill references available at benchmark runtime via skill_read(path):',
     'If generated tasks depend on these companion instructions, include expected_reads with the exact path.',
+    'Only these exact paths are valid. Do not infer relative aliases, parent-directory paths, or leading-slash paths.',
     ...references.flatMap((reference) => [
       `---BEGIN REFERENCE path="${reference.path}"---`,
       reference.content,
       '---END REFERENCE---',
     ]),
+    '</companion_skill_references>',
   ].join('\n');
+}
+
+function surfaceSpecificRules(surface: DiscoveredTaskSurface['snapshot']['surface']): string[] {
+  if (surface === 'cli') {
+    return [
+      '- expected_actions.name is the canonical command path from the snapshot, not the full shell command string.',
+      '- args keys are canonical option or positional names from the snapshot. Include required flags/options as args.',
+      '- User prompts may mention desired flags or output formats naturally, but do not invent unsupported flags.',
+    ];
+  }
+
+  if (surface === 'sdk') {
+    return [
+      '- expected_actions.name is the SDK method/function name from the snapshot.',
+      '- args keys are method parameter names from the snapshot.',
+      '- User prompts should describe developer intent, not paste implementation code unless the skill is code-oriented.',
+    ];
+  }
+
+  if (surface === 'mcp') {
+    return [
+      '- expected_actions.name is the MCP tool name from the snapshot.',
+      '- args keys are tool input fields from the snapshot.',
+      '- User prompts should describe the external task the tool performs, not mention internal benchmark mechanics.',
+    ];
+  }
+
+  return [];
+}
+
+function buildCallableExamples(surface: DiscoveredTaskSurface): string {
+  const first = surface.snapshot.actions[0];
+  if (!first) return '{"tasks":[]}';
+
+  const tasks: Array<Record<string, unknown>> = [
+    {
+      id: 'example_single_action',
+      prompt: `${describeAction(first)} using concrete user-provided values.`,
+      expected_actions: [buildExampleAction(first)],
+    },
+  ];
+
+  const second = surface.snapshot.actions.find((action) => action.name !== first.name);
+  if (second) {
+    tasks.push({
+      id: 'example_multi_step',
+      prompt: `${describeAction(first)}, then ${describeAction(second)} for the same user request.`,
+      expected_actions: [buildExampleAction(first), buildExampleAction(second)],
+    });
+  }
+
+  const firstReference = surface.skillReferences?.[0]?.path;
+  if (firstReference) {
+    tasks.push({
+      id: 'example_reference_required',
+      prompt: `${describeAction(first)} after applying the companion instructions from ${firstReference}.`,
+      expected_reads: [firstReference],
+      expected_actions: [buildExampleAction(first)],
+    });
+  }
+
+  return JSON.stringify({ tasks }, null, 2);
+}
+
+function buildPromptSurfaceExamples(surface: DiscoveredTaskSurface): string {
+  const first = surface.snapshot.actions[0];
+  const second = surface.snapshot.actions.find((action) => action.name !== first?.name);
+  const tasks = [
+    {
+      id: 'example_prompt_capability',
+      prompt: first ? `${describeAction(first)} for the concrete input supplied by the user.` : 'Perform one concrete skill capability for the user input.',
+      expected_actions: [],
+      capabilityId: first?.name ?? 'capability_id_from_snapshot',
+    },
+  ];
+
+  if (second) {
+    tasks.push({
+      id: 'example_second_capability',
+      prompt: `${describeAction(second)} with explicit formatting constraints.`,
+      expected_actions: [],
+      capabilityId: second.name,
+    });
+  }
+
+  return JSON.stringify({ tasks }, null, 2);
+}
+
+function buildExampleAction(action: SnapshotAction): { name: string; args: Record<string, unknown> } {
+  const required = action.args.filter((arg) => arg.required);
+  const selectedArgs = required.length > 0 ? required : action.args.slice(0, 1);
+  return {
+    name: action.name,
+    args: Object.fromEntries(selectedArgs.map((arg) => [arg.name, sampleValueForArg(arg)])),
+  };
+}
+
+function sampleValueForArg(arg: SnapshotAction['args'][number]): unknown {
+  const name = arg.name.toLowerCase();
+  const schemaType = typeof arg.schema?.type === 'string' ? arg.schema.type : undefined;
+  const type = (arg.type ?? schemaType ?? '').toLowerCase();
+
+  if (type === 'number' || type === 'integer') return 5;
+  if (type === 'boolean') return true;
+  if (type === 'array') return [`sample-${arg.name}`];
+  if (type === 'object') return { value: `sample-${arg.name}` };
+  if (name.includes('email')) return 'user@example.com';
+  if (name === 'id' || name.endsWith('id') || name.includes('_id') || name.includes('-id')) return `${arg.name}-123`;
+  if (name.includes('address')) return '0x123';
+  if (name.includes('limit') || name.includes('page') || name.includes('count')) return 5;
+  return `sample-${arg.name}`;
+}
+
+function describeAction(action: SnapshotAction): string {
+  const description = action.description?.trim().replace(/[.\s]+$/, '');
+  if (description) return description;
+  return action.name.replace(/[_.:-]+/g, ' ');
 }
 
 function stripCodeFence(raw: string): string {

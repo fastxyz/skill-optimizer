@@ -193,7 +193,12 @@ await test('generateCandidateTasks: includes references in prompt and preserves 
     const surface = await discoverTaskSurface(fixture.benchmarkConfigPath);
     const deps: TaskGeneratorDeps = {
       async complete(input) {
+        assert(input.system.includes('benchmark dataset designer'), 'task generator system prompt should set benchmark-dataset role');
+        assert(input.prompt.includes('<dataset_quality_bar>'), 'task generator prompt should define eval dataset quality criteria');
+        assert(input.prompt.includes('<good_examples>'), 'task generator prompt should include few-shot valid task examples');
+        assert(input.prompt.includes('<final_self_check>'), 'task generator prompt should include a final self-check before JSON output');
         assert(input.prompt.includes('Companion skill references'), 'task generator prompt should mention companion references');
+        assert(input.prompt.includes('skill_read(path)'), 'task generator prompt should preserve exact skill_read(path) guidance');
         assert(input.prompt.includes('path="shared/SKILL.md"'), 'task generator prompt should include exact skill_read path');
         assert(input.prompt.includes('Use --params for resource identifiers.'), 'task generator prompt should include reference content');
         return JSON.stringify({
@@ -723,7 +728,10 @@ await test('prompt surface: generator tags tasks with capabilityId', async () =>
 
     const { summarize, translate } = fixture.capabilityKeys;
     const deps: TaskGeneratorDeps = {
-      async complete() {
+      async complete(input) {
+        assert(input.prompt.includes('<dataset_quality_bar>'), 'prompt-surface task generator prompt should define eval dataset quality criteria');
+        assert(input.prompt.includes('<prompt_surface_rules>'), 'prompt-surface task generator prompt should include prompt-specific rules');
+        assert(input.prompt.includes('<final_self_check>'), 'prompt-surface task generator prompt should include a final self-check');
         return JSON.stringify({
           tasks: [
             {
