@@ -1,10 +1,14 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { extractShellBlock, parseShellCommands, extractFromCliMarkdown } from '../src/benchmark/extractors/cli-extractor.js';
 import { extract } from '../src/benchmark/extractors/index.js';
 import { loadCliCommands } from '../src/benchmark/config.js';
+import { evaluateTask } from '../src/benchmark/evaluator.js';
+import { createSkillReadExecutor } from '../src/benchmark/runner.js';
+import { evaluateExpectedReads } from '../src/benchmark/read-evaluator.js';
+import { fetchSkill } from '../src/benchmark/skill-fetcher.js';
 import type { BenchmarkConfig, LLMResponse } from '../src/benchmark/types.js';
 
 let passed = 0;
@@ -307,6 +311,193 @@ await test('loadCliCommands: rejects entries without command', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+await test('fetchSkill loads local companion skill references', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skill-optimizer-skill-'));
+  try {
+    const mainDir = join(dir, 'gws-drive');
+    const sharedDir = join(dir, 'gws-shared');
+    mkdirSync(mainDir, { recursive: true });
+    mkdirSync(sharedDir, { recursive: true });
+
+    const mainPath = join(mainDir, 'SKILL.md');
+    const sharedPath = join(sharedDir, 'SKILL.md');
+
+    writeFileSync(mainPath, '# Main skill\n', 'utf-8');
+    writeFileSync(sharedPath, '# Shared skill\nExpected shared companion text\n', 'utf-8');
+
+    const fetched = await fetchSkill({
+      source: mainPath,
+      references: [sharedPath],
+      cache: false,
+    } as any);
+
+    assert(fetched !== null, 'fetchSkill should return skill content');
+    const references = (fetched as any).references as Array<{ path: string; content: string }>;
+    assertEqual(references.length, 1, 'one local reference should be loaded');
+    assertEqual(references[0].path, 'gws-shared/SKILL.md', 'reference path should be slash-normalized and stable');
+    assert(references[0].content.includes('Expected shared companion text'), 'shared reference content should be loaded');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+await test('skill_read serves only frozen allowed skill references', async () => {
+  const built = (createSkillReadExecutor as any)([
+    {
+      path: 'gws-shared/SKILL.md',
+      source: '/tmp/gws-shared/SKILL.md',
+      content: 'Expected shared reference body',
+    },
+  ]);
+  const executor = typeof built === 'function' ? built : built.executor;
+  const reads: string[] = built.reads ?? built.successfulReads ?? built.readPaths ?? [];
+
+  const ok = await executor('skill_read', { path: 'gws-shared/SKILL.md' });
+  assert(String(ok).includes('Expected shared reference body'), 'skill_read should return allowed reference content');
+  assertEqual(reads.length, 1, 'successful read should be recorded');
+  assertEqual(reads[0], 'gws-shared/SKILL.md', 'successful read path should be tracked');
+
+  const leadingSlash = await executor('skill_read', { path: '/gws-shared/SKILL.md' });
+  assert(String(leadingSlash).startsWith('Error:'), 'leading slash variant should not match configured path');
+  assertEqual(reads.length, 1, 'unconfigured leading slash variant must not be recorded as successful');
+
+  const denied = await executor('skill_read', { path: '../secret.md' });
+  assert(String(denied).startsWith('Error:'), 'path traversal read should be rejected');
+  assertEqual(reads.length, 1, 'rejected read must not be recorded as successful');
+});
+
+await test('expected_reads pass/fail helper', () => {
+  const pass = (evaluateExpectedReads as any)(['a.md', 'b.md'], ['a.md', 'b.md', 'extra.md']);
+  assertEqual(pass.passed, true, 'extra reads should still pass expected read coverage');
+  assertEqual(pass.extra.length, 1, 'extra read should be reported');
+  assertEqual(pass.extra[0], 'extra.md', 'reported extra read should match actual extra path');
+
+  const fail = (evaluateExpectedReads as any)(['a.md', 'b.md'], ['a.md']);
+  assertEqual(fail.passed, false, 'missing expected read should fail');
+  assertEqual(fail.missing.length, 1, 'missing expected read should be reported');
+  assertEqual(fail.missing[0], 'b.md', 'missing read should identify b.md');
+});
+
+await test('CLI required flag normalization passes with mixed required forms', () => {
+  const task = {
+    id: 'cli-required-normalization',
+    prompt: 'List permissions',
+    expected_actions: [
+      {
+        name: 'gws drive permissions list',
+        args: {
+          params: { kind: 'nonempty-string' },
+          'page-all': true,
+        },
+        cli: { required: ['--params', '--page-all'] },
+      },
+    ],
+  } as any;
+
+  const extractedCalls = parseShellCommands(
+    'gws drive permissions list --params "{\"fileId\":\"FILE_ID\"}" --page-all',
+    ['gws drive permissions list'],
+  );
+
+  const taskResult = evaluateTask({
+    task,
+    model: { id: 'm', name: 'm', tier: 'low' },
+    generatedCode: 'gws drive permissions list --params "{\"fileId\":\"FILE_ID\"}" --page-all',
+    rawResponse: 'ok',
+    extractedCalls,
+    llmLatencyMs: 1,
+    knownMethods: new Set(['gws drive permissions list']),
+    surface: 'cli',
+    cliCommands: [
+      {
+        command: 'gws drive permissions list',
+        options: [
+          { name: 'params', takesValue: true },
+          { name: 'page-all', takesValue: false },
+        ],
+      },
+    ],
+  } as any);
+
+  assertEqual(taskResult.metrics.taskPassed, true, 'required CLI flags should be normalized and pass');
+});
+
+await test('CLI rejects unsupported extra flag', () => {
+  const task = {
+    id: 'cli-extra-flag-rejected',
+    prompt: 'Label something',
+    expected_actions: [
+      {
+        name: 'gws drive permissions list',
+        args: {},
+      },
+    ],
+  } as any;
+
+  const extractedCalls = parseShellCommands(
+    'gws drive permissions list --bogus true',
+    ['gws drive permissions list'],
+  );
+
+  const taskResult = evaluateTask({
+    task,
+    model: { id: 'm', name: 'm', tier: 'low' },
+    generatedCode: 'gws drive permissions list --bogus true',
+    rawResponse: 'ok',
+    extractedCalls,
+    llmLatencyMs: 1,
+    knownMethods: new Set(['gws drive permissions list']),
+    surface: 'cli',
+    cliCommands: [
+      {
+        command: 'gws drive permissions list',
+        options: [{ name: 'label', takesValue: true }],
+      },
+    ],
+  } as any);
+
+  assertEqual(taskResult.metrics.taskPassed, false, 'unsupported CLI option should fail task evaluation');
+});
+
+await test('CLI validates nested JSON flag constraints', () => {
+  const task = {
+    id: 'cli-nested-json-constraints',
+    prompt: 'List permissions with page size',
+    expected_actions: [
+      {
+        name: 'gws drive permissions list',
+        args: {
+          'params.pageSize': { kind: 'exact', value: 5 },
+        },
+      },
+    ],
+  } as any;
+
+  const extractedCalls = parseShellCommands(
+    'gws drive permissions list --params \'{"pageSize":5}\'',
+    ['gws drive permissions list'],
+  );
+
+  const taskResult = evaluateTask({
+    task,
+    model: { id: 'm', name: 'm', tier: 'low' },
+    generatedCode: 'gws drive permissions list --params \'{"pageSize":5}\'',
+    rawResponse: 'ok',
+    extractedCalls,
+    llmLatencyMs: 1,
+    knownMethods: new Set(['gws drive permissions list']),
+    surface: 'cli',
+    cliCommands: [
+      {
+        command: 'gws drive permissions list',
+        options: [{ name: 'params', takesValue: true }],
+      },
+    ],
+  } as any);
+
+  assertEqual(taskResult.metrics.taskPassed, true, 'nested JSON constraints should be validated from --params payload');
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

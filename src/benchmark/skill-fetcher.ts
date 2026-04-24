@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import type { FetchedSkill, SkillConfig, SkillVersion } from './types.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -26,6 +26,32 @@ function writeCache(cachePath: string, result: FetchedSkill): void {
   const cacheDir = resolve(cachePath, '..');
   mkdirSync(cacheDir, { recursive: true });
   writeFileSync(cachePath, JSON.stringify(result, null, 2), 'utf-8');
+}
+
+function isRemoteSkillSource(source: string): boolean {
+  return source.startsWith('github:') || source.startsWith('https://') || source.startsWith('http://');
+}
+
+function normalizePathForPrompt(pathValue: string): string {
+  return pathValue.replace(/\\/g, '/');
+}
+
+function isAncestorOrSame(parent: string, child: string): boolean {
+  const rel = relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+function getCommonDirectory(paths: string[]): string {
+  if (paths.length === 0) return process.cwd();
+  let common = paths[0]!;
+  for (const current of paths.slice(1)) {
+    while (!isAncestorOrSame(common, current)) {
+      const next = dirname(common);
+      if (next === common) break;
+      common = next;
+    }
+  }
+  return common;
 }
 
 // ── GitHub source ──────────────────────────────────────────────────────────
@@ -192,6 +218,67 @@ function fetchFromFile(source: string): FetchedSkill {
   return { version, content };
 }
 
+function fetchFromFileWithReferences(skillConfig: SkillConfig): FetchedSkill {
+  const source = skillConfig.source;
+  const references = skillConfig.references ?? [];
+  const resolved = resolve(process.cwd(), source);
+
+  if (!existsSync(resolved)) {
+    throw new Error(`Skill file not found: ${resolved} (from source: "${source}")`);
+  }
+
+  console.log(`[skill] Reading skill from file: ${resolved}`);
+
+  let content: string;
+  try {
+    content = readFileSync(resolved, 'utf-8');
+  } catch (err) {
+    throw new Error(`Failed to read skill file ${resolved}: ${err instanceof Error ? err.message : err}`);
+  }
+
+  const resolvedReferenceFiles = references.map((referenceSource) => {
+    const resolvedReference = resolve(process.cwd(), referenceSource);
+    if (!existsSync(resolvedReference)) {
+      throw new Error(`Skill reference file not found: ${resolvedReference} (from source: "${referenceSource}")`);
+    }
+    let referenceContent: string;
+    try {
+      referenceContent = readFileSync(resolvedReference, 'utf-8');
+    } catch (err) {
+      throw new Error(`Failed to read skill reference file ${resolvedReference}: ${err instanceof Error ? err.message : err}`);
+    }
+    return {
+      source: referenceSource,
+      resolvedPath: resolvedReference,
+      content: referenceContent,
+    };
+  });
+
+  const commonDirectory = getCommonDirectory([
+    dirname(resolved),
+    ...resolvedReferenceFiles.map((ref) => dirname(ref.resolvedPath)),
+  ]);
+
+  const frozenReferences = resolvedReferenceFiles.map((ref) => ({
+    path: normalizePathForPrompt(relative(commonDirectory, ref.resolvedPath)),
+    source: ref.source,
+    content: ref.content,
+  }));
+
+  const version: SkillVersion = {
+    source,
+    commitSha: 'local',
+    ref: 'file',
+    fetchedAt: new Date().toISOString(),
+  };
+
+  return {
+    version,
+    content,
+    references: frozenReferences,
+  };
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 /**
@@ -210,11 +297,18 @@ export async function fetchSkill(skillConfig: SkillConfig | undefined): Promise<
   const source = skillConfig.source;
   const useCache = skillConfig.cache !== false;
 
+  if (isRemoteSkillSource(source) && (skillConfig.references?.length ?? 0) > 0) {
+    throw new Error('target.skill.references is only supported for local file-based target.skill.source values');
+  }
+
   if (source.startsWith('github:')) {
     return fetchFromGitHub(source, useCache);
   } else if (source.startsWith('https://') || source.startsWith('http://')) {
     return fetchFromUrl(source, useCache);
   } else {
+    if ((skillConfig.references?.length ?? 0) > 0) {
+      return fetchFromFileWithReferences(skillConfig);
+    }
     return fetchFromFile(source);
   }
 }

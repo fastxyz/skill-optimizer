@@ -11,7 +11,7 @@ Paths in the config are relative to the config file location.
 | `name` | `string` | — | Human-readable project name |
 | `target.surface` | `"sdk" | "cli" | "mcp" | "prompt"` | — | Type of callable surface |
 | `target.repoPath` | `string` | — | Path to the target repo (default ".") |
-| `target.skill` | `string | object` | — | Path to SKILL.md or { source, cache } object |
+| `target.skill` | `string | object` | — | Path to SKILL.md or { source, references, cache } object |
 | `target.discovery.mode` | `"auto" | "manifest"` | — | "auto" = code-first tree-sitter; "manifest" = use provided file only |
 | `target.discovery.sources` | `string[]` | — | Source files to scan for callable methods/commands/tools |
 | `target.discovery.fallbackManifest` | `string` | — | Path to manifest JSON when code-first discovery is incomplete |

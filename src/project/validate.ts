@@ -27,6 +27,9 @@ export async function checkConfig(
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
 
+  const isRemoteSkillSource = (source: string): boolean =>
+    source.startsWith('github:') || source.startsWith('https://') || source.startsWith('http://');
+
   function err(code: string, field: string, message: string, hint?: string): void {
     issues.push({ code, severity: 'error', field, message, hint, fixable: false });
   }
@@ -53,6 +56,27 @@ export async function checkConfig(
     const skillSource = typeof target.skill === 'string' ? target.skill : target.skill?.source;
     if (!skillSource || typeof skillSource !== 'string') {
       err('invalid-skill', 'target.skill', '"target.skill" must be a path string or { source } object');
+    }
+    if (target.skill && typeof target.skill === 'object' && target.skill.references !== undefined) {
+      if (!Array.isArray(target.skill.references)) {
+        err('invalid-skill-references', 'target.skill.references', '"target.skill.references" must be an array of non-empty strings');
+      } else {
+        for (let i = 0; i < target.skill.references.length; i++) {
+          const ref = target.skill.references[i];
+          if (typeof ref !== 'string' || ref.trim() === '') {
+            err('invalid-skill-reference-entry', `target.skill.references[${i}]`, 'Each skill reference must be a non-empty string');
+          }
+        }
+      }
+
+      if (typeof skillSource === 'string' && isRemoteSkillSource(skillSource) && target.skill.references.length > 0) {
+        err(
+          'remote-skill-references-unsupported',
+          'target.skill.references',
+          '"target.skill.references" is only supported when "target.skill.source" is a local file path',
+          'Use a local target.skill.source when configuring references',
+        );
+      }
     }
   }
 
@@ -296,7 +320,7 @@ export async function checkConfig(
   // Check: target.skill file exists (skip for remote sources — github: / https: / http:)
   if (target.skill !== undefined) {
     const skillSource = typeof target.skill === 'string' ? target.skill : target.skill.source;
-    const isRemoteSkill = skillSource.startsWith('github:') || skillSource.startsWith('https://') || skillSource.startsWith('http://');
+    const isRemoteSkill = isRemoteSkillSource(skillSource);
     if (skillSource && !isRemoteSkill) {
       const absSkill = isAbsolute(skillSource) ? skillSource : resolve(configDir, skillSource);
       if (!existsSync(absSkill)) {
@@ -306,6 +330,22 @@ export async function checkConfig(
           hint: `Create SKILL.md at that path or update target.skill`,
           fixable: false,
         });
+      }
+    }
+
+    const skillReferences = typeof target.skill === 'object' ? target.skill.references : undefined;
+    if (Array.isArray(skillReferences)) {
+      for (let i = 0; i < skillReferences.length; i++) {
+        const ref = skillReferences[i]!;
+        const absRef = isAbsolute(ref) ? ref : resolve(configDir, ref);
+        if (!existsSync(absRef)) {
+          issues.push({
+            code: 'skill-reference-missing', severity: 'error', field: `target.skill.references[${i}]`,
+            message: `skill reference does not exist: ${absRef}`,
+            hint: 'Create the file or update target.skill.references',
+            fixable: false,
+          });
+        }
       }
     }
   }

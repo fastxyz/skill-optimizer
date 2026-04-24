@@ -7,6 +7,7 @@ interface PromptOptions {
   agentic?: boolean;
   shell?: 'bash' | 'sh';
   sdkLanguage?: SdkLanguage;
+  companionSkillPaths?: string[];
 }
 
 const SDK_LANGUAGE_LABELS: Record<SdkLanguage, string> = {
@@ -33,8 +34,15 @@ export function buildSystemPrompt(
   sdkName: string,
   options: PromptOptions,
 ): string {
+  const companionPaths = options.companionSkillPaths ?? [];
+  const companionSection = companionPaths.length > 0
+    ? `\n\nCompanion skill files available:\n${companionPaths.map((p) => `- ${p}`).join('\n')}`
+    : '';
+  const companionToolGuidance = companionPaths.length > 0
+    ? '\nWhen tools are available, use `skill_read(path)` to read these companion files by exact path.'
+    : '';
   const guidanceSection = skill
-    ? `\n\nOptional guidance context (SKILL.md):\n--- GUIDANCE ---\n${skill.content}\n--- END GUIDANCE ---`
+    ? `\n\nOptional guidance context (SKILL.md):\n--- GUIDANCE ---\n${skill.content}\n--- END GUIDANCE ---${companionSection}${companionToolGuidance}`
     : '';
 
   if (options.surface === 'prompt') {

@@ -50,7 +50,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
     throw new Error(`Failed to read tasks: ${resolved}: ${err instanceof Error ? err.message : err}`);
   }
 
-  let parsed: { tasks: Array<{ id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown; capabilityId?: unknown }> };
+  let parsed: { tasks: Array<{ id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown; expected_reads?: unknown; capabilityId?: unknown }> };
   try {
     parsed = JSON.parse(raw) as typeof parsed;
   } catch (err) {
@@ -65,7 +65,7 @@ export function loadTasks(tasksPath: string, baseDir?: string): TaskDefinition[]
 }
 
 function normalizeTaskDefinition(
-  task: { id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown; capabilityId?: unknown },
+  task: { id?: unknown; prompt?: unknown; expected_actions?: unknown; verify?: unknown; expected_fetches?: unknown; expected_reads?: unknown; capabilityId?: unknown },
   resolvedPath: string,
   index: number,
 ): TaskDefinition {
@@ -105,6 +105,15 @@ function normalizeTaskDefinition(
     }
   }
 
+  const rawReads = Array.isArray(task.expected_reads) ? task.expected_reads : undefined;
+  if (rawReads !== undefined) {
+    for (let i = 0; i < rawReads.length; i++) {
+      if (typeof rawReads[i] !== 'string' || !(rawReads[i] as string).trim()) {
+        throw new Error(`Tasks file ${resolvedPath}: task ${task.id} expected_reads[${i}] must be a non-empty string`);
+      }
+    }
+  }
+
   const capabilityId = typeof task.capabilityId === 'string' ? task.capabilityId : undefined;
 
   return {
@@ -113,6 +122,7 @@ function normalizeTaskDefinition(
     expected_actions,
     verify: rawVerify as TaskDefinition['verify'] | undefined,
     expected_fetches: rawFetches as string[] | undefined,
+    expected_reads: rawReads as string[] | undefined,
     ...(capabilityId !== undefined ? { capabilityId } : {}),
   };
 }
