@@ -1,0 +1,29 @@
+name: vercel-react-best-practices
+references: ./references
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+models:
+  - openrouter/openai/gpt-4.1-mini
+cases:
+  - name: async-parallel
+    task: |
+      This dashboard loader feels slower than it needs to be. Can you clean up /work/src/loadDashboard.ts?
+      The three fetches do not depend on each other. Please keep loadDashboard's return shape the same.
+    graders:
+      - name: async-parallel
+        command: node $CASE/checks/react.mjs async-parallel
+  - name: bundle-dynamic-imports
+    task: |
+      The code panel is pulling Monaco into the initial bundle. Can you make /work/app/code-panel.tsx load it only when needed?
+      Keep the CodePanel props the same.
+    graders:
+      - name: bundle-dynamic-imports
+        command: node $CASE/checks/react.mjs bundle-dynamic-imports
+  - name: rerender-derived-state
+    task: |
+      Can you simplify /work/src/ProfileForm.tsx? The full name should not need its own state.
+      Keep what the form renders the same.
+    graders:
+      - name: rerender-derived-state
+        command: node $CASE/checks/react.mjs rerender-derived-state

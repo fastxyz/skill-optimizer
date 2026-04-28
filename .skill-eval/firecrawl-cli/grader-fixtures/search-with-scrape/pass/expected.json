@@ -1,0 +1,9 @@
+{
+  "graders": {
+    "uses-search": true,
+    "search-scrapes-results": true,
+    "search-json-output": true,
+    "saves-search-output": true,
+    "avoids-redundant-scrape": true
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "graders": {
+    "uses-crawl": true,
+    "crawls-docs-host": true,
+    "scopes-to-docs": true,
+    "waits-for-results": true,
+    "bounds-page-limit": true,
+    "saves-crawl-output": true
+  }
+}

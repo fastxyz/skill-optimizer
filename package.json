@@ -1,7 +1,7 @@
 {
   "name": "skill-optimizer",
   "version": "1.1.0",
-  "description": "Benchmark and optimizer for evaluating SDK, CLI, and MCP guidance with static action matching.",
+  "description": "Local Docker workbench for running and grading agent skill cases.",
   "license": "MIT",
   "author": "Pi2 Labs",
   "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
@@ -13,21 +13,25 @@
     "url": "git+https://github.com/fastxyz/skill-optimizer.git"
   },
   "keywords": [
-    "benchmark",
-    "optimizer",
-    "mcp",
-    "sdk",
-    "cli",
-    "llm",
-    "tool-calling",
-    "evaluation"
+    "agent",
+    "skills",
+    "docker",
+    "evaluation",
+    "workbench"
   ],
   "type": "module",
   "files": [
     "dist/",
+    "docker/",
+    ".skill-eval/",
+    "src/",
+    "scripts/",
+    "docs/",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "package-lock.json",
+    "tsconfig.json"
   ],
   "bin": {
     "skill-optimizer": "./dist/cli.js"
@@ -39,28 +43,20 @@
     }
   },
   "scripts": {
-    "benchmark": "tsx src/cli.ts run",
     "prepack": "npm run build",
     "clean": "node --eval \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
     "dev": "tsx src/cli.ts",
-    "optimize": "tsx src/cli.ts optimize",
-    "materialize:mock": "tsx src/optimizer/materialize-mock-repo.ts",
-    "gen-docs": "tsx scripts/gen-docs.ts",
-    "build": "tsc && npm run gen-docs && chmod +x dist/cli.js",
+    "build": "tsc && chmod +x dist/cli.js",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noUnusedLocals --noEmit",
-    "test": "tsx tests/smoke-code.ts && tsx tests/smoke-sdk-python.ts && tsx tests/smoke-sdk-rust.ts && tsx tests/smoke-cli.ts && tsx tests/smoke-cli-entry.ts && tsx tests/smoke-mcp.ts && tsx tests/smoke-llm.ts && tsx tests/smoke-discovery-sdk.ts && tsx tests/smoke-discovery-cli.ts && tsx tests/smoke-discovery-mcp.ts && tsx tests/smoke-prompt-evaluator.ts && tsx tests/smoke-prompt-criteria.ts && tsx tests/smoke-snapshot-prompt.ts && tsx tests/smoke-generation.ts && tsx tests/smoke-optimize.ts && tsx tests/smoke-mock-repos.ts && tsx tests/smoke-release.ts && tsx tests/smoke-changelog-coverage.ts && tsx tests/smoke-scoring.ts && tsx tests/smoke-scope.ts && tsx tests/smoke-coverage.ts && tsx tests/smoke-feedback.ts && tsx tests/smoke-verdict.ts && tsx tests/smoke-verdict-prompt.ts && tsx tests/smoke-dry-run.ts && tsx tests/smoke-errors.ts && tsx tests/smoke-model-ids.ts && tsx tests/smoke-e2e.ts && tsx tests/smoke-import.ts && tsx tests/smoke-init.ts && tsx tests/smoke-gen-docs.ts && tsx tests/smoke-actions.ts"
+    "test": "tsx tests/smoke-workbench-case.ts && tsx tests/smoke-workbench-checks.ts && tsx tests/smoke-workbench-trace.ts && tsx tests/smoke-workbench-container.ts && tsx tests/smoke-workbench-docker-runner.ts && tsx tests/smoke-workbench-pi-agent.ts && tsx tests/smoke-workbench-fixtures.ts && tsx tests/smoke-workbench-run-case.ts && tsx tests/smoke-workbench-models.ts && tsx tests/smoke-workbench-suite.ts && tsx tests/smoke-workbench-trials.ts && tsx tests/smoke-workbench-metrics.ts && tsx tests/smoke-workbench-provenance.ts && tsx tests/smoke-workbench-reference-solutions.ts && tsx tests/smoke-workbench-grader-fixtures.ts"
   },
   "dependencies": {
-    "@clack/prompts": "^1.2.0",
     "@mariozechner/pi-agent-core": "^0.66.1",
     "@mariozechner/pi-ai": "^0.66.1",
     "@mariozechner/pi-coding-agent": "^0.66.1",
     "dotenv": "^17.4.1",
-    "tree-sitter-wasms": "^0.1.13",
-    "web-tree-sitter": "^0.24.7",
-    "zod": "^4.3.6",
-    "zod-to-json-schema": "^3.25.2"
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/node": "^22.12.0",

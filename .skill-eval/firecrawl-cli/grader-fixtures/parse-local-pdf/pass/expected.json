@@ -1,0 +1,8 @@
+{
+  "graders": {
+    "uses-parse": true,
+    "parses-local-path": true,
+    "saves-parse-output": true,
+    "avoids-local-file-scrape": true
+  }
+}

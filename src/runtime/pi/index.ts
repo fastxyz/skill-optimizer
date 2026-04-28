@@ -1,6 +1,0 @@
-export { createPiAuthStorage, requireConfiguredApiKey, resolveApiCredential, resolveApiKey } from './auth.js';
-export { createCodingOrchestratorSession } from './coding-orchestrator.js';
-export { resolvePiModel, resolvePiModelByRef } from './models.js';
-
-export type { PiAuthMode, PiAuthOptions } from './auth.js';
-export type { ResolvedPiModelRequest } from './models.js';
