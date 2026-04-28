@@ -23,6 +23,8 @@ export async function runWorkbenchReferenceSolutions(params: RunWorkbenchReferen
   const results: ReferenceCaseResultFile[] = [];
   mkdirSync(resultsDir, { recursive: true });
 
+  // TODO: add optional known-bad reference checks so verify-suite can prove graders reject obvious wrong outputs.
+
   for (const suiteCase of suite.cases) {
     const resolved = resolveSuiteCase(suiteCase.path, suiteCase.case);
     const caseResultsDir = join(resultsDir, 'references', suiteCase.slug);

@@ -25,15 +25,16 @@ Run-case options:
   --model <model>                               Override case model
   --models <models>                             Comma-separated OpenRouter model refs
   --trials <n>                                  Number of independent trials (default: 1)
+  --concurrency <n>                             Maximum concurrent trial containers (default: 1)
   --image <image>                               Docker image (default: skill-optimizer-workbench:local)
-  --keep-workspace                              Copy final /work into results/workspace
+  --keep-workspace                              Copy final /work into results/workspace; failures are always preserved
 
 Run-suite options:
   --out <path>                                  Results directory (default: <suite-dir>/.results)
-  --models <models>                             Comma-separated OpenRouter model refs
   --trials <n>                                  Number of independent trials per case/model (default: 1)
+  --concurrency <n>                             Maximum concurrent trial containers (default: 1)
   --image <image>                               Docker image (default: skill-optimizer-workbench:local)
-  --keep-workspace                              Copy final /work into each result workspace
+  --keep-workspace                              Copy final /work into each result workspace; failures are always preserved
 
 Validation commands:
   verify-suite <suite.yml> [--out <path>]        Run authored reference solutions through graders
@@ -42,7 +43,7 @@ Examples:
   skill-optimizer run-case ./case.yml
   skill-optimizer run-case ./case.yml --keep-workspace
   skill-optimizer run-suite ./suite.yml --trials 3
-  skill-optimizer run-suite ./suite.yml --models openrouter/google/gemini-2.5-flash,openrouter/openai/gpt-5.4
+  skill-optimizer run-case ./case.yml --models openrouter/google/gemini-2.5-flash,openrouter/openai/gpt-5.4
 `);
 }
 

@@ -5,12 +5,30 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+  buildAgentSystemPrompt,
   buildContainerWorkbenchEnv,
   prepareWorkbenchDirectory,
   preserveArtifacts,
   runAgentPromptWithTimeout,
   writeBestEffortTrace,
 } from '../src/workbench/container-runner.js';
+import { createTraceRecorder } from '../src/workbench/trace.js';
+
+test('buildAgentSystemPrompt describes operating constraints without eval/sandbox hints', () => {
+  const prompt = buildAgentSystemPrompt();
+
+  assert.match(prompt, /Current working directory is \/work/);
+  assert.match(prompt, /Do not use global pip installs/);
+  assert.match(prompt, /python -m venv \/work\/\.venv/);
+  assert.match(prompt, /Write all outputs under \/work/);
+  assert.doesNotMatch(prompt, /sandbox/i);
+  assert.doesNotMatch(prompt, /skill\/reference/i);
+  assert.doesNotMatch(prompt, /grader/i);
+  assert.doesNotMatch(prompt, /expected answer/i);
+  assert.doesNotMatch(prompt, /suite metadata/i);
+  assert.doesNotMatch(prompt, /\/case/);
+  assert.doesNotMatch(prompt, /Task:/);
+});
 
 test('buildContainerWorkbenchEnv exposes CASE as the mounted case directory', () => {
   const env = buildContainerWorkbenchEnv({
@@ -132,7 +150,7 @@ test('runAgentPromptWithTimeout rejects when agent ends with provider error', as
 test('writeBestEffortTrace writes trace from available session messages', () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-trace-'));
   try {
-    const tracePath = join(root, 'trace.json');
+    const tracePath = join(root, 'trace.jsonl');
     const wrote = writeBestEffortTrace({
       tracePath,
       caseName: 'partial-trace',
@@ -149,9 +167,43 @@ test('writeBestEffortTrace writes trace from available session messages', () => 
     });
 
     assert.equal(wrote, true);
-    const trace = JSON.parse(readFileSync(tracePath, 'utf-8')) as { caseName: string; entries: unknown[] };
-    assert.equal(trace.caseName, 'partial-trace');
-    assert.equal(trace.entries.length, 1);
+    const lines = readFileSync(tracePath, 'utf-8').trim().split('\n').map((line) => JSON.parse(line) as { type: string; caseName?: string });
+    assert.equal(lines[0]?.caseName, 'partial-trace');
+    assert.equal(lines.filter((line) => line.type === 'message').length, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('writeBestEffortTrace prefers recorded Pi events when available', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-event-trace-'));
+  try {
+    const tracePath = join(root, 'trace.jsonl');
+    const recorder = createTraceRecorder({ now: () => '2026-04-27T10:11:12.500Z' });
+    recorder.record({
+      type: 'tool_execution_start',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'npm test' },
+    });
+
+    const wrote = writeBestEffortTrace({
+      tracePath,
+      caseName: 'event-trace',
+      model: 'openrouter/test/model',
+      startedAt: '2026-04-27T10:11:12.000Z',
+      endedAt: '2026-04-27T10:11:13.000Z',
+      recorder,
+      session: { state: { messages: [] } },
+    });
+
+    assert.equal(wrote, true);
+    const lines = readFileSync(tracePath, 'utf-8').trim().split('\n').map((line) => JSON.parse(line) as {
+      type: string;
+      arguments?: { command?: string };
+    });
+    assert.equal(lines[1]?.type, 'tool_call');
+    assert.equal(lines[1]?.arguments?.command, 'npm test');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

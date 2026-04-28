@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { packageRootFromModuleUrl, prepareDockerWorkbenchRun } from '../src/workbench/docker-runner.js';
+import {
+  buildDockerAgentCommand,
+  buildDockerGradeCommand,
+  buildDockerSetupCommand,
+  packageRootFromModuleUrl,
+  prepareDockerWorkbenchRun,
+} from '../src/workbench/docker-runner.js';
 
 test('packageRootFromModuleUrl resolves repo root independently of cwd', () => {
   assert.equal(
@@ -15,6 +21,17 @@ test('packageRootFromModuleUrl resolves repo root independently of cwd', () => {
     packageRootFromModuleUrl('file:///tmp/source-package/src/workbench/docker-runner.ts'),
     '/tmp/source-package',
   );
+});
+
+test('workbench image runs agents as non-root with venv-only pip installs', () => {
+  const dockerfile = readFileSync(join(process.cwd(), 'docker', 'workbench-runner.Dockerfile'), 'utf-8');
+
+  assert.match(dockerfile, /useradd .* agent/);
+  assert.match(dockerfile, /USER agent/);
+  assert.match(dockerfile, /ENTRYPOINT \["node", "\/app\/dist\/workbench\/container-runner\.js"\]/);
+  assert.match(dockerfile, /PIP_REQUIRE_VIRTUALENV=1/);
+  assert.match(dockerfile, /PATH="\/work\/\.venv\/bin:/);
+  assert.doesNotMatch(dockerfile, /PIP_BREAK_SYSTEM_PACKAGES/);
 });
 
 test('prepareDockerWorkbenchRun writes results under case .results and keeps bundle temp-only', () => {
@@ -94,10 +111,89 @@ test('prepareDockerWorkbenchRun bundles case support directories', () => {
     assert.ok(existsSync(join(prepared.caseDir, 'fixtures', 'input.json')));
     assert.ok(existsSync(join(prepared.caseDir, 'bin', 'fixture-tool')));
     assert.ok(existsSync(join(prepared.caseDir, 'workspace', 'seed.txt')));
+    assert.ok(existsSync(join(prepared.workDir, 'SKILL.md')));
+    assert.ok(existsSync(join(prepared.workDir, 'seed.txt')));
+    assert.ok(existsSync(join(prepared.workDir, 'bin', 'fixture-tool')));
+    assert.equal(existsSync(join(prepared.workDir, 'case.yml')), false);
+    assert.equal(existsSync(join(prepared.workDir, 'checks', 'check.mjs')), false);
+    assert.equal(existsSync(join(prepared.workDir, 'fixtures', 'input.json')), false);
     prepared.cleanup();
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('setup docker command mounts case and work before agent phase', () => {
+  const command = buildDockerSetupCommand({
+    image: 'skill-optimizer-workbench:local',
+    caseDir: '/tmp/case',
+    workDir: '/tmp/work',
+    envNames: [],
+  });
+
+  assert.match(command, /--setup/);
+  assert.match(command, /-v '\/tmp\/case:\/case:ro'/);
+  assert.match(command, /-v '\/tmp\/work:\/work:rw'/);
+  assert.doesNotMatch(command, /\/results/);
+  assert.doesNotMatch(command, /docker\.sock/);
+});
+
+test('agent docker command mounts only work and uses sandbox hardening flags', () => {
+  const command = buildDockerAgentCommand({
+    image: 'skill-optimizer-workbench:local',
+    containerName: 'skill-optimizer-agent-test',
+    workDir: '/tmp/work',
+    caseName: 'extract-pdf-facts',
+    model: 'openrouter/google/gemini-2.5-flash',
+    task: 'Read the PDF and write answer.json.',
+    timeoutSeconds: 600,
+    envNames: ['OPENROUTER_API_KEY'],
+  });
+
+  assert.match(command, /--agent/);
+  assert.match(command, /--name 'skill-optimizer-agent-test'/);
+  assert.match(command, /-v '\/tmp\/work:\/work:rw'/);
+  assert.match(command, /--workdir \/work/);
+  assert.match(command, /--cap-drop=ALL/);
+  assert.match(command, /--security-opt no-new-privileges/);
+  assert.match(command, /-e OPENROUTER_API_KEY/);
+  assert.doesNotMatch(command, /\/case/);
+  assert.doesNotMatch(command, /\/results/);
+  assert.doesNotMatch(command, /docker\.sock/);
+});
+
+test('agent docker command passes optional appended system prompt', () => {
+  const command = buildDockerAgentCommand({
+    image: 'skill-optimizer-workbench:local',
+    containerName: 'skill-optimizer-agent-test',
+    workDir: '/tmp/work',
+    caseName: 'prompted-case',
+    model: 'openrouter/google/gemini-2.5-flash',
+    task: 'Write output.txt.',
+    timeoutSeconds: 600,
+    envNames: [],
+    appendSystemPrompt: 'Prefer simple shell commands when possible.',
+  });
+
+  assert.match(command, /--append-system-prompt-base64/);
+  assert.match(command, new RegExp(Buffer.from('Prefer simple shell commands when possible.', 'utf-8').toString('base64')));
+});
+
+test('grade docker command mounts case after agent phase', () => {
+  const command = buildDockerGradeCommand({
+    image: 'skill-optimizer-workbench:local',
+    caseDir: '/tmp/case',
+    workDir: '/tmp/work',
+    resultsDir: '/tmp/results',
+    envNames: [],
+  });
+
+  assert.match(command, /--grade/);
+  assert.match(command, /-v '\/tmp\/case:\/case:ro'/);
+  assert.match(command, /-v '\/tmp\/work:\/work:rw'/);
+  assert.match(command, /-v '\/tmp\/results:\/results:rw'/);
+  assert.match(command, /--cap-drop=ALL/);
+  assert.match(command, /--security-opt no-new-privileges/);
 });
 
 test('prepareDockerWorkbenchRun honors --out as the results root', () => {

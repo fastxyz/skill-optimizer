@@ -18,6 +18,7 @@ export interface RunWorkbenchCaseParams {
   image?: string;
   keepWorkspace?: boolean;
   trials?: number;
+  concurrency?: number;
 }
 
 export interface RunWorkbenchCaseDeps {
@@ -30,6 +31,44 @@ function runResultsDir(params: RunWorkbenchCaseParams, now: Date): string {
   return join(root, timestampSlug(now));
 }
 
+function parseConcurrencyFlag(value: string | undefined): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`--concurrency must be a positive integer, got: ${value}`);
+  }
+  return parsed;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await worker(item);
+      }
+    }
+  }));
+
+  return results;
+}
+
+function trialDirName(model: string, trial: number): string {
+  return `${slugModelRef(model)}--${formatTrialNumber(trial)}`;
+}
+
 async function runWorkbenchCaseMatrix(
   params: RunWorkbenchCaseParams & { models: string[] },
   deps: RunWorkbenchCaseDeps,
@@ -37,35 +76,47 @@ async function runWorkbenchCaseMatrix(
   const dockerRunner = deps.runDockerWorkbenchCase ?? runDockerWorkbenchCase;
   const startedAt = new Date().toISOString();
   const resultsDir = runResultsDir(params, deps.now ?? new Date());
-  const results: WorkbenchModelAggregateResult[] = [];
   const trials = params.trials ?? 1;
+  const concurrency = params.concurrency && params.concurrency > 0
+    ? Math.floor(params.concurrency)
+    : 1;
 
   mkdirSync(resultsDir, { recursive: true });
 
+  const jobs = params.models.flatMap((model) => Array.from({ length: trials }, (_, index) => ({
+    model,
+    trial: index + 1,
+  })));
+
+  const completedTrials = await mapWithConcurrency(jobs, concurrency, async (job) => {
+    const trialDir = join(resultsDir, 'trials', trialDirName(job.model, job.trial));
+    const run = await dockerRunner({
+      casePath: params.casePath,
+      resultsDir: trialDir,
+      model: job.model,
+      image: params.image,
+      keepWorkspace: params.keepWorkspace,
+    });
+    const result = readWorkbenchResultFile(run.resultPath);
+    const trialResult: WorkbenchTrialResultRef = {
+      trial: job.trial,
+      pass: result.pass,
+      score: result.score,
+      resultPath: relative(resultsDir, run.resultPath),
+      tracePath: relative(resultsDir, run.tracePath),
+      ...(run.summaryPath ? { summaryPath: relative(resultsDir, run.summaryPath) } : {}),
+    };
+
+    console.log(`${job.model} trial ${formatTrialNumber(job.trial)}: ${result.pass ? 'PASS' : 'FAIL'}`);
+    return { ...job, trialResult };
+  });
+
+  const results: WorkbenchModelAggregateResult[] = [];
   for (const model of params.models) {
-    const trialResults: WorkbenchTrialResultRef[] = [];
-    for (let trial = 1; trial <= trials; trial += 1) {
-      const trialDir = join(resultsDir, 'models', slugModelRef(model), 'trials', formatTrialNumber(trial));
-      const run = await dockerRunner({
-        casePath: params.casePath,
-        resultsDir: trialDir,
-        model,
-        image: params.image,
-        keepWorkspace: params.keepWorkspace,
-      });
-      const result = readWorkbenchResultFile(run.resultPath);
-      trialResults.push({
-        trial,
-        pass: result.pass,
-        score: result.score,
-        resultPath: relative(resultsDir, run.resultPath),
-        tracePath: relative(resultsDir, run.tracePath),
-        ...(run.summaryPath ? { summaryPath: relative(resultsDir, run.summaryPath) } : {}),
-      });
-
-      console.log(`${model} trial ${formatTrialNumber(trial)}: ${result.pass ? 'PASS' : 'FAIL'}`);
-    }
-
+    const trialResults = completedTrials
+      .filter((trial) => trial.model === model)
+      .map((trial) => trial.trialResult)
+      .sort((left, right) => left.trial - right.trial);
     const aggregate = aggregateTrials(trialResults);
     results.push({
       model,
@@ -140,11 +191,11 @@ export async function runWorkbenchCase(
 
 export async function runWorkbenchCaseFromCli(args: string[]): Promise<void> {
   const caseArg = positionals(args, {
-    valueFlags: ['--out', '--model', '--models', '--image', '--trials'],
+    valueFlags: ['--out', '--model', '--models', '--image', '--trials', '--concurrency'],
     booleanFlags: ['--keep-workspace'],
   })[0];
   if (!caseArg) {
-    throw new Error('Missing case path. Usage: skill-optimizer run-case <case.yml> [--out <dir>] [--model <openrouter/...>] [--models <openrouter/...,openrouter/...>] [--trials <n>] [--image <name>] [--keep-workspace]');
+    throw new Error('Missing case path. Usage: skill-optimizer run-case <case.yml> [--out <dir>] [--model <openrouter/...>] [--models <openrouter/...,openrouter/...>] [--trials <n>] [--concurrency <n>] [--image <name>] [--keep-workspace]');
   }
 
   const outDir = getFlag(args, '--out');
@@ -152,6 +203,7 @@ export async function runWorkbenchCaseFromCli(args: string[]): Promise<void> {
   const models = getFlag(args, '--models');
   const image = getFlag(args, '--image');
   const trials = parseTrialsFlag(getFlag(args, '--trials'));
+  const concurrency = parseConcurrencyFlag(getFlag(args, '--concurrency'));
   const keepWorkspace = args.includes('--keep-workspace');
 
   await runWorkbenchCase({
@@ -160,6 +212,7 @@ export async function runWorkbenchCaseFromCli(args: string[]): Promise<void> {
     model,
     models: models ? parseModelList(models) : undefined,
     trials,
+    concurrency,
     image,
     keepWorkspace,
   });

@@ -18,6 +18,7 @@ export interface ResolvedWorkbenchSuite {
   configPath: string;
   configDir: string;
   name: string;
+  appendSystemPrompt?: string;
   casePaths: string[];
   cases: ResolvedWorkbenchSuiteCase[];
   models: string[];
@@ -43,6 +44,7 @@ export function loadWorkbenchSuite(configPath: string): ResolvedWorkbenchSuite {
 
   const parsed = parseWorkbenchSuite(raw, resolvedConfigPath);
   const name = requireNonEmptyString(parsed, 'name', resolvedConfigPath);
+  const appendSystemPrompt = readOptionalString(parsed, 'appendSystemPrompt', resolvedConfigPath);
   const suiteDefaults = readSuiteCaseDefaults(parsed, resolvedConfigPath);
   const cases = readCaseEntries(parsed, resolvedConfigPath)
     .map((entry, index) => resolveSuiteCase(entry, index, resolvedConfigPath, configDir, suiteDefaults));
@@ -54,6 +56,7 @@ export function loadWorkbenchSuite(configPath: string): ResolvedWorkbenchSuite {
     configPath: resolvedConfigPath,
     configDir,
     name,
+    appendSystemPrompt,
     casePaths,
     cases,
     models,
@@ -210,7 +213,7 @@ function readCaseEntries(parsed: Record<string, unknown>, configPath: string): A
 
 function readOptionalString(
   parsed: Record<string, unknown>,
-  field: 'references',
+  field: 'references' | 'appendSystemPrompt',
   configPath: string,
 ): string | undefined {
   const value = parsed[field];

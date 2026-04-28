@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,8 +9,10 @@ import { loadWorkbenchCase } from './case-loader.js';
 import { runShellCommand } from './process.js';
 import type { ResolvedWorkbenchCase, WorkbenchCaseConfig } from './types.js';
 import { timestampSlug } from './utils.js';
+import { prepareWorkbenchDirectory } from './workspace.js';
 
 const DEFAULT_WORKBENCH_IMAGE = 'skill-optimizer-workbench:local';
+const AGENT_RESULTS_DIR = '/tmp/workbench-results';
 
 export function packageRootFromModuleUrl(moduleUrl: string): string {
   return dirname(dirname(dirname(fileURLToPath(moduleUrl))));
@@ -24,6 +26,7 @@ export interface RunDockerWorkbenchCaseOptions {
   model?: string;
   image?: string;
   keepWorkspace?: boolean;
+  appendSystemPrompt?: string;
 }
 
 export interface DockerWorkbenchRunResult {
@@ -51,6 +54,130 @@ export interface PrepareDockerWorkbenchRunOptions {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function dockerSandboxFlags(): string[] {
+  return [
+    '--cap-drop=ALL',
+    '--security-opt no-new-privileges',
+    '--pids-limit 512',
+  ];
+}
+
+function dockerCacheEnvFlags(): string[] {
+  return [
+    '-e XDG_CACHE_HOME=/work/.cache',
+    '-e PIP_CACHE_DIR=/work/.cache/pip',
+    '-e NPM_CONFIG_CACHE=/work/.cache/npm',
+  ];
+}
+
+export function buildDockerAgentCommand(params: {
+  image: string;
+  containerName: string;
+  workDir: string;
+  caseName: string;
+  model: string;
+  task: string;
+  appendSystemPrompt?: string;
+  timeoutSeconds: number;
+  envNames: string[];
+}): string {
+  const envArgs = params.envNames.map((name) => `-e ${name}`).join(' ');
+  const taskBase64 = Buffer.from(params.task, 'utf-8').toString('base64');
+  const appendSystemPromptBase64 = params.appendSystemPrompt
+    ? Buffer.from(params.appendSystemPrompt, 'utf-8').toString('base64')
+    : undefined;
+  return [
+    'docker run',
+    `--name ${shellQuote(params.containerName)}`,
+    ...dockerSandboxFlags(),
+    '--workdir /work',
+    ...dockerCacheEnvFlags(),
+    `-v ${shellQuote(`${params.workDir}:/work:rw`)}`,
+    envArgs,
+    shellQuote(params.image),
+    '--agent',
+    '--work /work',
+    `--results ${AGENT_RESULTS_DIR}`,
+    `--case-name ${shellQuote(params.caseName)}`,
+    `--model ${shellQuote(params.model)}`,
+    `--timeout-seconds ${params.timeoutSeconds}`,
+    `--task-base64 ${shellQuote(taskBase64)}`,
+    appendSystemPromptBase64
+      ? `--append-system-prompt-base64 ${shellQuote(appendSystemPromptBase64)}`
+      : '',
+  ].filter(Boolean).join(' ');
+}
+
+export function buildDockerSetupCommand(params: {
+  image: string;
+  caseDir: string;
+  workDir: string;
+  envNames: string[];
+}): string {
+  const envArgs = params.envNames.map((name) => `-e ${name}`).join(' ');
+  return [
+    'docker run --rm',
+    ...dockerSandboxFlags(),
+    '--workdir /work',
+    ...dockerCacheEnvFlags(),
+    `-v ${shellQuote(`${params.caseDir}:/case:ro`)}`,
+    `-v ${shellQuote(`${params.workDir}:/work:rw`)}`,
+    envArgs,
+    shellQuote(params.image),
+    '--setup',
+    '--case /case/case.yml',
+    '--work /work',
+  ].filter(Boolean).join(' ');
+}
+
+function agentContainerName(tempDir: string): string {
+  return `skill-optimizer-agent-${tempDir.split('/').pop() ?? 'run'}`;
+}
+
+async function copyAgentResults(containerName: string, resultsDir: string, repoRoot: string): Promise<void> {
+  const copy = await runShellCommand(
+    `docker cp ${shellQuote(`${containerName}:${AGENT_RESULTS_DIR}/.`)} ${shellQuote(resultsDir)}`,
+    { cwd: repoRoot },
+  );
+
+  if (copy.exitCode !== 0) {
+    throw new Error([
+      'Failed to copy agent results from Docker container',
+      copy.stdout.trim(),
+      copy.stderr.trim(),
+    ].filter(Boolean).join('\n\n'));
+  }
+}
+
+async function removeContainer(containerName: string, repoRoot: string): Promise<void> {
+  await runShellCommand(`docker rm -f ${shellQuote(containerName)}`, { cwd: repoRoot });
+}
+
+export function buildDockerGradeCommand(params: {
+  image: string;
+  caseDir: string;
+  workDir: string;
+  resultsDir: string;
+  envNames: string[];
+}): string {
+  const envArgs = params.envNames.map((name) => `-e ${name}`).join(' ');
+  return [
+    'docker run --rm',
+    ...dockerSandboxFlags(),
+    '--workdir /work',
+    ...dockerCacheEnvFlags(),
+    `-v ${shellQuote(`${params.caseDir}:/case:ro`)}`,
+    `-v ${shellQuote(`${params.workDir}:/work:rw`)}`,
+    `-v ${shellQuote(`${params.resultsDir}:/results:rw`)}`,
+    envArgs,
+    shellQuote(params.image),
+    '--grade',
+    '--case /case/case.yml',
+    '--work /work',
+    '--results /results',
+  ].filter(Boolean).join(' ');
 }
 
 function buildBundledCaseFile(params: {
@@ -106,6 +233,10 @@ function copyCaseSupportDirs(sourceCaseDir: string, bundledCaseDir: string): voi
   }
 }
 
+function copyAgentSupportDirs(sourceCaseDir: string, workDir: string): void {
+  copyCaseSupportDir(sourceCaseDir, workDir, 'bin');
+}
+
 function resolveDockerWorkbenchCase(options: { casePath?: string; case?: ResolvedWorkbenchCase }): ResolvedWorkbenchCase {
   if (options.case) {
     return options.case;
@@ -138,6 +269,12 @@ export function prepareDockerWorkbenchRun(
 
   copyDirectoryContents(resolvedCase.referencesDir, referencesDir);
   copyCaseSupportDirs(resolvedCase.configDir, caseDir);
+  prepareWorkbenchDirectory({
+    referencesDir: resolvedCase.referencesDir,
+    workspaceDir: join(resolvedCase.configDir, 'workspace'),
+    workDir,
+  });
+  copyAgentSupportDirs(resolvedCase.configDir, workDir);
 
   const bundledCase = buildBundledCaseFile({
     source: resolvedCase,
@@ -152,8 +289,7 @@ export function prepareDockerWorkbenchRun(
     workDir,
     resultsDir,
     resultPath: join(resultsDir, 'result.json'),
-    tracePath: join(resultsDir, 'trace.json'),
-    summaryPath: join(resultsDir, 'trial-summary.json'),
+    tracePath: join(resultsDir, 'trace.jsonl'),
     cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
   };
 }
@@ -183,6 +319,49 @@ async function ensureDockerImage(image: string, repoRoot: string): Promise<void>
   }
 }
 
+function writeFatalResult(params: {
+  resultPath: string;
+  caseName: string;
+  model: string;
+  evidence: string[];
+}): void {
+  writeFileSync(params.resultPath, JSON.stringify({
+    caseName: params.caseName,
+    model: params.model,
+    endedAt: new Date().toISOString(),
+    pass: false,
+    score: 0,
+    evidence: params.evidence,
+  }, null, 2), 'utf-8');
+}
+
+function readTrialPass(resultPath: string): boolean | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(resultPath, 'utf-8')) as unknown;
+    if (!parsed || typeof parsed !== 'object' || !('pass' in parsed)) {
+      return undefined;
+    }
+    return Boolean((parsed as { pass?: unknown }).pass);
+  } catch {
+    return undefined;
+  }
+}
+
+function copyWorkspaceIfRequested(
+  prepared: DockerWorkbenchRunResult,
+  keepWorkspace: boolean | undefined,
+): DockerWorkbenchRunResult {
+  const passed = readTrialPass(prepared.resultPath);
+  if (!keepWorkspace && passed !== false) {
+    return prepared;
+  }
+
+  const workspacePath = join(prepared.resultsDir, 'workspace');
+  rmSync(workspacePath, { recursive: true, force: true });
+  cpSync(prepared.workDir, workspacePath, { recursive: true });
+  return { ...prepared, workspacePath };
+}
+
 export async function runDockerWorkbenchCase(
   options: RunDockerWorkbenchCaseOptions,
 ): Promise<DockerWorkbenchRunResult> {
@@ -190,47 +369,82 @@ export async function runDockerWorkbenchCase(
   const image = options.image ?? DEFAULT_WORKBENCH_IMAGE;
   const resolvedCase = resolveDockerWorkbenchCase(options);
   const prepared = prepareDockerWorkbenchRun({ ...options, case: resolvedCase });
+  const containerName = agentContainerName(prepared.tempDir);
 
   try {
     await ensureDockerImage(image, repoRoot);
 
-    const envArgs = resolvedCase.env
+    const envNames = resolvedCase.env
       .filter((name) => process.env[name] !== undefined)
-      .map((name) => `-e ${name}`)
-      .join(' ');
+      .map((name) => name);
 
-    const dockerRun = await runShellCommand(
-      [
-        'docker run --rm',
-        `-v ${shellQuote(`${prepared.caseDir}:/case:ro`)}`,
-        `-v ${shellQuote(`${prepared.workDir}:/work:rw`)}`,
-        `-v ${shellQuote(`${prepared.resultsDir}:/results:rw`)}`,
-        envArgs,
-        shellQuote(image),
-        '--case /case/case.yml',
-        '--work /work',
-        '--results /results',
-      ].filter(Boolean).join(' '),
-      { cwd: repoRoot },
-    );
+    if (resolvedCase.setup.length > 0) {
+      const setupCommand = buildDockerSetupCommand({
+        image,
+        caseDir: prepared.caseDir,
+        workDir: prepared.workDir,
+        envNames,
+      });
+      const setupRun = await runShellCommand(setupCommand, { cwd: repoRoot });
+      if (setupRun.exitCode !== 0) {
+        writeFatalResult({
+          resultPath: prepared.resultPath,
+          caseName: resolvedCase.name,
+          model: options.model ?? resolvedCase.model,
+          evidence: [
+            'setup failed',
+            setupRun.stdout.trim(),
+            setupRun.stderr.trim(),
+          ].filter(Boolean),
+        });
+        return copyWorkspaceIfRequested(prepared, true);
+      }
+    }
 
-    if (dockerRun.exitCode !== 0 && !existsSync(prepared.resultPath)) {
-      throw new Error([
-        'Docker run failed',
-        dockerRun.stdout.trim(),
-        dockerRun.stderr.trim(),
+    const agentCommand = buildDockerAgentCommand({
+      image,
+      containerName,
+      workDir: prepared.workDir,
+      caseName: resolvedCase.name,
+      model: options.model ?? resolvedCase.model,
+      task: resolvedCase.task,
+      appendSystemPrompt: options.appendSystemPrompt,
+      timeoutSeconds: resolvedCase.timeoutSeconds,
+      envNames,
+    });
+    const agentRun = await runShellCommand(agentCommand, { cwd: repoRoot });
+    await copyAgentResults(containerName, prepared.resultsDir, repoRoot);
+
+    if (agentRun.exitCode !== 0) {
+      if (!existsSync(prepared.resultPath)) {
+        throw new Error([
+        'Docker agent run failed',
+        agentRun.stdout.trim(),
+        agentRun.stderr.trim(),
       ].filter(Boolean).join('\n\n'));
+      }
+    } else {
+      const gradeCommand = buildDockerGradeCommand({
+        image,
+        caseDir: prepared.caseDir,
+        workDir: prepared.workDir,
+        resultsDir: prepared.resultsDir,
+        envNames,
+      });
+      const gradeRun = await runShellCommand(gradeCommand, { cwd: repoRoot });
+
+      if (gradeRun.exitCode !== 0 && !existsSync(prepared.resultPath)) {
+        throw new Error([
+          'Docker grade run failed',
+          gradeRun.stdout.trim(),
+          gradeRun.stderr.trim(),
+        ].filter(Boolean).join('\n\n'));
+      }
     }
 
-    if (options.keepWorkspace) {
-      const workspacePath = join(prepared.resultsDir, 'workspace');
-      rmSync(workspacePath, { recursive: true, force: true });
-      cpSync(prepared.workDir, workspacePath, { recursive: true });
-      return { ...prepared, workspacePath };
-    }
-
-    return prepared;
+    return copyWorkspaceIfRequested(prepared, options.keepWorkspace);
   } finally {
+    await removeContainer(containerName, repoRoot);
     prepared.cleanup();
   }
 }

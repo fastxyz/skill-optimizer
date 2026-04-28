@@ -202,10 +202,18 @@ export type WorkbenchTraceEntry =
       timestamp?: unknown;
     };
 
+export interface WorkbenchTraceEvent {
+  type: string;
+  timestamp: string;
+  [key: string]: unknown;
+}
+
 export interface WorkbenchTrace {
+  schemaVersion?: 1;
   caseName: string;
   model: string;
   startedAt: string;
   endedAt: string;
+  events?: WorkbenchTraceEvent[];
   entries: WorkbenchTraceEntry[];
 }

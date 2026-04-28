@@ -1,0 +1,57 @@
+name: pdf-workbench-example
+references: ./references
+appendSystemPrompt: |
+  Keep task outputs at the top level of /work unless the user asks for a different path.
+models:
+  - openrouter/google/gemini-2.5-flash
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+setup:
+  - mkdir -p input
+  - node $CASE/checks/_pdf.mjs write-fixtures input
+  - cp input/statement.pdf statement.pdf
+  - cp input/customer-packet.pdf customer-packet.pdf
+  - cp input/briefing-source.pdf briefing-source.pdf
+cases:
+  - name: extract-pdf-facts
+    task: |
+      Extract the key facts from statement.pdf and write answer.json with this exact schema:
+      {
+        "account": string,
+        "quarter": string,
+        "totalRevenue": number,
+        "riskFlags": string[],
+        "approvalCode": string
+      }
+      Use numeric dollars without commas or a currency symbol for totalRevenue.
+    graders:
+      - name: answer-json
+        command: node $CASE/checks/extract-pdf-facts.mjs
+
+  - name: split-customer-packet
+    task: |
+      Create customer-copy.pdf from customer-packet.pdf. Include only the pages marked CUSTOMER COPY, in their original order. Exclude the page marked INTERNAL NOTES. The output must be a PDF, not a text file.
+    graders:
+      - name: customer-copy-pdf
+        command: node $CASE/checks/split-customer-packet.mjs
+
+  - name: build-briefing-pdf
+    task: |
+      Create briefing.pdf as a one-page PDF briefing based on briefing-source.pdf. It must include these exact lines:
+      PDF Skill Briefing
+      Source: Alpine Sensors
+      Decision: approve expedited renewal
+      Deadline: 2026-05-14
+      Do not include the draft-only note from the source document.
+    graders:
+      - name: briefing-pdf
+        command: node $CASE/checks/build-briefing-pdf.mjs
+
+  - name: no-pdf-skill-needed
+    task: |
+      Write note.txt with exactly this text:
+      done
+    graders:
+      - name: note-without-pdf-skill
+        command: node $CASE/checks/no-pdf-skill.mjs

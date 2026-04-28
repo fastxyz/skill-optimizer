@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { loadWorkbenchSuite } from '../src/workbench/suite-loader.js';
-import { runWorkbenchSuite } from '../src/workbench/run-suite.js';
+import { runWorkbenchSuite, runWorkbenchSuiteFromCli } from '../src/workbench/run-suite.js';
 
 test('loadWorkbenchSuite resolves case paths and validates models', () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-load-'));
@@ -68,6 +68,28 @@ test('loadWorkbenchSuite supports inline cases with suite defaults', () => {
   }
 });
 
+test('loadWorkbenchSuite reads suite appendSystemPrompt', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-prompt-'));
+  try {
+    const suitePath = join(root, 'suite.yml');
+    writeFileSync(suitePath, [
+      'name: prompted-suite',
+      'appendSystemPrompt: |',
+      '  Prefer simple shell commands when possible.',
+      'models:',
+      '  - openrouter/google/gemini-2.5-flash',
+      'cases:',
+      '  - cases/noop/case.yml',
+    ].join('\n'), 'utf-8');
+
+    const suite = loadWorkbenchSuite(suitePath);
+
+    assert.equal(suite.appendSystemPrompt, 'Prefer simple shell commands when possible.');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('runWorkbenchSuite writes case-model matrix aggregate output', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-'));
   const previousExitCode = process.exitCode;
@@ -99,7 +121,7 @@ test('runWorkbenchSuite writes case-model matrix aggregate output', async () => 
           assert.ok(options.resultsDir);
           mkdirSync(options.resultsDir, { recursive: true });
           const resultPath = join(options.resultsDir, 'result.json');
-          const tracePath = join(options.resultsDir, 'trace.json');
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
           const pass = !(options.casePath.includes('partial-index') && options.model === 'openrouter/openai/gpt-5.4');
           writeFileSync(resultPath, JSON.stringify({ pass, score: pass ? 1 : 0, evidence: [options.casePath, options.model] }), 'utf-8');
           writeFileSync(tracePath, JSON.stringify({ entries: [] }), 'utf-8');
@@ -131,9 +153,126 @@ test('runWorkbenchSuite writes case-model matrix aggregate output', async () => 
     assert.equal(aggregate.summary.totalTrials, 4);
     assert.equal(aggregate.summary.passedTrials, 3);
     assert.equal(aggregate.summary.failedTrials, 1);
-    assert.equal(aggregate.results[0]?.trials[0]?.resultPath, 'cases/missing-index/openrouter-google-gemini-2.5-flash/trials/001/result.json');
-    assert.equal(aggregate.results[3]?.trials[0]?.resultPath, 'cases/partial-index/openrouter-openai-gpt-5.4/trials/001/result.json');
+    assert.equal(aggregate.results[0]?.trials[0]?.resultPath, 'trials/missing-index--openrouter-google-gemini-2.5-flash--001/result.json');
+    assert.equal(aggregate.results[3]?.trials[0]?.resultPath, 'trials/partial-index--openrouter-openai-gpt-5.4--001/result.json');
     assert.equal(process.exitCode, 1);
+  } finally {
+    process.exitCode = previousExitCode;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runWorkbenchSuite passes suite appendSystemPrompt to every trial', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-prompt-run-'));
+  const previousExitCode = process.exitCode;
+  try {
+    const suitePath = join(root, 'suite.yml');
+    const outDir = join(root, 'results');
+    const casePath = join(root, 'cases', 'prompted', 'case.yml');
+    mkdirSync(join(root, 'cases', 'prompted'), { recursive: true });
+    writeFileSync(casePath, 'name: prompted\nreferences: ./refs\ntask: Test\ngraders:\n  - name: passes\n    command: "true"\n', 'utf-8');
+    writeFileSync(suitePath, [
+      'name: prompted-suite',
+      'appendSystemPrompt: |',
+      '  Prefer simple shell commands when possible.',
+      'models:',
+      '  - openrouter/google/gemini-2.5-flash',
+      'cases:',
+      '  - cases/prompted/case.yml',
+    ].join('\n'), 'utf-8');
+
+    process.exitCode = undefined;
+    await runWorkbenchSuite(
+      { suitePath, outDir },
+      {
+        now: new Date('2026-04-27T10:11:12.000Z'),
+        runDockerWorkbenchCase: async (options) => {
+          assert.equal(options.appendSystemPrompt, 'Prefer simple shell commands when possible.');
+          assert.ok(options.resultsDir);
+          mkdirSync(options.resultsDir, { recursive: true });
+          const resultPath = join(options.resultsDir, 'result.json');
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
+          writeFileSync(resultPath, JSON.stringify({ pass: true, score: 1, evidence: [] }), 'utf-8');
+          writeFileSync(tracePath, JSON.stringify({ type: 'trace_start', entries: [] }), 'utf-8');
+          return {
+            tempDir: join(root, 'temp'),
+            caseDir: join(root, 'temp', 'case'),
+            bundledCasePath: join(root, 'temp', 'case', 'case.yml'),
+            workDir: join(root, 'temp', 'work'),
+            resultsDir: options.resultsDir,
+            resultPath,
+            tracePath,
+            cleanup: () => {},
+          };
+        },
+      },
+    );
+
+    assert.equal(process.exitCode, undefined);
+  } finally {
+    process.exitCode = previousExitCode;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runWorkbenchSuiteFromCli rejects model overrides because suites own models', async () => {
+  await assert.rejects(
+    () => runWorkbenchSuiteFromCli(['suite.yml', '--models', 'openrouter/google/gemini-2.5-pro']),
+    /Unknown flag: --models/,
+  );
+});
+
+test('runWorkbenchSuite honors concurrency for independent trials', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-concurrency-'));
+  const previousExitCode = process.exitCode;
+  try {
+    const suitePath = join(root, 'suite.yml');
+    const outDir = join(root, 'results');
+    const casePath = join(root, 'cases', 'parallel', 'case.yml');
+    mkdirSync(join(root, 'cases', 'parallel'), { recursive: true });
+    writeFileSync(casePath, 'name: parallel\nreferences: ./refs\ntask: Test\ngraders:\n  - name: passes\n    command: "true"\n', 'utf-8');
+    writeFileSync(suitePath, [
+      'name: parallel-suite',
+      'models:',
+      '  - openrouter/google/gemini-2.5-flash',
+      'cases:',
+      '  - cases/parallel/case.yml',
+    ].join('\n'), 'utf-8');
+
+    let active = 0;
+    let maxActive = 0;
+    process.exitCode = undefined;
+    await runWorkbenchSuite(
+      { suitePath, outDir, trials: 3, concurrency: 2 },
+      {
+        now: new Date('2026-04-27T10:11:12.000Z'),
+        runDockerWorkbenchCase: async (options) => {
+          assert.ok(options.resultsDir);
+          active += 1;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          mkdirSync(options.resultsDir, { recursive: true });
+          const resultPath = join(options.resultsDir, 'result.json');
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
+          writeFileSync(resultPath, JSON.stringify({ pass: true, score: 1, evidence: [] }), 'utf-8');
+          writeFileSync(tracePath, JSON.stringify({ type: 'trace_start', entries: [] }), 'utf-8');
+          active -= 1;
+          return {
+            tempDir: join(root, 'temp'),
+            caseDir: join(root, 'temp', 'case'),
+            bundledCasePath: join(root, 'temp', 'case', 'case.yml'),
+            workDir: join(root, 'temp', 'work'),
+            resultsDir: options.resultsDir,
+            resultPath,
+            tracePath,
+            cleanup: () => {},
+          };
+        },
+      },
+    );
+
+    assert.equal(maxActive, 2);
+    assert.equal(process.exitCode, undefined);
   } finally {
     process.exitCode = previousExitCode;
     rmSync(root, { recursive: true, force: true });

@@ -30,7 +30,8 @@ Run a case against multiple models:
 ```bash
 npx tsx src/cli.ts run-case ./case.yml \
   --models openrouter/google/gemini-2.5-flash,openrouter/openai/gpt-5.4 \
-  --trials 3
+  --trials 3 \
+  --concurrency 2
 ```
 
 Useful options:
@@ -39,8 +40,9 @@ Useful options:
 - `--model <model>`: single model override
 - `--models <models>`: comma-separated OpenRouter model refs
 - `--trials <n>`: independent trials per model, default `1`
+- `--concurrency <n>`: maximum concurrent trial containers, default `1`
 - `--image <image>`: Docker image name, default `skill-optimizer-workbench:local`
-- `--keep-workspace`: copy final `/work` to results
+- `--keep-workspace`: copy final `/work` to results; failed trials are always preserved
 
 ## Run A Suite
 
@@ -52,6 +54,8 @@ Example `suite.yml`:
 
 ```yaml
 name: supabase-postgres-best-practices
+appendSystemPrompt: |
+  Prefer simple, deterministic shell commands when possible.
 models:
   - openrouter/google/gemini-2.5-flash
   - openrouter/openai/gpt-5.4
@@ -60,8 +64,9 @@ cases:
   - cases/partial-index/case.yml
 ```
 
-`run-suite` executes the full `cases x models` matrix sequentially. CLI `--models` overrides suite `models`.
-Use `--trials <n>` to run independent trials per case/model and report trial pass rate, pass@k, pass^k, and mean score.
+`run-suite` executes the full `cases x models x trials` matrix. Models are defined in `suite.yml`. Use `--trials <n>` to run independent trials per case/model and report trial pass rate, pass@k, pass^k, and mean score. Use `--concurrency <n>` to run independent trial containers in parallel.
+
+Suites may include `appendSystemPrompt` to add suite-wide instructions after the workbench's default operating-environment prompt. This applies to every case in the suite.
 
 ## Case Format
 
@@ -97,7 +102,7 @@ Required fields:
 
 Optional fields:
 
-- `setup`: commands run in `/work` before the agent
+- `setup`: commands run in `/work` before the agent, with `/case` mounted read-only for fixtures/check helpers
 - `cleanup`: commands run after grading
 - `env`: host environment variable names passed into Docker
 - `model`: default model for single-case runs
@@ -121,16 +126,17 @@ Single-model `run-case`:
 
 ```text
 case/.results/<run-id>/
-  trace.json
+  trace.jsonl
   result.json
+  workspace/        # on failure or --keep-workspace
 ```
 
 Multi-model `run-case`:
 
 ```text
 case/.results/<run-id>/
-  models/<model-slug>/trace.json
-  models/<model-slug>/result.json
+  trials/<model-slug>--001/trace.jsonl
+  trials/<model-slug>--001/result.json
   run-result.json
 ```
 
@@ -138,12 +144,12 @@ case/.results/<run-id>/
 
 ```text
 suite/.results/<run-id>/
-  cases/<case-slug>/<model-slug>/trace.json
-  cases/<case-slug>/<model-slug>/result.json
+  trials/<case-slug>--<model-slug>--001/trace.jsonl
+  trials/<case-slug>--<model-slug>--001/result.json
   suite-result.json
 ```
 
-`result.json` contains `pass`, `score`, `evidence`, per-grader results, and trace-derived metrics. A case passes only when every grader passes; the top-level score is the fraction of graders that passed. Trial runs also write `trial-summary.json` with failed graders, bash commands, final assistant text, and metrics. Aggregates include trial pass rate, pass@k, pass^k, mean score, and relative paths to each trace/result.
+`trace.jsonl` is the primary agent-loop trace. `result.json` contains `pass`, `score`, `evidence`, per-grader results, and trace-derived metrics. A case passes only when every grader passes; the top-level score is the fraction of graders that passed. Aggregates include trial pass rate, pass@k, pass^k, mean score, and relative paths to each trace/result.
 
 ## Suite Validation
 
@@ -166,6 +172,16 @@ For CLI skills, put a fixture executable in `bin/` that records invocations to `
 For SQL skills, ask the agent to write `solution.sql`, then check it statically or execute it against a disposable local database from `checks/`.
 
 For artifact skills, check output validity directly: PDF page counts, DOCX/PPTX/XLSX structure, browser console output, screenshot properties, or file hashes.
+
+For negative cases, grade the trace as an artifact. For example, a task that should not need the PDF skill can fail when `trace.jsonl` contains a `read` tool call for `/work/pdf-skill/SKILL.md`.
+
+## Examples
+
+Tracked examples live under `examples/workbench/`. The PDF example includes positive PDF extraction/splitting/creation cases and a negative case that checks the agent did not read the PDF skill file for a non-PDF task.
+
+```bash
+npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml
+```
 
 ## Development
 

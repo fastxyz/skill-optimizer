@@ -47,7 +47,7 @@ test('runWorkbenchCase writes aggregate output for multi-model runs', async () =
           assert.ok(options.resultsDir);
           mkdirSync(options.resultsDir, { recursive: true });
           const resultPath = join(options.resultsDir, 'result.json');
-          const tracePath = join(options.resultsDir, 'trace.json');
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
           const pass = options.model !== 'openrouter/openai/gpt-5.4';
           writeFileSync(resultPath, JSON.stringify({ pass, score: pass ? 1 : 0, evidence: [options.model] }), 'utf-8');
           writeFileSync(tracePath, JSON.stringify({ entries: [] }), 'utf-8');
@@ -83,8 +83,8 @@ test('runWorkbenchCase writes aggregate output for multi-model runs', async () =
     assert.equal(aggregate.summary.totalTrials, 2);
     assert.equal(aggregate.summary.passedTrials, 1);
     assert.equal(aggregate.summary.failedTrials, 1);
-    assert.equal(aggregate.results[0]?.trials[0]?.resultPath, 'models/openrouter-google-gemini-2.5-flash/trials/001/result.json');
-    assert.equal(aggregate.results[1]?.trials[0]?.tracePath, 'models/openrouter-openai-gpt-5.4/trials/001/trace.json');
+    assert.equal(aggregate.results[0]?.trials[0]?.resultPath, 'trials/openrouter-google-gemini-2.5-flash--001/result.json');
+    assert.equal(aggregate.results[1]?.trials[0]?.tracePath, 'trials/openrouter-openai-gpt-5.4--001/trace.jsonl');
     assert.equal(process.exitCode, 1);
   } finally {
     process.exitCode = previousExitCode;
@@ -113,7 +113,7 @@ test('runWorkbenchCase writes aggregate output when --models has one model', asy
           assert.ok(options.resultsDir);
           mkdirSync(options.resultsDir, { recursive: true });
           const resultPath = join(options.resultsDir, 'result.json');
-          const tracePath = join(options.resultsDir, 'trace.json');
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
           writeFileSync(resultPath, JSON.stringify({ pass: true, score: 1, evidence: [] }), 'utf-8');
           writeFileSync(tracePath, JSON.stringify({ entries: [] }), 'utf-8');
           return {
@@ -133,7 +133,7 @@ test('runWorkbenchCase writes aggregate output when --models has one model', asy
 
     const runResultPath = join(outDir, '20260427-101112', 'run-result.json');
     assert.ok(existsSync(runResultPath));
-    assert.ok(existsSync(join(outDir, '20260427-101112', 'models', 'openrouter-google-gemini-2.5-flash', 'trials', '001', 'result.json')));
+    assert.ok(existsSync(join(outDir, '20260427-101112', 'trials', 'openrouter-google-gemini-2.5-flash--001', 'result.json')));
     assert.equal(process.exitCode, undefined);
   } finally {
     process.exitCode = previousExitCode;
@@ -170,7 +170,7 @@ test('runWorkbenchCase --trials uses the case model when no model override is pr
           assert.ok(options.resultsDir);
           mkdirSync(options.resultsDir, { recursive: true });
           const resultPath = join(options.resultsDir, 'result.json');
-          const tracePath = join(options.resultsDir, 'trace.json');
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
           writeFileSync(resultPath, JSON.stringify({ pass: true, score: 1, evidence: [] }), 'utf-8');
           writeFileSync(tracePath, JSON.stringify({ entries: [] }), 'utf-8');
           return {
@@ -192,7 +192,7 @@ test('runWorkbenchCase --trials uses the case model when no model override is pr
       'openrouter/openai/gpt-5.4',
       'openrouter/openai/gpt-5.4',
     ]);
-    assert.ok(existsSync(join(outDir, '20260427-101112', 'models', 'openrouter-openai-gpt-5.4', 'trials', '002', 'result.json')));
+    assert.ok(existsSync(join(outDir, '20260427-101112', 'trials', 'openrouter-openai-gpt-5.4--002', 'result.json')));
     assert.equal(process.exitCode, undefined);
   } finally {
     process.exitCode = previousExitCode;

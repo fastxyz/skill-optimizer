@@ -30,7 +30,7 @@ test('runWorkbenchCase preserves failing result as process exitCode 1', async ()
           workDir: join(root, 'temp', 'work'),
           resultsDir,
           resultPath,
-          tracePath: join(resultsDir, 'trace.json'),
+          tracePath: join(resultsDir, 'trace.jsonl'),
           cleanup: () => {},
         }),
       },

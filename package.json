@@ -26,6 +26,7 @@
     "src/",
     "scripts/",
     "docs/",
+    "examples/",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
@@ -48,7 +49,7 @@
     "build": "tsc && chmod +x dist/cli.js",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noUnusedLocals --noEmit",
-    "test": "tsx tests/smoke-workbench-case.ts && tsx tests/smoke-workbench-checks.ts && tsx tests/smoke-workbench-trace.ts && tsx tests/smoke-workbench-container.ts && tsx tests/smoke-workbench-docker-runner.ts && tsx tests/smoke-workbench-pi-agent.ts && tsx tests/smoke-workbench-run-case.ts && tsx tests/smoke-workbench-models.ts && tsx tests/smoke-workbench-suite.ts && tsx tests/smoke-workbench-trials.ts && tsx tests/smoke-workbench-metrics.ts && tsx tests/smoke-workbench-reference-solutions.ts"
+    "test": "tsx tests/smoke-workbench-case.ts && tsx tests/smoke-workbench-checks.ts && tsx tests/smoke-workbench-trace.ts && tsx tests/smoke-workbench-container.ts && tsx tests/smoke-workbench-docker-runner.ts && tsx tests/smoke-workbench-pi-agent.ts && tsx tests/smoke-workbench-run-case.ts && tsx tests/smoke-workbench-models.ts && tsx tests/smoke-workbench-suite.ts && tsx tests/smoke-workbench-trials.ts && tsx tests/smoke-workbench-metrics.ts && tsx tests/smoke-workbench-reference-solutions.ts && tsx tests/smoke-workbench-examples.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.66.1",

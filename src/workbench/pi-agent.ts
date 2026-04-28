@@ -17,10 +17,30 @@ import type { AgentTool } from '@mariozechner/pi-agent-core';
 import { getModel, type Api, type Model } from '@mariozechner/pi-ai';
 import { resolve } from 'node:path';
 
+import { buildAgentSystemPrompt } from './sandbox.js';
+
+const SENSITIVE_ENV_NAME = /(?:API_KEY|ACCESS_TOKEN|AUTH_FILE|SECRET|TOKEN)$/;
+
+export function stripSensitiveEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const stripped: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (SENSITIVE_ENV_NAME.test(key)) {
+      continue;
+    }
+    stripped[key] = value;
+  }
+  return stripped;
+}
+
 export function createWorkbenchPiTools(cwd: string): AgentTool<any>[] {
   return [
     createReadTool(cwd),
-    createBashTool(cwd),
+    createBashTool(cwd, {
+      spawnHook: (context) => ({
+        ...context,
+        env: stripSensitiveEnv(context.env),
+      }),
+    }),
     createEditTool(cwd),
     createWriteTool(cwd),
     createGrepTool(cwd),
@@ -29,16 +49,20 @@ export function createWorkbenchPiTools(cwd: string): AgentTool<any>[] {
   ];
 }
 
-export async function createWorkbenchPiResourceLoader(params: { cwd: string }): Promise<ResourceLoader> {
+export async function createWorkbenchPiResourceLoader(params: {
+  cwd: string;
+  appendSystemPrompt?: string;
+}): Promise<ResourceLoader> {
   const cwd = resolve(params.cwd);
+  const appendSystemPrompt = [buildAgentSystemPrompt(), params.appendSystemPrompt]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join('\n\n');
   const loader = new DefaultResourceLoader({
     cwd,
     noExtensions: true,
+    noSkills: true,
     additionalSkillPaths: [cwd],
-    skillsOverride: (base) => ({
-      skills: base.skills.filter((skill) => resolve(skill.filePath).startsWith(cwd)),
-      diagnostics: base.diagnostics,
-    }),
+    appendSystemPrompt,
   });
 
   await loader.reload();
@@ -49,6 +73,7 @@ export async function createWorkbenchPiSession(params: {
   cwd: string;
   modelRef: string;
   apiKeyEnv?: string;
+  appendSystemPrompt?: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 }) {
   const { provider, model } = parseModelRef(params.modelRef);
@@ -75,8 +100,14 @@ export async function createWorkbenchPiSession(params: {
   if (!auth.ok) {
     throw new Error(auth.error);
   }
+  if (apiKey) {
+    delete process.env[apiKeyEnv];
+  }
 
-  const resourceLoader = await createWorkbenchPiResourceLoader({ cwd: params.cwd });
+  const resourceLoader = await createWorkbenchPiResourceLoader({
+    cwd: params.cwd,
+    appendSystemPrompt: params.appendSystemPrompt,
+  });
 
   return createAgentSession({
     cwd: params.cwd,

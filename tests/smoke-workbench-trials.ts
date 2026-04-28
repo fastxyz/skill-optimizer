@@ -66,12 +66,10 @@ test('runWorkbenchSuite writes trial directories and case-model aggregates', asy
           assert.ok(options.resultsDir);
           mkdirSync(options.resultsDir, { recursive: true });
           const resultPath = join(options.resultsDir, 'result.json');
-          const tracePath = join(options.resultsDir, 'trace.json');
-          const summaryPath = join(options.resultsDir, 'trial-summary.json');
-          const pass = options.resultsDir.endsWith(join('trials', '002'));
+          const tracePath = join(options.resultsDir, 'trace.jsonl');
+          const pass = options.resultsDir.endsWith('--002');
           writeFileSync(resultPath, JSON.stringify({ pass, score: pass ? 1 : 0, evidence: [] }), 'utf-8');
           writeFileSync(tracePath, JSON.stringify({ entries: [] }), 'utf-8');
-          writeFileSync(summaryPath, JSON.stringify({ failedGraders: [] }), 'utf-8');
           return {
             tempDir: join(root, 'temp'),
             caseDir: join(root, 'temp', 'case'),
@@ -80,7 +78,6 @@ test('runWorkbenchSuite writes trial directories and case-model aggregates', asy
             resultsDir: options.resultsDir,
             resultPath,
             tracePath,
-            summaryPath,
             cleanup: () => {},
           };
         },
@@ -88,9 +85,9 @@ test('runWorkbenchSuite writes trial directories and case-model aggregates', asy
     );
 
     const runRoot = join(outDir, '20260427-101112');
-    assert.ok(existsSync(join(runRoot, 'cases', 'trial-case', 'openrouter-google-gemini-2.5-flash', 'trials', '001', 'result.json')));
-    assert.ok(existsSync(join(runRoot, 'cases', 'trial-case', 'openrouter-google-gemini-2.5-flash', 'trials', '002', 'result.json')));
-    assert.ok(existsSync(join(runRoot, 'cases', 'trial-case', 'openrouter-google-gemini-2.5-flash', 'trials', '003', 'result.json')));
+    assert.ok(existsSync(join(runRoot, 'trials', 'trial-case--openrouter-google-gemini-2.5-flash--001', 'result.json')));
+    assert.ok(existsSync(join(runRoot, 'trials', 'trial-case--openrouter-google-gemini-2.5-flash--002', 'result.json')));
+    assert.ok(existsSync(join(runRoot, 'trials', 'trial-case--openrouter-google-gemini-2.5-flash--003', 'result.json')));
 
     const aggregate = JSON.parse(readFileSync(join(runRoot, 'suite-result.json'), 'utf-8')) as {
       summary: { totalTrials: number; passedTrials: number; failedTrials: number; trialPassRate: number; meanScore: number };
