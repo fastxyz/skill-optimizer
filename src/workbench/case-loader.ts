@@ -40,14 +40,16 @@ export function resolveWorkbenchCaseConfig(
   const resolvedConfigDir = resolve(configDir);
 
   if (parsed.check !== undefined) {
-    throw new Error(`Workbench case ${resolvedConfigPath}: field "check" is no longer supported; use "graders"`);
+    throw new Error(`Workbench case ${resolvedConfigPath}: field "check" is invalid; define graders as a non-empty array of { name, command } objects`);
+  }
+  if (parsed.artifacts !== undefined) {
+    throw new Error(`Workbench case ${resolvedConfigPath}: field "artifacts" is invalid; inspect outputs in the workspace or use --keep-workspace`);
   }
 
   const name = requireNonEmptyString(parsed, 'name', resolvedConfigPath);
   const references = requireNonEmptyString(parsed, 'references', resolvedConfigPath);
   const task = requireNonEmptyString(parsed, 'task', resolvedConfigPath);
   const graders = readGraders(parsed, resolvedConfigPath);
-  const artifacts = readStringArray(parsed, 'artifacts', resolvedConfigPath);
   const env = readStringArray(parsed, 'env', resolvedConfigPath);
   const setup = readStringArray(parsed, 'setup', resolvedConfigPath);
   const cleanup = readStringArray(parsed, 'cleanup', resolvedConfigPath);
@@ -73,7 +75,6 @@ export function resolveWorkbenchCaseConfig(
     referencesDir,
     task,
     graders,
-    artifacts,
     env,
     setup,
     cleanup,
@@ -188,7 +189,7 @@ function readOptionalTimeoutSeconds(parsed: Record<string, unknown>, configPath:
 
 function readStringArray(
   parsed: Record<string, unknown>,
-  field: 'env' | 'setup' | 'cleanup' | 'artifacts',
+  field: 'env' | 'setup' | 'cleanup',
   configPath: string,
 ): string[] {
   const value = parsed[field];

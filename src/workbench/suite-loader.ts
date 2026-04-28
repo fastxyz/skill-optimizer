@@ -68,17 +68,19 @@ interface SuiteCaseDefaults {
   env: string[];
   setup: string[];
   cleanup: string[];
-  artifacts: string[];
   timeoutSeconds?: number;
 }
 
 function readSuiteCaseDefaults(parsed: Record<string, unknown>, configPath: string): SuiteCaseDefaults {
+  if (parsed.artifacts !== undefined) {
+    throw new Error(`Workbench suite ${configPath}: field "artifacts" is invalid; inspect outputs in the workspace or use --keep-workspace`);
+  }
+
   return {
     references: readOptionalString(parsed, 'references', configPath) ?? './references',
     env: readStringArray(parsed, 'env', configPath, true),
     setup: readStringArray(parsed, 'setup', configPath, true),
     cleanup: readStringArray(parsed, 'cleanup', configPath, true),
-    artifacts: readStringArray(parsed, 'artifacts', configPath, true),
     timeoutSeconds: readOptionalTimeoutSeconds(parsed, configPath),
   };
 }
@@ -109,7 +111,6 @@ function applySuiteDefaults(
     ...(defaults.env.length > 0 ? { env: defaults.env } : {}),
     ...(defaults.setup.length > 0 ? { setup: defaults.setup } : {}),
     ...(defaults.cleanup.length > 0 ? { cleanup: defaults.cleanup } : {}),
-    ...(defaults.artifacts.length > 0 ? { artifacts: defaults.artifacts } : {}),
     ...(defaults.timeoutSeconds !== undefined ? { timeoutSeconds: defaults.timeoutSeconds } : {}),
     ...entry,
   };
@@ -169,7 +170,7 @@ function requireNonEmptyString(
 
 function readStringArray(
   parsed: Record<string, unknown>,
-  field: 'models' | 'env' | 'setup' | 'cleanup' | 'artifacts',
+  field: 'models' | 'env' | 'setup' | 'cleanup',
   configPath: string,
   optional = false,
 ): string[] {

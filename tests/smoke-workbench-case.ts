@@ -179,7 +179,31 @@ test('unsupported check field is rejected when graders are present', () => {
 
     assert.throws(
       () => loadWorkbenchCase(casePath),
-      /field "check" is no longer supported; use "graders"/,
+      /field "check" is invalid; define graders as a non-empty array of \{ name, command \} objects/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('unsupported artifacts field is rejected', () => {
+  const root = makeTempCaseDir('skill-workbench-unsupported-artifacts-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: merge-pdfs',
+      'references: ./references',
+      'task: Merge files',
+      'artifacts:',
+      '  - output.pdf',
+      'graders:',
+      '  - name: merged-output',
+      '    command: node $CASE/checks/merge-pdfs.js',
+    ].join('\n'));
+
+    assert.throws(
+      () => loadWorkbenchCase(casePath),
+      /field "artifacts" is invalid; inspect outputs in the workspace or use --keep-workspace/,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

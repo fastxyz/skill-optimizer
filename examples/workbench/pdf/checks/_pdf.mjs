@@ -241,6 +241,14 @@ export function printResult(passOrResult, evidence, score) {
   process.exit(output.pass ? 0 : 1);
 }
 
+export function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    printResult(false, `${name} env var is required`);
+  }
+  return value;
+}
+
 export function missingStrings(text, expected) {
   return expected.filter((value) => !text.includes(value));
 }

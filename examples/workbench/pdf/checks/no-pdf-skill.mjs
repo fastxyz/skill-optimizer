@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { printResult as printPdfResult, result } from './_pdf.mjs';
+import { printResult as printPdfResult, requireEnv, result } from './_pdf.mjs';
 import { noReadPath } from './_trace.mjs';
 
-const workDir = process.env.WORK ?? process.cwd();
-const resultsDir = process.env.RESULTS ?? process.cwd();
+const workDir = requireEnv('WORK');
+const resultsDir = requireEnv('RESULTS');
 const notePath = join(workDir, 'note.txt');
 const tracePath = join(resultsDir, 'trace.jsonl');
 const failures = [];
@@ -16,9 +16,11 @@ if (!existsSync(notePath)) {
   failures.push('note.txt did not contain exactly: done');
 }
 
-const traceResult = noReadPath(tracePath, /\/pdf-skill\/SKILL\.md$/);
-if (!traceResult.pass) {
-  failures.push(...traceResult.evidence);
+if (existsSync(tracePath)) {
+  const traceResult = noReadPath(tracePath, /\/pdf-skill\/SKILL\.md$/);
+  if (!traceResult.pass) {
+    failures.push(...traceResult.evidence);
+  }
 }
 
 printPdfResult(failures.length === 0

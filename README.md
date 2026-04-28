@@ -2,7 +2,7 @@
 
 Docker workbench for running and grading agent skill cases.
 
-The workbench gives an agent a skill/reference folder, an isolated `/work` directory, and deterministic graders. It is designed for evals where success can be verified from files, command logs, SQL, generated artifacts, or other local state.
+The workbench gives an agent a skill/reference folder, an isolated `/work` directory, and deterministic graders. It is designed for evals where success can be verified from files, command logs, SQL, generated outputs, or other local state.
 
 ## Requirements
 
@@ -88,9 +88,6 @@ env:
   - OPENROUTER_API_KEY
 model: openrouter/google/gemini-2.5-flash
 timeoutSeconds: 600
-artifacts:
-  - .firecrawl/**
-  - firecrawl-calls.json
 ```
 
 Required fields:
@@ -107,11 +104,10 @@ Optional fields:
 - `env`: host environment variable names passed into Docker
 - `model`: default model for single-case runs
 - `timeoutSeconds`: agent timeout, default `600`
-- `artifacts`: optional `/work` glob patterns copied to `results/artifacts/` after grading
 
 ## Case Directories
 
-The case file directory may include these support directories:
+The case file directory may include these support directories. In setup, grading, and cleanup commands, `$CASE` is exactly the mounted case directory at `/case`; these are just optional directories under it.
 
 - `checks/`: copied read-only to `/case/checks`; use for graders
 - `fixtures/`: copied read-only to `/case/fixtures`; use for immutable inputs
@@ -159,6 +155,8 @@ Suites can include authored reference solutions. These run through the same grad
 npx tsx src/cli.ts verify-suite ./suite.yml
 ```
 
+`verify-suite` is a dry preflight: it prints the reference grade to stdout and does not write a `.results` run.
+
 Reference solution convention:
 
 ```text
@@ -171,9 +169,9 @@ For CLI skills, put a fixture executable in `bin/` that records invocations to `
 
 For SQL skills, ask the agent to write `solution.sql`, then check it statically or execute it against a disposable local database from `checks/`.
 
-For artifact skills, check output validity directly: PDF page counts, DOCX/PPTX/XLSX structure, browser console output, screenshot properties, or file hashes.
+For file-output skills, check output validity directly: PDF page counts, DOCX/PPTX/XLSX structure, browser console output, screenshot properties, or file hashes.
 
-For negative cases, grade the trace as an artifact. For example, a task that should not need the PDF skill can fail when `trace.jsonl` contains a `read` tool call for `/work/pdf-skill/SKILL.md`.
+For negative cases, grade `trace.jsonl` directly. For example, a task that should not need the PDF skill can fail when `trace.jsonl` contains a `read` tool call for `/work/pdf-skill/SKILL.md`.
 
 ## Examples
 

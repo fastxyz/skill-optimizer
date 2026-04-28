@@ -37,7 +37,7 @@ Run-suite options:
   --keep-workspace                              Copy final /work into each result workspace; failures are always preserved
 
 Validation commands:
-  verify-suite <suite.yml> [--out <path>]        Run authored reference solutions through graders
+  verify-suite <suite.yml>                       Run authored reference solutions through graders
 
 Examples:
   skill-optimizer run-case ./case.yml

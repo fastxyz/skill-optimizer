@@ -1,5 +1,5 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { runGraderCommands } from './check-runner.js';
 import { loadWorkbenchCase } from './case-loader.js';
@@ -66,8 +66,6 @@ export function buildContainerWorkbenchEnv(params: {
   });
 }
 
-const ARTIFACT_EXCLUDES = new Set(['.git', 'node_modules']);
-
 function parseArgs(args: string[]): ContainerRunnerArgs {
   const workDir = getFlagValue(args, '--work');
   const resultsDir = getFlagValue(args, '--results');
@@ -122,65 +120,6 @@ function getFlagValue(args: string[], flag: string): string | undefined {
   }
 
   return value;
-}
-
-function listFiles(rootDir: string): string[] {
-  const files: string[] = [];
-  const walk = (dirPath: string) => {
-    for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
-      if (ARTIFACT_EXCLUDES.has(entry.name)) {
-        continue;
-      }
-      const path = join(dirPath, entry.name);
-      if (entry.isDirectory()) {
-        walk(path);
-        continue;
-      }
-      if (entry.isFile()) {
-        files.push(path);
-      }
-    }
-  };
-  walk(rootDir);
-  return files;
-}
-
-export function preserveArtifacts(patterns: string[], workDir: string, resultsDir: string): void {
-  if (patterns.length === 0) {
-    return;
-  }
-
-  const artifactDir = join(resultsDir, 'artifacts');
-  for (const filePath of listFiles(workDir)) {
-    const relativePath = relative(workDir, filePath).replace(/\\/g, '/');
-    if (!patterns.some((pattern) => matchesArtifactPattern(relativePath, pattern))) {
-      continue;
-    }
-    const destination = join(artifactDir, relativePath);
-    mkdirSync(dirname(destination), { recursive: true });
-    cpSync(filePath, destination);
-  }
-}
-
-function matchesArtifactPattern(relativePath: string, pattern: string): boolean {
-  const normalized = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
-  if (normalized.endsWith('/**')) {
-    const prefix = normalized.slice(0, -3);
-    return relativePath === prefix || relativePath.startsWith(`${prefix}/`);
-  }
-  if (!normalized.includes('*')) {
-    return relativePath === normalized;
-  }
-
-  const escaped = normalized
-    .replace(/\*\*\//g, '__GLOBSTAR_DIR__')
-    .replace(/\*\*/g, '__GLOBSTAR__')
-    .replace(/\*/g, '__STAR__')
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/__GLOBSTAR_DIR__/g, '(?:.*/)?')
-    .replace(/__GLOBSTAR__/g, '.*')
-    .replace(/__STAR__/g, '[^/]*');
-  return new RegExp(`^${escaped}$`).test(relativePath);
 }
 
 export async function runAgentPromptWithTimeout(
@@ -561,8 +500,6 @@ async function runGradeMode(parsed: GradeRunnerArgs): Promise<number> {
       env,
       timeoutSeconds: 120,
     });
-    preserveArtifacts(resolved.artifacts, parsed.workDir, parsed.resultsDir);
-
     const result = buildResult({
       caseName: resolved.name,
       model: resolved.model,

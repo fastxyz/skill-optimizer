@@ -154,6 +154,7 @@ test('agent docker command mounts only work and uses sandbox hardening flags', (
   assert.match(command, /--name 'skill-optimizer-agent-test'/);
   assert.match(command, /-v '\/tmp\/work:\/work:rw'/);
   assert.match(command, /--workdir \/work/);
+  assert.match(command, /-e PATH=\/work\/bin:\/work\/\.venv\/bin:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin/);
   assert.match(command, /--cap-drop=ALL/);
   assert.match(command, /--security-opt no-new-privileges/);
   assert.match(command, /-e OPENROUTER_API_KEY/);

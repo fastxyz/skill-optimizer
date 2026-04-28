@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { printResult, readJson } from './_pdf.mjs';
+import { printResult, readJson, requireEnv } from './_pdf.mjs';
 
-const answerPath = join(process.env.WORK ?? process.cwd(), 'answer.json');
+const answerPath = join(requireEnv('WORK'), 'answer.json');
 
 if (!existsSync(answerPath)) {
   printResult(false, 'answer.json was not created');

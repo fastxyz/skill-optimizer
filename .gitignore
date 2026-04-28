@@ -56,6 +56,7 @@ docs/specs/
 # Skill-optimizer generated artifacts
 .skill-optimizer/
 .skill-eval/
+.results/
 
 # Local user config (personal paths, model choices — not repo artifacts)
 skill-optimizer.json

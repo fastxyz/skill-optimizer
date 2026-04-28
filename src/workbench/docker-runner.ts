@@ -13,6 +13,7 @@ import { prepareWorkbenchDirectory } from './workspace.js';
 
 const DEFAULT_WORKBENCH_IMAGE = 'skill-optimizer-workbench:local';
 const AGENT_RESULTS_DIR = '/tmp/workbench-results';
+const AGENT_PATH = '/work/bin:/work/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 export function packageRootFromModuleUrl(moduleUrl: string): string {
   return dirname(dirname(dirname(fileURLToPath(moduleUrl))));
@@ -93,6 +94,7 @@ export function buildDockerAgentCommand(params: {
     `--name ${shellQuote(params.containerName)}`,
     ...dockerSandboxFlags(),
     '--workdir /work',
+    `-e PATH=${AGENT_PATH}`,
     ...dockerCacheEnvFlags(),
     `-v ${shellQuote(`${params.workDir}:/work:rw`)}`,
     envArgs,
@@ -195,9 +197,6 @@ function buildBundledCaseFile(params: {
 
   if (params.source.env.length > 0) {
     bundled.env = [...params.source.env];
-  }
-  if (params.source.artifacts.length > 0) {
-    bundled.artifacts = [...params.source.artifacts];
   }
   if (params.source.setup.length > 0) {
     bundled.setup = [...params.source.setup];

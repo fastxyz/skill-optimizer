@@ -8,10 +8,13 @@ export function buildWorkbenchEnv(params: {
   baseEnv?: NodeJS.ProcessEnv;
 }): NodeJS.ProcessEnv {
   const caseBin = join(params.caseDir, 'bin');
+  const workBin = join(params.workDir, 'bin');
   const baseEnv = params.baseEnv ?? process.env;
-  const pathValue = existsSync(caseBin)
-    ? [caseBin, baseEnv.PATH].filter(Boolean).join(':')
-    : baseEnv.PATH;
+  const pathValue = [
+    workBin,
+    existsSync(caseBin) ? caseBin : undefined,
+    baseEnv.PATH,
+  ].filter(Boolean).join(':');
 
   return {
     ...baseEnv,

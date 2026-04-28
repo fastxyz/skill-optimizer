@@ -90,6 +90,29 @@ test('loadWorkbenchSuite reads suite appendSystemPrompt', () => {
   }
 });
 
+test('loadWorkbenchSuite rejects suite artifacts defaults', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-artifacts-'));
+  try {
+    const suitePath = join(root, 'suite.yml');
+    writeFileSync(suitePath, [
+      'name: artifact-suite',
+      'models:',
+      '  - openrouter/google/gemini-2.5-flash',
+      'artifacts:',
+      '  - output.json',
+      'cases:',
+      '  - cases/noop/case.yml',
+    ].join('\n'), 'utf-8');
+
+    assert.throws(
+      () => loadWorkbenchSuite(suitePath),
+      /field "artifacts" is invalid; inspect outputs in the workspace or use --keep-workspace/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('runWorkbenchSuite writes case-model matrix aggregate output', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-'));
   const previousExitCode = process.exitCode;

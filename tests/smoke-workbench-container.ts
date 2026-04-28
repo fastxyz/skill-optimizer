@@ -8,7 +8,6 @@ import {
   buildAgentSystemPrompt,
   buildContainerWorkbenchEnv,
   prepareWorkbenchDirectory,
-  preserveArtifacts,
   runAgentPromptWithTimeout,
   writeBestEffortTrace,
 } from '../src/workbench/container-runner.js';
@@ -43,20 +42,22 @@ test('buildContainerWorkbenchEnv exposes CASE as the mounted case directory', ()
   assert.equal(env.RESULTS, '/results');
 });
 
-test('buildContainerWorkbenchEnv prepends case bin to PATH when present', () => {
+test('buildContainerWorkbenchEnv prepends work and case bin to PATH when present', () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-env-'));
   try {
     const caseDir = join(root, 'case');
+    const workDir = join(root, 'work');
     mkdirSync(join(caseDir, 'bin'), { recursive: true });
+    mkdirSync(workDir, { recursive: true });
 
     const env = buildContainerWorkbenchEnv({
       casePath: join(caseDir, 'case.yml'),
-      workDir: join(root, 'work'),
+      workDir,
       resultsDir: join(root, 'results'),
       baseEnv: { PATH: '/usr/bin' },
     });
 
-    assert.equal(env.PATH, `${join(caseDir, 'bin')}:/usr/bin`);
+    assert.equal(env.PATH, `${join(workDir, 'bin')}:${join(caseDir, 'bin')}:/usr/bin`);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -80,47 +81,6 @@ test('prepareWorkbenchDirectory copies references then optional workspace seed',
     assert.equal(existsSync(join(workDir, 'stale.txt')), false);
     assert.equal(readFileSync(join(workDir, 'SKILL.md'), 'utf-8'), '# Skill\n');
     assert.equal(readFileSync(join(workDir, 'seed.txt'), 'utf-8'), 'seed\n');
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('preserveArtifacts copies matching files only', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-artifacts-'));
-  try {
-    const workDir = join(root, 'work');
-    const resultsDir = join(root, 'results');
-    mkdirSync(join(workDir, '.firecrawl'), { recursive: true });
-    mkdirSync(join(workDir, 'tmp'), { recursive: true });
-    writeFileSync(join(workDir, '.firecrawl', 'search.json'), '{}\n', 'utf-8');
-    writeFileSync(join(workDir, 'firecrawl-calls.json'), '[{}]\n', 'utf-8');
-    writeFileSync(join(workDir, 'tmp', 'ignore.txt'), 'ignore\n', 'utf-8');
-
-    preserveArtifacts(['.firecrawl/**', 'firecrawl-calls.json'], workDir, resultsDir);
-
-    assert.equal(readFileSync(join(resultsDir, 'artifacts', '.firecrawl', 'search.json'), 'utf-8'), '{}\n');
-    assert.equal(readFileSync(join(resultsDir, 'artifacts', 'firecrawl-calls.json'), 'utf-8'), '[{}]\n');
-    assert.equal(existsSync(join(resultsDir, 'artifacts', 'tmp', 'ignore.txt')), false);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('preserveArtifacts supports recursive globstar patterns', () => {
-  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-artifact-globstar-'));
-  try {
-    const workDir = join(root, 'work');
-    const resultsDir = join(root, 'results');
-    mkdirSync(join(workDir, 'nested', 'deep'), { recursive: true });
-    writeFileSync(join(workDir, 'root.json'), '{}\n', 'utf-8');
-    writeFileSync(join(workDir, 'nested', 'deep', 'result.json'), '{}\n', 'utf-8');
-    writeFileSync(join(workDir, 'nested', 'deep', 'result.txt'), 'text\n', 'utf-8');
-
-    preserveArtifacts(['**/*.json'], workDir, resultsDir);
-
-    assert.equal(readFileSync(join(resultsDir, 'artifacts', 'root.json'), 'utf-8'), '{}\n');
-    assert.equal(readFileSync(join(resultsDir, 'artifacts', 'nested', 'deep', 'result.json'), 'utf-8'), '{}\n');
-    assert.equal(existsSync(join(resultsDir, 'artifacts', 'nested', 'deep', 'result.txt')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

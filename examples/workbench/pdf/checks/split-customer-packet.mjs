@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { countPdfPages, extractSimplePdfText, isPdfFile, missingStrings, printResult } from './_pdf.mjs';
+import { countPdfPages, extractSimplePdfText, isPdfFile, missingStrings, printResult, requireEnv } from './_pdf.mjs';
 
-const outputPath = join(process.env.WORK ?? process.cwd(), 'customer-copy.pdf');
+const outputPath = join(requireEnv('WORK'), 'customer-copy.pdf');
 
 if (!existsSync(outputPath)) {
   printResult(false, 'customer-copy.pdf was not created');

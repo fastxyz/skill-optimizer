@@ -8,7 +8,6 @@ export interface WorkbenchCaseConfig {
   references: string;
   task: string;
   graders: WorkbenchGraderConfig[];
-  artifacts?: string[];
   env?: string[];
   setup?: string[];
   cleanup?: string[];
@@ -23,7 +22,6 @@ export interface ResolvedWorkbenchCase {
   referencesDir: string;
   task: string;
   graders: WorkbenchGraderConfig[];
-  artifacts: string[];
   env: string[];
   setup: string[];
   cleanup: string[];
@@ -164,7 +162,7 @@ export interface WorkbenchSimpleSummary {
 export interface ReferenceCaseResultFile extends WorkbenchGrade {
   caseName: string;
   solutionPath: string;
-  resultPath: string;
+  resultPath?: string;
 }
 
 export interface ReferenceSuiteResultFile {
