@@ -13,10 +13,13 @@ test('createWorkbenchPiTools enables coding plus repo-scale search tools', () =>
   assert.deepEqual(names, ['bash', 'edit', 'find', 'grep', 'ls', 'read', 'write']);
 });
 
-test('stripSensitiveEnv removes model and service credentials from tool subprocesses', () => {
+test('stripSensitiveEnv preserves all case-allowed credentials for tool subprocesses', () => {
   const env = stripSensitiveEnv({
     OPENROUTER_API_KEY: 'secret',
     OPENAI_API_KEY: 'secret',
+    GOOGLE_WORKSPACE_CLI_TOKEN: 'gws-token',
+    GOOGLE_WORKSPACE_CLI_CLIENT_SECRET: 'gws-secret',
+    GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE: '/work/gws-credentials.json',
     MODEL_AUTH_FILE: '/run/secrets/model-auth.json',
     WHATSAPP_ACCESS_TOKEN: 'secret',
     DASHBOARD_TOKEN_SECRET: 'secret',
@@ -24,11 +27,14 @@ test('stripSensitiveEnv removes model and service credentials from tool subproce
     WORK: '/work',
   });
 
-  assert.equal(env.OPENROUTER_API_KEY, undefined);
-  assert.equal(env.OPENAI_API_KEY, undefined);
-  assert.equal(env.MODEL_AUTH_FILE, undefined);
-  assert.equal(env.WHATSAPP_ACCESS_TOKEN, undefined);
-  assert.equal(env.DASHBOARD_TOKEN_SECRET, undefined);
+  assert.equal(env.OPENROUTER_API_KEY, 'secret');
+  assert.equal(env.OPENAI_API_KEY, 'secret');
+  assert.equal(env.GOOGLE_WORKSPACE_CLI_TOKEN, 'gws-token');
+  assert.equal(env.GOOGLE_WORKSPACE_CLI_CLIENT_SECRET, 'gws-secret');
+  assert.equal(env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE, '/work/gws-credentials.json');
+  assert.equal(env.MODEL_AUTH_FILE, '/run/secrets/model-auth.json');
+  assert.equal(env.WHATSAPP_ACCESS_TOKEN, 'secret');
+  assert.equal(env.DASHBOARD_TOKEN_SECRET, 'secret');
   assert.equal(env.PATH, '/usr/bin');
   assert.equal(env.WORK, '/work');
 });
@@ -76,6 +82,12 @@ test('createWorkbenchPiResourceLoader relies on additional /work skills without 
 
   assert.match(source, /noSkills: true/);
   assert.doesNotMatch(source, /skillsOverride/);
+});
+
+test('createWorkbenchPiSession leaves runtime API key env available to tools', () => {
+  const source = readFileSync('src/workbench/pi-agent.ts', 'utf-8');
+
+  assert.doesNotMatch(source, /delete process\.env\[apiKeyEnv\]/);
 });
 
 test('createWorkbenchPiSession rejects non-OpenRouter model refs', async () => {

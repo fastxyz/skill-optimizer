@@ -101,7 +101,7 @@ Optional fields:
 
 - `setup`: commands run in `/work` before the agent, with `/case` mounted read-only for fixtures/check helpers
 - `cleanup`: commands run after grading
-- `env`: host environment variable names passed into Docker
+- `env`: host environment variable names passed into setup, agent, grading, and cleanup containers
 - `model`: default model for single-case runs
 - `timeoutSeconds`: agent timeout, default `600`
 
@@ -115,6 +115,8 @@ The case file directory may include these support directories. In setup, grading
 - `workspace/`: copied into `/work` after references; use to seed an app repo or starter files
 
 The agent can modify only `/work`. Graders should live under `/case/checks` so the agent cannot edit them.
+
+Environment variables listed in `env` are available to the agent's shell tools unchanged, including credentials and tokens. Use dedicated test accounts and scoped credentials for live integration evals.
 
 ## Outputs
 

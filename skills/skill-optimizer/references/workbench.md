@@ -76,7 +76,7 @@ Optional fields:
 |-------|------|---------|
 | `setup` | string[] | Commands run in `/work` before the agent phase |
 | `cleanup` | string[] | Commands run after grading |
-| `env` | string[] | Host environment variable names forwarded into Docker |
+| `env` | string[] | Host environment variable names forwarded into setup, agent, grading, and cleanup containers |
 | `model` | string | Default model for `run-case`; defaults to `openrouter/google/gemini-2.5-flash` |
 | `timeoutSeconds` | number | Agent timeout; defaults to `600` |
 
@@ -123,6 +123,8 @@ Suite fields:
 | `appendSystemPrompt` | no | Extra suite-wide system prompt appended after the workbench prompt |
 
 Inline case fields override suite defaults. External case files are loaded from their own file directory and do not inherit suite defaults.
+
+Environment variables listed in `env` are forwarded unchanged. This intentionally supports live integration evals such as authenticated CLI calls, but it also means the agent can read or print those values through shell tools. Use dedicated test accounts, least-privilege credentials, and cleanup routines for live systems.
 
 ## Directory Layout
 
@@ -175,6 +177,7 @@ Agent phase constraints:
 - Additional skills are discovered from `/work`
 - Python installs should use `/work/.venv`
 - Internet is available unless Docker environment blocks it
+- `env` allowlisted credentials are available unchanged to agent shell commands
 
 ## Task Writing Rules
 
@@ -405,9 +408,10 @@ Use CLI commands for normal human workflows. Use SDK functions for tests, wrappe
 
 CLI/API skills:
 
-- Put a fake executable in `bin/`.
-- Have it record calls to `$WORK/calls.jsonl`.
-- Grade command names, flags, request bodies, output files, and safety behavior.
+- Prefer the real CLI/API/service when you are not certain how to mock its internals.
+- Mock only when you know the real command surface, validation, outputs, and failure modes well enough to reproduce them faithfully.
+- If mocking is justified, put a fake executable in `bin/`, record calls to `$WORK/calls.jsonl`, and grade command names, flags, request bodies, output files, and safety behavior.
+- If the real tool is safe to call with setup/cleanup and scoped test credentials, install it in `setup` and grade its real dry-run or live request output.
 
 File-output skills:
 

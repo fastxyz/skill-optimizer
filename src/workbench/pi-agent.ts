@@ -19,17 +19,8 @@ import { resolve } from 'node:path';
 
 import { buildAgentSystemPrompt } from './sandbox.js';
 
-const SENSITIVE_ENV_NAME = /(?:API_KEY|ACCESS_TOKEN|AUTH_FILE|SECRET|TOKEN)$/;
-
 export function stripSensitiveEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const stripped: NodeJS.ProcessEnv = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (SENSITIVE_ENV_NAME.test(key)) {
-      continue;
-    }
-    stripped[key] = value;
-  }
-  return stripped;
+  return { ...env };
 }
 
 export function createWorkbenchPiTools(cwd: string): AgentTool<any>[] {
@@ -99,9 +90,6 @@ export async function createWorkbenchPiSession(params: {
   const auth = await modelRegistry.getApiKeyAndHeaders(resolvedModel);
   if (!auth.ok) {
     throw new Error(auth.error);
-  }
-  if (apiKey) {
-    delete process.env[apiKeyEnv];
   }
 
   const resourceLoader = await createWorkbenchPiResourceLoader({

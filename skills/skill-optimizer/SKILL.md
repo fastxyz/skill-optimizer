@@ -49,6 +49,10 @@ Rules:
 7. Run `verify-suite` before running models.
 8. Run `run-suite --trials <n>` and inspect `suite-result.json`, failing `result.json`, `summary.json`, and `trace.jsonl`.
 
+Variables listed in `env` are forwarded unchanged into setup, agent, grading, and cleanup containers. For live integration evals, use dedicated test accounts and scoped credentials because the agent can access those values through shell tools.
+
+Prefer the real CLI/API/service when you do not know its internal behavior well enough to mock it faithfully. Mock only when you are sure the mock matches the real command surface, validation, outputs, and failure modes; otherwise the eval will measure the mock, not the skill.
+
 ## Minimal Suite
 
 ```yaml
