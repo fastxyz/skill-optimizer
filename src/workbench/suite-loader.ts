@@ -5,8 +5,7 @@ import { parse as parseYaml } from 'yaml';
 
 import { resolveWorkbenchCaseConfig } from './case-loader.js';
 import { ensureOpenRouterModelRef } from './models.js';
-import { validateSuiteProvenance } from './provenance.js';
-import type { ResolvedWorkbenchCase, WorkbenchSourceConfig, WorkbenchSuiteKind } from './types.js';
+import type { ResolvedWorkbenchCase } from './types.js';
 import { slugPathSegment } from './utils.js';
 
 export interface ResolvedWorkbenchSuiteCase {
@@ -22,9 +21,6 @@ export interface ResolvedWorkbenchSuite {
   casePaths: string[];
   cases: ResolvedWorkbenchSuiteCase[];
   models: string[];
-  kind: WorkbenchSuiteKind;
-  targetPassRate?: number;
-  source?: WorkbenchSourceConfig;
 }
 
 export function loadWorkbenchSuite(configPath: string): ResolvedWorkbenchSuite {
@@ -53,10 +49,6 @@ export function loadWorkbenchSuite(configPath: string): ResolvedWorkbenchSuite {
   const casePaths = cases.flatMap((suiteCase) => suiteCase.path ? [suiteCase.path] : []);
   const models = readStringArray(parsed, 'models', resolvedConfigPath, true)
     .map((model) => ensureOpenRouterModelRef(model));
-  const kind = readSuiteKind(parsed, resolvedConfigPath);
-  const targetPassRate = readOptionalTargetPassRate(parsed, resolvedConfigPath);
-  const source = readOptionalSource(parsed, resolvedConfigPath);
-  validateSuiteProvenance(configDir, source);
 
   return {
     configPath: resolvedConfigPath,
@@ -65,9 +57,6 @@ export function loadWorkbenchSuite(configPath: string): ResolvedWorkbenchSuite {
     casePaths,
     cases,
     models,
-    kind,
-    targetPassRate,
-    source,
   };
 }
 
@@ -243,66 +232,4 @@ function readOptionalTimeoutSeconds(parsed: Record<string, unknown>, configPath:
     throw new Error(`Workbench suite ${configPath}: field "timeoutSeconds" must be a positive number when provided`);
   }
   return value;
-}
-
-function readSuiteKind(parsed: Record<string, unknown>, configPath: string): WorkbenchSuiteKind {
-  const value = parsed.kind;
-  if (value === undefined) {
-    return 'capability';
-  }
-  if (value !== 'capability' && value !== 'regression') {
-    throw new Error(`Workbench suite ${configPath}: field "kind" must be "capability" or "regression" when provided`);
-  }
-  return value;
-}
-
-function readOptionalTargetPassRate(parsed: Record<string, unknown>, configPath: string): number | undefined {
-  const value = parsed.targetPassRate;
-  if (value === undefined) {
-    return undefined;
-  }
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
-    throw new Error(`Workbench suite ${configPath}: field "targetPassRate" must be a number between 0 and 1 when provided`);
-  }
-  return value;
-}
-
-function readOptionalSource(parsed: Record<string, unknown>, configPath: string): WorkbenchSourceConfig | undefined {
-  const value = parsed.source;
-  if (value === undefined) {
-    return undefined;
-  }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Workbench suite ${configPath}: field "source" must be an object when provided`);
-  }
-
-  const source = value as Record<string, unknown>;
-  if (source.type !== 'git') {
-    throw new Error(`Workbench suite ${configPath}: field "source.type" must be "git"`);
-  }
-  const url = readSourceString(source.url, 'source.url', configPath);
-  const ref = readSourceString(source.ref, 'source.ref', configPath);
-  const includedPaths = source.includedPaths;
-  if (!Array.isArray(includedPaths) || includedPaths.length === 0) {
-    throw new Error(`Workbench suite ${configPath}: field "source.includedPaths" must be a non-empty array of strings`);
-  }
-
-  return {
-    type: 'git',
-    url,
-    ref,
-    includedPaths: includedPaths.map((item, index) => {
-      if (typeof item !== 'string' || item.trim() === '') {
-        throw new Error(`Workbench suite ${configPath}: field "source.includedPaths" item at index ${index} must be a non-empty string`);
-      }
-      return item.trim();
-    }),
-  };
-}
-
-function readSourceString(value: unknown, field: string, configPath: string): string {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`Workbench suite ${configPath}: field "${field}" must be a non-empty string`);
-  }
-  return value.trim();
 }

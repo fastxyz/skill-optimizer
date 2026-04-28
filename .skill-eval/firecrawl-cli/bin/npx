@@ -1,7 +1,0 @@
-#!/bin/sh
-if [ "$1" = "firecrawl" ] || [ "$1" = "firecrawl-cli" ] || [ "${1#firecrawl-cli@}" != "$1" ]; then
-  shift
-  exec firecrawl "$@"
-fi
-
-exec firecrawl "$@"

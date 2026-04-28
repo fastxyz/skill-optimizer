@@ -94,16 +94,12 @@ export async function runWorkbenchSuite(
   }
 
   const summary = summarizeTrialAggregates(results);
-  const targetPassRate = suite.targetPassRate;
   const aggregate: RunSuiteAggregateResultFile = {
     name: suite.name,
     startedAt,
     endedAt: new Date().toISOString(),
     models,
     cases: caseSlugs,
-    kind: suite.kind,
-    targetPassRate,
-    ...(targetPassRate !== undefined ? { metTarget: summary.trialPassRate >= targetPassRate } : {}),
     summary,
     results,
   };

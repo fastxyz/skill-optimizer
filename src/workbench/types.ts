@@ -3,15 +3,6 @@ export interface WorkbenchGraderConfig {
   command: string;
 }
 
-export type WorkbenchSuiteKind = 'capability' | 'regression';
-
-export interface WorkbenchSourceConfig {
-  type: 'git';
-  url: string;
-  ref: string;
-  includedPaths: string[];
-}
-
 export interface WorkbenchCaseConfig {
   name: string;
   references: string;
@@ -161,9 +152,6 @@ export interface RunSuiteAggregateResultFile {
   cases: string[];
   summary: WorkbenchAggregateSummary;
   results: WorkbenchCaseModelAggregateResult[];
-  kind: WorkbenchSuiteKind;
-  targetPassRate?: number;
-  metTarget?: boolean;
 }
 
 export interface WorkbenchSimpleSummary {
@@ -185,26 +173,6 @@ export interface ReferenceSuiteResultFile {
   endedAt: string;
   summary: WorkbenchSimpleSummary;
   results: ReferenceCaseResultFile[];
-}
-
-export interface GraderFixtureResultFile {
-  caseName: string;
-  fixtureName: string;
-  pass: boolean;
-  evidence: string[];
-  graders: Array<WorkbenchGrade & { name: string; expected: boolean }>;
-}
-
-export interface GraderFixtureSuiteResultFile {
-  name: string;
-  startedAt: string;
-  endedAt: string;
-  summary: WorkbenchSimpleSummary;
-  results: GraderFixtureResultFile[];
-}
-
-export interface WorkbenchProvenanceFile extends WorkbenchSourceConfig {
-  fetchedAt: string;
 }
 
 export type WorkbenchTraceEntry =

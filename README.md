@@ -85,7 +85,7 @@ model: openrouter/google/gemini-2.5-flash
 timeoutSeconds: 600
 artifacts:
   - .firecrawl/**
-  - firecrawl-calls.ndjson
+  - firecrawl-calls.json
 ```
 
 Required fields:
@@ -147,11 +147,10 @@ suite/.results/<run-id>/
 
 ## Suite Validation
 
-Suites can include authored reference solutions and grader fixtures. These do not decide whether tasks are fair; they give suite authors deterministic checks that the eval plumbing works before running models.
+Suites can include authored reference solutions. These run through the same graders as model attempts, proving that the task is solvable and that the graders can accept a known-good solution before running models.
 
 ```bash
-npx tsx src/cli.ts verify-suite .skill-eval/firecrawl-cli/suite.yml
-npx tsx src/cli.ts test-graders .skill-eval/firecrawl-cli/suite.yml
+npx tsx src/cli.ts verify-suite ./suite.yml
 ```
 
 Reference solution convention:
@@ -160,40 +159,9 @@ Reference solution convention:
 solutions/<case-slug>/solution.sh
 ```
 
-Grader fixture convention:
-
-```text
-grader-fixtures/<case-slug>/<fixture-name>/
-  expected.json
-```
-
-`expected.json` maps grader names to expected pass/fail values:
-
-```json
-{
-  "graders": {
-    "uses-search": true,
-    "saves-output": false
-  }
-}
-```
-
-Public skill suites can also declare source provenance:
-
-```yaml
-source:
-  type: git
-  url: https://github.com/firecrawl/cli
-  ref: 3c6ac28a0c7b3d877df811db7942e918c32235ca
-  includedPaths:
-    - skills/
-```
-
-When `source` is present, the suite root must include a matching `provenance.json`, and each included path must exist under `references/source/`.
-
 ## Grader Patterns
 
-For CLI skills, put a fixture executable in `bin/` that records invocations to `$WORK/*.ndjson`, then grade command names, flags, JSON bodies, saved outputs, and safety behavior as separate graders where useful.
+For CLI skills, put a fixture executable in `bin/` that records invocations to `$WORK/*.json`, then grade command names, flags, JSON bodies, saved outputs, and safety behavior as separate graders where useful.
 
 For SQL skills, ask the agent to write `solution.sql`, then check it statically or execute it against a disposable local database from `checks/`.
 
@@ -207,9 +175,8 @@ npm test
 npx tsx src/cli.ts --help
 ```
 
-Run the included PDF fixture:
+Run authored reference solutions for a local suite:
 
 ```bash
-OPENROUTER_API_KEY=sk-or-... \
-npx tsx src/cli.ts run-case tests/fixtures/workbench/pdf-merge/case.yml
+npx tsx src/cli.ts verify-suite ./suite.yml
 ```

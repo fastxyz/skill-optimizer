@@ -1,7 +1,0 @@
-{
-  "type": "git",
-  "url": "https://github.com/firecrawl/cli",
-  "ref": "3c6ac28a0c7b3d877df811db7942e918c32235ca",
-  "includedPaths": ["skills/"],
-  "fetchedAt": "2026-04-28T00:00:00.000Z"
-}

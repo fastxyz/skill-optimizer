@@ -1,8 +1,0 @@
-{
-  "graders": {
-    "uses-scrape": true,
-    "scrapes-requested-url": true,
-    "saves-markdown-output": true,
-    "avoids-known-url-search": true
-  }
-}

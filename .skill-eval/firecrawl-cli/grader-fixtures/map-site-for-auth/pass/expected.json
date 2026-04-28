@@ -1,8 +1,0 @@
-{
-  "graders": {
-    "uses-map": true,
-    "maps-docs-site": true,
-    "filters-for-auth": true,
-    "saves-map-output": true
-  }
-}

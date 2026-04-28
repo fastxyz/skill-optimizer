@@ -1,2 +1,0 @@
-mkdir -p .firecrawl
-firecrawl scrape "https://example.com/docs?tab=api&lang=ts" -o .firecrawl/example-docs-api.md

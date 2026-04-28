@@ -12,6 +12,4 @@ export * from './run-suite.js';
 export * from './container-runner.js';
 export * from './trials.js';
 export * from './metrics.js';
-export * from './provenance.js';
 export * from './reference-solutions.js';
-export * from './grader-fixtures.js';

@@ -75,13 +75,13 @@ test('preserveArtifacts copies matching files only', () => {
     mkdirSync(join(workDir, '.firecrawl'), { recursive: true });
     mkdirSync(join(workDir, 'tmp'), { recursive: true });
     writeFileSync(join(workDir, '.firecrawl', 'search.json'), '{}\n', 'utf-8');
-    writeFileSync(join(workDir, 'firecrawl-calls.ndjson'), '{}\n', 'utf-8');
+    writeFileSync(join(workDir, 'firecrawl-calls.json'), '[{}]\n', 'utf-8');
     writeFileSync(join(workDir, 'tmp', 'ignore.txt'), 'ignore\n', 'utf-8');
 
-    preserveArtifacts(['.firecrawl/**', 'firecrawl-calls.ndjson'], workDir, resultsDir);
+    preserveArtifacts(['.firecrawl/**', 'firecrawl-calls.json'], workDir, resultsDir);
 
     assert.equal(readFileSync(join(resultsDir, 'artifacts', '.firecrawl', 'search.json'), 'utf-8'), '{}\n');
-    assert.equal(readFileSync(join(resultsDir, 'artifacts', 'firecrawl-calls.ndjson'), 'utf-8'), '{}\n');
+    assert.equal(readFileSync(join(resultsDir, 'artifacts', 'firecrawl-calls.json'), 'utf-8'), '[{}]\n');
     assert.equal(existsSync(join(resultsDir, 'artifacts', 'tmp', 'ignore.txt')), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
