@@ -22,7 +22,9 @@ npx tsx src/cli.ts verify-suite --help
 - `src/workbench/`: workbench case loading, suite loading, Docker runner, Pi agent, graders, traces, and reference solutions
 - `docker/workbench-runner.Dockerfile`: generic non-root container image for setup, agent, grade, and cleanup phases
 - `skills/skill-optimizer/SKILL.md`: canonical distributable Agent Skill
-- `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.opencode/`: cross-agent plugin metadata and install support
+- `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.opencode/`: cross-agent plugin manifests and install support
+- `.agents/plugins/marketplace.json`: Codex repo marketplace entry for the root plugin
+- `gemini-extension.json`, `GEMINI.md`: Gemini extension metadata and context file
 - `examples/workbench/`: tracked example eval suites
 
 ## Invariants
@@ -33,6 +35,8 @@ npx tsx src/cli.ts verify-suite --help
 - Cases use `graders: [{ name, command }]`; legacy `check:` and `artifacts:` are invalid.
 - `verify-suite` is dry and stdout-only. It runs `solutions/<case-slug>/solution.sh`, then graders, and does not write `.results`.
 - The agent phase sees only `/work`, not `/case` or `/results`.
+- Keep plugin metadata pointed at the canonical `skills/skill-optimizer/SKILL.md`; do not create divergent skill copies.
+- Codex plugin metadata lives in `.codex-plugin/plugin.json`; the repo marketplace lives in `.agents/plugins/marketplace.json` and points at `./`.
 - Do not commit `.skill-eval/`, `.results/`, `.env`, or credentials.
 
 ## Testing Guidance
@@ -41,3 +45,4 @@ npx tsx src/cli.ts verify-suite --help
 - Run `npm test` before finishing behavior changes.
 - For Docker runner or image changes, also run `docker build -t skill-optimizer-workbench:local -f docker/workbench-runner.Dockerfile .`.
 - For CLI/docs changes, verify `npx tsx src/cli.ts --help` if touched docs mention CLI behavior.
+- For plugin/package metadata changes, run `npx tsx tests/smoke-skill-distribution.ts` and verify `npm pack --dry-run --json` includes required plugin files without result/cache directories.

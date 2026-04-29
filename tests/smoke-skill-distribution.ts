@@ -39,6 +39,8 @@ test('package metadata exposes plugin and skill distribution files', () => {
   assert.ok(pkg.files.includes('.opencode/INSTALL.md'));
   assert.ok(pkg.files.includes('.codex/INSTALL.md'));
   assert.ok(pkg.files.includes('.cursor/INSTALL.md'));
+  assert.ok(pkg.files.includes('AGENTS.md'));
+  assert.ok(pkg.files.includes('CLAUDE.md'));
   assert.ok(pkg.files.includes('docs/README.codex.md'));
   assert.ok(pkg.files.includes('docs/README.opencode.md'));
   assert.ok(pkg.files.includes('gemini-extension.json'));
@@ -125,5 +127,6 @@ test('Gemini extension metadata points at the canonical context file', () => {
   assert.equal(extension.name, 'skill-optimizer');
   assert.equal(extension.version, pkg.version);
   assert.equal(extension.contextFileName, 'GEMINI.md');
+  assert.match(geminiInstructions, /^@\.\/AGENTS\.md$/m);
   assert.match(geminiInstructions, /^@\.\/skills\/skill-optimizer\/SKILL\.md$/m);
 });

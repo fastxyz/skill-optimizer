@@ -43,6 +43,8 @@
     ".opencode/INSTALL.md",
     ".codex/INSTALL.md",
     ".cursor/INSTALL.md",
+    "AGENTS.md",
+    "CLAUDE.md",
     "README.md",
     "GEMINI.md",
     "gemini-extension.json",

@@ -2,17 +2,9 @@
 
 ## Project Overview
 
-`skill-optimizer` measures whether LLMs pick the right SDK methods, CLI commands, or MCP tools from docs and task prompts, and can run a benchmark-driven optimization loop over an allowed target repo.
+`skill-optimizer` is a Docker workbench for running and grading agent skill eval cases. The current public CLI centers on `run-case`, `run-suite`, and `verify-suite`.
 
-The repo has five layers:
-
-- `src/project/`: unified `skill-optimizer.json` config loading, validation, and path resolution
-- `src/runtime/pi/`: shared Pi auth/model/runtime helpers
-- `src/tasks/`: shared task generation, grounding, and artifact freezing from discovered surfaces
-- `src/benchmark/`: loads tasks and surface definitions, builds prompts, calls models, extracts actions, evaluates them, and writes reports
-- `src/optimizer/`: runs a benchmark-driven optimization loop against a constrained target repo
-
-The benchmark is static. Do not change behavior in ways that execute model-produced code or shell commands as part of evaluation.
+The workbench gives an agent an isolated Docker `/work` directory, captures traces, and grades deterministic local outcomes from files, command logs, generated artifacts, or other workspace state.
 
 ## Key Commands
 
@@ -21,101 +13,39 @@ npm run build
 npm run typecheck
 npm test
 npx tsx src/cli.ts --help
-npx tsx src/cli.ts generate-tasks --help
-npx tsx src/cli.ts optimize --help
-```
-
-Typical benchmark run:
-
-```bash
-export OPENROUTER_API_KEY=...
-npx tsx src/cli.ts run --config ./skill-optimizer.json
-```
-
-Generate tasks only:
-
-```bash
-npx tsx src/cli.ts generate-tasks --config ./skill-optimizer.json
-```
-
-Typical optimizer run:
-
-```bash
-tsx src/optimizer/materialize-mock-repo.ts mcp-tracker-demo ./.tmp/mock-repos
-npx tsx src/cli.ts optimize --config ./.tmp/mock-repos/mcp-tracker-demo/skill-optimizer.json
+npx tsx src/cli.ts run-case --help
+npx tsx src/cli.ts run-suite --help
+npx tsx src/cli.ts verify-suite --help
 ```
 
 ## Important Files
 
-- `src/cli.ts`: public CLI entrypoint (`init`, `run`, `optimize`, `compare`)
-- `src/project/types.ts`: unified public project config types
-- `src/project/load.ts`: unified `skill-optimizer.json` loader
-- `src/runtime/pi/models.ts`: shared Pi model/auth resolution
-- `src/tasks/index.ts`: shared task generation entrypoint over discovered surfaces
-- `src/benchmark/runner.ts`: orchestration for benchmark execution
-- `src/benchmark/types.ts`: benchmark report, metric, and extraction types
-- `src/benchmark/init.ts`: scaffolded starter `skill-optimizer.json`
-- `src/optimizer/loop.ts`: accept/reject iteration loop
-- `src/optimizer/manifest.ts`: adapter from unified project config into the current optimizer loop
-- `src/optimizer/mock-repos.ts`: tracked template materialization and isolated git init
-- `mock-repos/mcp-tracker-demo/`: current richer demo target for optimizer testing
+- `src/cli.ts`: public CLI entrypoint
+- `src/workbench/`: workbench case loading, suite loading, Docker runner, Pi agent, graders, traces, and reference solutions
+- `docker/workbench-runner.Dockerfile`: generic non-root container image for setup, agent, grade, and cleanup phases
+- `skills/skill-optimizer/SKILL.md`: canonical distributable Agent Skill
+- `skills/skill-optimizer/references/workbench.md`: detailed workbench schema and usage reference
+- `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.opencode/`: cross-agent plugin manifests and install support
+- `.agents/plugins/marketplace.json`: Codex repo marketplace entry for the root plugin
+- `gemini-extension.json`, `GEMINI.md`: Gemini extension metadata and context file
+- `examples/workbench/`: tracked example eval suites
 
 ## Invariants
 
-- Keep benchmark evaluation static. Extraction and matching are allowed; executing generated code is not.
-- Keep path resolution relative to the unified config file being loaded.
-- `targetRepo.allowedPaths` is the optimizer safety boundary. Do not widen edits outside it during mutation.
-- `requireCleanGit` must remain effectively enforced for optimizer targets.
-- Optimizer-owned artifacts under the configured task-generation output dir must not be treated as target-repo mutations.
-- **The target repo's skill file is never modified.** The optimizer copies it to `.skill-optimizer/skill-v0.md` on start and creates versioned copies per accepted iteration. The mutation agent writes to these local copies; `skillOverride` makes the benchmark read from them.
-- Stable-surface optimize runs assume the callable surface is frozen for the duration of the run. If a change renames commands/tools/APIs, the surface must be rediscovered and the benchmark snapshot regenerated before further comparisons are meaningful.
-- Materialized mock repos must stay isolated from tracked templates.
-- Documentation examples should match the current CLI and config schema.
-
-## Editing Guidance
-
-- Prefer small changes in the existing architecture over broad refactors.
-- When updating config or project types, also update the README examples and any scaffolding in `src/benchmark/init.ts` if needed.
-- When changing optimizer behavior, verify both the loop and the unified project defaults still agree.
-- Code-first surface discovery is the preferred mode for `sdk`, `cli`, and `mcp` via `target.discovery.sources`. Explicit manifest files (`target.cli.commands`, `target.mcp.tools`, `target.discovery.fallbackManifest`) are supported for projects that cannot use code-first discovery.
-- Be careful around mock repo references: code may support template names that are not currently present in the working tree.
+- Keep evaluation static: extraction and matching are allowed; do not execute model-produced code outside the Docker workbench as part of evaluation.
+- `run-suite` uses models from `suite.yml`; do not add a `run-suite --models` override.
+- Keep OpenRouter model refs as `openrouter/...`; real model runs require `OPENROUTER_API_KEY`.
+- Cases use `graders: [{ name, command }]`; legacy `check:` and `artifacts:` are invalid.
+- `verify-suite` is dry and stdout-only. It runs `solutions/<case-slug>/solution.sh`, then graders, and does not write `.results`.
+- The agent phase sees only `/work`, not `/case` or `/results`.
+- Keep plugin metadata pointed at the canonical `skills/skill-optimizer/SKILL.md`; do not create divergent skill copies.
+- Codex plugin metadata lives in `.codex-plugin/plugin.json`; the repo marketplace lives in `.agents/plugins/marketplace.json` and points at `./`.
+- Do not commit `.skill-eval/`, `.results/`, `.env`, or credentials.
 
 ## Testing Guidance
 
 - Run `npm run typecheck` after TypeScript changes.
-- Run `npm test` before finishing when behavior changes may affect extraction, evaluation, reporting, or optimizer flow.
-- For CLI-only or docs-only changes, at minimum verify `npx tsx src/cli.ts --help` still works if the touched docs reference CLI behavior.
-
-## Model ID Convention
-
-Model IDs use a provider-prefixed format. The prefix determines how the request is routed:
-
-```
-openrouter/<provider>/<model-slug>   — routed through OpenRouter
-anthropic/<model-slug>               — direct Anthropic API
-openai/<model-slug>                  — direct OpenAI API
-```
-
-**For `openrouter/` model IDs, preserve the exact slug from OpenRouter's catalog** — these are passed verbatim to OpenRouter's API and must match exactly, including dots in version numbers:
-- `openrouter/anthropic/claude-sonnet-4.6` ✓ (dots — OpenRouter's catalog format)
-- `openrouter/openai/gpt-5.4` ✓ (dots)
-- `openrouter/deepseek/deepseek-v3.2` ✓ (dots)
-- `openrouter/google/gemini-2.5-flash` ✓
-
-**For `anthropic/` direct-API model IDs, use hyphens** — Anthropic's own API slugs use hyphens:
-- `anthropic/claude-sonnet-4-6` ✓ (hyphens)
-- `anthropic/claude-opus-4-6` ✓ (hyphens)
-
-**For `openai/` direct-API model IDs, use dots in version segments** — OpenAI's API slugs use dots:
-- `openai/gpt-5.4` ✓ (dot)
-- `openai/gpt-4.1` ✓ (dot)
-
-`src/project/validate.ts` warns on dot-notation for `anthropic/` model IDs only (`model-id-bad-format`) and `src/project/fix.ts` auto-corrects them. Both `openai/` and `openrouter/` are fully exempt from any dot→hyphen rewriting. When adding new model presets to `src/init/scaffold.ts`, `src/init/wizard.ts`, or `src/benchmark/init.ts`, copy the slug exactly from the OpenRouter catalog for `openrouter/` models.
-
-Display names (`name:` / `label:` fields) are human-readable and should keep dots (e.g. `'Claude Sonnet 4.6'`, `'Gemini 2.5 Flash'`).
-
-## Environment Notes
-
-- Do not commit `.env` or secrets.
-- Pi-based examples use `benchmark.format: "pi"` and typically expect `OPENROUTER_API_KEY`.
-- The current unified config also allows the optimizer model to use `OPENROUTER_API_KEY`.
+- Run `npm test` before finishing behavior changes.
+- For Docker runner or image changes, also run `docker build -t skill-optimizer-workbench:local -f docker/workbench-runner.Dockerfile .`.
+- For CLI/docs changes, verify `npx tsx src/cli.ts --help` if touched docs mention CLI behavior.
+- For plugin/package metadata changes, run `npx tsx tests/smoke-skill-distribution.ts` and verify `npm pack --dry-run --json` includes required plugin files without result/cache directories.
