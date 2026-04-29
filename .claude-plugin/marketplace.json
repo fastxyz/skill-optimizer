@@ -1,0 +1,21 @@
+{
+  "name": "skill-optimizer",
+  "description": "Plugin marketplace for the skill-optimizer eval workbench skill.",
+  "owner": {
+    "name": "Pi2 Labs"
+  },
+  "plugins": [
+    {
+      "name": "skill-optimizer",
+      "description": "Agent skill eval workbench for authoring, running, and grading deterministic Docker-based skill cases.",
+      "version": "1.1.0",
+      "source": "./",
+      "author": {
+        "name": "Pi2 Labs"
+      },
+      "skills": [
+        "./skills/skill-optimizer"
+      ]
+    }
+  ]
+}

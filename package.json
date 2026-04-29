@@ -26,9 +26,25 @@
     "src/",
     "scripts/",
     "docs/",
-    "examples/",
+    "docs/README.codex.md",
+    "docs/README.opencode.md",
+    "examples/workbench/README.md",
+    "examples/workbench/pdf/README.md",
+    "examples/workbench/pdf/suite.yml",
+    "examples/workbench/pdf/checks/",
+    "examples/workbench/pdf/references/",
+    "examples/workbench/pdf/solutions/",
     "skills/",
+    ".claude-plugin/",
+    ".codex-plugin/",
+    ".cursor-plugin/",
+    ".opencode/plugins/skill-optimizer.js",
+    ".opencode/INSTALL.md",
+    ".codex/INSTALL.md",
+    ".cursor/INSTALL.md",
     "README.md",
+    "GEMINI.md",
+    "gemini-extension.json",
     "LICENSE",
     "CHANGELOG.md",
     "package-lock.json",
@@ -41,6 +57,9 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./.opencode/plugins/skill-optimizer.js"
     }
   },
   "scripts": {
@@ -50,7 +69,7 @@
     "build": "tsc && chmod +x dist/cli.js",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noUnusedLocals --noEmit",
-    "test": "tsx tests/smoke-workbench-case.ts && tsx tests/smoke-workbench-checks.ts && tsx tests/smoke-workbench-trace.ts && tsx tests/smoke-workbench-container.ts && tsx tests/smoke-workbench-docker-runner.ts && tsx tests/smoke-workbench-pi-agent.ts && tsx tests/smoke-workbench-run-case.ts && tsx tests/smoke-workbench-models.ts && tsx tests/smoke-workbench-suite.ts && tsx tests/smoke-workbench-trials.ts && tsx tests/smoke-workbench-metrics.ts && tsx tests/smoke-workbench-reference-solutions.ts"
+    "test": "tsx tests/smoke-workbench-case.ts && tsx tests/smoke-workbench-checks.ts && tsx tests/smoke-workbench-trace.ts && tsx tests/smoke-workbench-container.ts && tsx tests/smoke-workbench-docker-runner.ts && tsx tests/smoke-workbench-pi-agent.ts && tsx tests/smoke-workbench-run-case.ts && tsx tests/smoke-workbench-models.ts && tsx tests/smoke-workbench-suite.ts && tsx tests/smoke-workbench-trials.ts && tsx tests/smoke-workbench-metrics.ts && tsx tests/smoke-workbench-reference-solutions.ts && tsx tests/smoke-skill-distribution.ts"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.66.1",

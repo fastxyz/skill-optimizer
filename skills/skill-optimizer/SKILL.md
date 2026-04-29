@@ -38,6 +38,24 @@ Rules:
 - `run-case` can use its case `model:` or `--model` / `--models`.
 - Docker image default is `skill-optimizer-workbench:local`.
 
+## Install This Skill
+
+This repository ships one canonical skill at `skills/skill-optimizer/SKILL.md` plus plugin metadata for Claude Code, OpenCode, Codex, Cursor, and Gemini.
+
+Install the skill for common agents with:
+
+```bash
+npx skills add fastxyz/skill-optimizer --skill skill-optimizer -a claude-code -a opencode -a codex -a cursor
+```
+
+Plugin entrypoints:
+
+- Claude Code: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+- OpenCode: `.opencode/plugins/skill-optimizer.js`
+- Codex: `.codex-plugin/plugin.json`
+- Cursor: `.cursor-plugin/plugin.json`
+- Gemini: `gemini-extension.json` and `GEMINI.md`
+
 ## Authoring Workflow
 
 1. Create `suite.yml` with `models`, shared defaults, and inline cases or case paths.
@@ -49,7 +67,7 @@ Rules:
 7. Run `verify-suite` before running models.
 8. Run `run-suite --trials <n>` and inspect `suite-result.json`, failing `result.json`, `summary.json`, and `trace.jsonl`.
 
-Variables listed in `env` are forwarded unchanged into setup, agent, grading, and cleanup containers. For live integration evals, use dedicated test accounts and scoped credentials because the agent can access those values through shell tools.
+Variables listed in `env` are forwarded unchanged into setup, agent, grading, and cleanup containers. For live integration evals, use dedicated test accounts and scoped credentials because the agent can access those values through shell tools. Treat `trace.jsonl`, `result.json`, grader evidence, stdout/stderr, and preserved `workspace/` directories as potentially sensitive if an agent or grader prints or writes secret values.
 
 Prefer the real CLI/API/service when you do not know its internal behavior well enough to mock it faithfully. Mock only when you are sure the mock matches the real command surface, validation, outputs, and failure modes; otherwise the eval will measure the mock, not the skill.
 

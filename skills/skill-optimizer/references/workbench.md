@@ -124,7 +124,7 @@ Suite fields:
 
 Inline case fields override suite defaults. External case files are loaded from their own file directory and do not inherit suite defaults.
 
-Environment variables listed in `env` are forwarded unchanged. This intentionally supports live integration evals such as authenticated CLI calls, but it also means the agent can read or print those values through shell tools. Use dedicated test accounts, least-privilege credentials, and cleanup routines for live systems.
+Environment variables listed in `env` are forwarded unchanged. This intentionally supports live integration evals such as authenticated CLI calls, but it also means the agent can read or print those values through shell tools. Use dedicated test accounts, least-privilege credentials, and cleanup routines for live systems. Treat `trace.jsonl`, `result.json`, grader evidence, stdout/stderr, and preserved `workspace/` directories as potentially sensitive if an agent or grader prints or writes secret values.
 
 ## Directory Layout
 

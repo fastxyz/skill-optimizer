@@ -12,12 +12,47 @@ The workbench gives an agent a skill/reference folder, an isolated `/work` direc
 
 Only `openrouter/...` model refs are supported.
 
-## Install
+## Local Install
 
 ```bash
 npm install
 npm run build
 ```
+
+## Agent Skill / Plugin Install
+
+The canonical Agent Skill is `skills/skill-optimizer/SKILL.md`. Install it for common agents with the open skills CLI:
+
+```bash
+npx skills add fastxyz/skill-optimizer --skill skill-optimizer -a claude-code -a opencode -a codex -a cursor
+```
+
+Claude Code plugin install:
+
+```text
+/plugin marketplace add fastxyz/skill-optimizer
+/plugin install skill-optimizer@skill-optimizer
+```
+
+OpenCode plugin install in `opencode.json`:
+
+```json
+{
+  "plugin": ["skill-optimizer@git+https://github.com/fastxyz/skill-optimizer.git"]
+}
+```
+
+Codex plugin install:
+
+```bash
+codex plugin marketplace add fastxyz/skill-optimizer
+```
+
+Then open `/plugins` and install `skill-optimizer`. See `docs/README.codex.md` for the skill-only Codex install path.
+
+Cursor can install the skill through the skills CLI command above or from GitHub via Settings -> Rules -> Project Rules -> Add Rule -> Remote Rule (Github). The Cursor plugin metadata lives at `.cursor-plugin/plugin.json`.
+
+Gemini extension metadata is provided by `gemini-extension.json`; it loads `GEMINI.md`, which references the canonical skill and workbench reference.
 
 ## Run One Case
 
@@ -116,7 +151,7 @@ The case file directory may include these support directories. In setup, grading
 
 The agent can modify only `/work`. Graders should live under `/case/checks` so the agent cannot edit them.
 
-Environment variables listed in `env` are available to the agent's shell tools unchanged, including credentials and tokens. Use dedicated test accounts and scoped credentials for live integration evals.
+Environment variables listed in `env` are available to the agent's shell tools unchanged, including credentials and tokens. Use dedicated test accounts and scoped credentials for live integration evals. Treat `trace.jsonl`, `result.json`, grader evidence, stdout/stderr, and preserved `workspace/` directories as potentially sensitive if an agent or grader prints or writes secret values.
 
 ## Outputs
 

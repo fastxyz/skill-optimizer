@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { createWorkbenchPiResourceLoader, createWorkbenchPiSession, createWorkbenchPiTools, stripSensitiveEnv } from '../src/workbench/pi-agent.js';
+
+function toolText(result: unknown): string {
+  const content = (result as { content?: Array<{ text?: string }> }).content ?? [];
+  return content.map((item) => item.text ?? '').join('');
+}
 
 test('createWorkbenchPiTools enables coding plus repo-scale search tools', () => {
   const tools = createWorkbenchPiTools('/work');
@@ -77,17 +82,51 @@ test('createWorkbenchPiResourceLoader appends suite prompt after workbench promp
   }
 });
 
-test('createWorkbenchPiResourceLoader relies on additional /work skills without post-filter override', () => {
-  const source = readFileSync('src/workbench/pi-agent.ts', 'utf-8');
+test('createWorkbenchPiTools passes process env through bash subprocesses', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-tool-env-'));
+  const previousSecret = process.env.WORKBENCH_AGENT_SECRET;
+  try {
+    process.env.WORKBENCH_AGENT_SECRET = 'agent-secret';
+    const bashTool = createWorkbenchPiTools(root).find((tool) => tool.name === 'bash');
+    assert.ok(bashTool);
 
-  assert.match(source, /noSkills: true/);
-  assert.doesNotMatch(source, /skillsOverride/);
+    const result = await bashTool.execute(
+      'call-1',
+      { command: 'printf "%s" "$WORKBENCH_AGENT_SECRET"', timeout: 5 },
+      new AbortController().signal,
+    );
+
+    assert.equal(toolText(result), 'agent-secret');
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.WORKBENCH_AGENT_SECRET;
+    } else {
+      process.env.WORKBENCH_AGENT_SECRET = previousSecret;
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test('createWorkbenchPiSession leaves runtime API key env available to tools', () => {
-  const source = readFileSync('src/workbench/pi-agent.ts', 'utf-8');
+test('createWorkbenchPiSession leaves runtime API key env available after session creation', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-session-env-'));
+  const previousApiKey = process.env.OPENROUTER_API_KEY;
+  try {
+    process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
+    const created = await createWorkbenchPiSession({
+      cwd: root,
+      modelRef: 'openrouter/google/gemini-2.5-flash',
+    });
 
-  assert.doesNotMatch(source, /delete process\.env\[apiKeyEnv\]/);
+    assert.equal(process.env.OPENROUTER_API_KEY, 'test-openrouter-key');
+    (created.session as { dispose?: () => void }).dispose?.();
+  } finally {
+    if (previousApiKey === undefined) {
+      delete process.env.OPENROUTER_API_KEY;
+    } else {
+      process.env.OPENROUTER_API_KEY = previousApiKey;
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('createWorkbenchPiSession rejects non-OpenRouter model refs', async () => {

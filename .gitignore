@@ -7,7 +7,10 @@ dist/
 
 # Cache directories
 .cache/
-.opencode/
+.opencode/*
+!.opencode/INSTALL.md
+!.opencode/plugins/
+!.opencode/plugins/skill-optimizer.js
 
 # Test results and benchmarks
 results/
