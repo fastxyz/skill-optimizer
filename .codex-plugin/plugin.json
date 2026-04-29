@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "description": "Agent skill eval workbench for authoring, running, and grading deterministic Docker-based skill cases.",
   "author": {
-    "name": "Pi2 Labs"
+    "name": "Fast"
   },
   "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
   "repository": "https://github.com/fastxyz/skill-optimizer",
@@ -20,7 +20,7 @@
     "displayName": "skill-optimizer",
     "shortDescription": "Author and run deterministic Docker evals for agent skills.",
     "longDescription": "Use skill-optimizer to create realistic agent skill eval cases, run OpenRouter model matrices in Docker, preflight reference solutions, inspect traces, and grade deterministic local outcomes.",
-    "developerName": "Pi2 Labs",
+    "developerName": "Fast",
     "category": "Coding",
     "capabilities": [
       "Read",

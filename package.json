@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "description": "Local Docker workbench for running and grading agent skill cases.",
   "license": "MIT",
-  "author": "Pi2 Labs",
+  "author": "Fast",
   "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
   "bugs": {
     "url": "https://github.com/fastxyz/skill-optimizer/issues"

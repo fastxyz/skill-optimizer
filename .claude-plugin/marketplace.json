@@ -2,7 +2,7 @@
   "name": "skill-optimizer",
   "description": "Plugin marketplace for the skill-optimizer eval workbench skill.",
   "owner": {
-    "name": "Pi2 Labs"
+    "name": "Fast"
   },
   "plugins": [
     {
@@ -11,7 +11,7 @@
       "version": "1.1.0",
       "source": "./",
       "author": {
-        "name": "Pi2 Labs"
+        "name": "Fast"
       },
       "skills": [
         "./skills/skill-optimizer"
