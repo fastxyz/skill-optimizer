@@ -31,6 +31,7 @@ test('package metadata exposes plugin and skill distribution files', () => {
   assert.equal(pkg.name, 'skill-optimizer');
   assert.equal(pkg.exports['./server'].import, './.opencode/plugins/skill-optimizer.js');
   assert.ok(pkg.files.includes('skills/'));
+  assert.ok(pkg.files.includes('.agents/plugins/marketplace.json'));
   assert.ok(pkg.files.includes('.claude-plugin/'));
   assert.ok(pkg.files.includes('.codex-plugin/'));
   assert.ok(pkg.files.includes('.cursor-plugin/'));
@@ -84,6 +85,23 @@ test('Codex and Cursor plugin metadata point at the canonical skill', () => {
     assert.equal(manifest.interface.displayName, 'skill-optimizer');
     assert.ok(manifest.interface.defaultPrompt.length > 0);
   }
+});
+
+test('Codex marketplace metadata exposes the root plugin with install policy', () => {
+  const marketplace = readJson('.agents/plugins/marketplace.json');
+
+  assert.equal(marketplace.name, 'skill-optimizer');
+  assert.equal(marketplace.interface.displayName, 'skill-optimizer');
+  assert.equal(marketplace.plugins.length, 1);
+
+  const plugin = marketplace.plugins[0];
+  assert.equal(plugin.name, 'skill-optimizer');
+  assert.deepEqual(plugin.source, { source: 'local', path: './' });
+  assert.deepEqual(plugin.policy, {
+    installation: 'AVAILABLE',
+    authentication: 'ON_INSTALL',
+  });
+  assert.equal(plugin.category, 'Coding');
 });
 
 test('OpenCode plugin registers the canonical skills directory', async () => {

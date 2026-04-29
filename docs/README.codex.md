@@ -12,7 +12,13 @@ codex plugin marketplace add fastxyz/skill-optimizer
 
 Open `/plugins`, select the `skill-optimizer` marketplace, and install the `skill-optimizer` plugin.
 
-The plugin manifest is `.codex-plugin/plugin.json`; bundled skills are read from `skills/`.
+Codex reads the repo marketplace from `.agents/plugins/marketplace.json`. That marketplace points at the repository root, where the plugin manifest lives at `.codex-plugin/plugin.json`; bundled skills are read from `skills/`.
+
+To pin a Git ref while installing the marketplace:
+
+```bash
+codex plugin marketplace add fastxyz/skill-optimizer --ref main
+```
 
 ## Skill-Only Install
 

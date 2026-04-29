@@ -35,6 +35,7 @@
     "examples/workbench/pdf/references/",
     "examples/workbench/pdf/solutions/",
     "skills/",
+    ".agents/plugins/marketplace.json",
     ".claude-plugin/",
     ".codex-plugin/",
     ".cursor-plugin/",
