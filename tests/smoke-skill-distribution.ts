@@ -29,6 +29,7 @@ test('package metadata exposes plugin and skill distribution files', () => {
   const pkg = readJson('package.json');
 
   assert.equal(pkg.name, 'skill-optimizer');
+  assert.equal(pkg.main, '.opencode/plugins/skill-optimizer.js');
   assert.equal(pkg.exports['./server'].import, './.opencode/plugins/skill-optimizer.js');
   assert.ok(pkg.files.includes('skills/'));
   assert.ok(pkg.files.includes('.agents/plugins/marketplace.json'));

@@ -14,4 +14,4 @@ Run a model trial:
 npx tsx src/cli.ts run-suite examples/workbench/mcp/suite.yml --trials 1
 ```
 
-The case asks the agent to use the `calculator` MCP server and write `answer.json`. The grader checks the computed answer and verifies that the trace contains separate bash calls to `mcp call calculator.add`, `calculator.multiply`, `calculator.subtract`, and `calculator.divide`.
+The case asks the agent to compute the expression and write `answer.json`. The grader checks the computed answer and verifies that the trace contains separate bash calls to `mcp call calculator.add`, `calculator.multiply`, `calculator.subtract`, and `calculator.divide`.

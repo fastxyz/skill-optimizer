@@ -20,6 +20,7 @@
     "workbench"
   ],
   "type": "module",
+  "main": ".opencode/plugins/skill-optimizer.js",
   "files": [
     "dist/",
     "docker/",
