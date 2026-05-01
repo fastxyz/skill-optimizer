@@ -4,6 +4,7 @@ export * from './process.js';
 export * from './check-runner.js';
 export * from './trace.js';
 export * from './models.js';
+export * from './mcp/index.js';
 export * from './pi-agent.js';
 export * from './docker-runner.js';
 export * from './run-case.js';

@@ -3,11 +3,47 @@ export interface WorkbenchGraderConfig {
   command: string;
 }
 
+export type WorkbenchMcpJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | WorkbenchMcpJsonValue[]
+  | { [key: string]: WorkbenchMcpJsonValue };
+
+export interface WorkbenchMcpServerConfig {
+  description?: string;
+  baseUrl?: string;
+  url?: string;
+  serverUrl?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  headers?: Record<string, string>;
+  allowedTools?: string[];
+  allowed_tools?: string[];
+  blockedTools?: string[];
+  blocked_tools?: string[];
+  [key: string]: WorkbenchMcpJsonValue | undefined;
+}
+
+export type WorkbenchMcpServersConfig = Record<string, WorkbenchMcpServerConfig>;
+
+export interface WorkbenchMcpServiceConfig {
+  command: string;
+  args: string[];
+  port?: number;
+}
+
+export type WorkbenchMcpServicesConfig = Record<string, WorkbenchMcpServiceConfig>;
+
 export interface WorkbenchCaseConfig {
   name: string;
   references: string;
   task: string;
   graders: WorkbenchGraderConfig[];
+  mcpServers?: WorkbenchMcpServersConfig;
+  mcpServices?: WorkbenchMcpServicesConfig;
   env?: string[];
   setup?: string[];
   cleanup?: string[];
@@ -22,6 +58,8 @@ export interface ResolvedWorkbenchCase {
   referencesDir: string;
   task: string;
   graders: WorkbenchGraderConfig[];
+  mcpServers: WorkbenchMcpServersConfig;
+  mcpServices: WorkbenchMcpServicesConfig;
   env: string[];
   setup: string[];
   cleanup: string[];

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { stringify as stringifyYaml } from 'yaml';
 
 import { loadWorkbenchCase } from './case-loader.js';
+import { MCPORTER_CONFIG_CONTAINER_PATH, writeWorkbenchMcpConfig } from './mcp/index.js';
 import { runShellCommand } from './process.js';
 import type { ResolvedWorkbenchCase, WorkbenchCaseConfig } from './types.js';
 import { timestampSlug } from './utils.js';
@@ -13,7 +14,7 @@ import { prepareWorkbenchDirectory } from './workspace.js';
 
 const DEFAULT_WORKBENCH_IMAGE = 'skill-optimizer-workbench:local';
 const AGENT_RESULTS_DIR = '/tmp/workbench-results';
-const AGENT_PATH = '/work/bin:/work/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
+const AGENT_PATH = '/work/bin:/app/node_modules/.bin:/work/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 export function packageRootFromModuleUrl(moduleUrl: string): string {
   return dirname(dirname(dirname(fileURLToPath(moduleUrl))));
@@ -40,6 +41,7 @@ export interface DockerWorkbenchRunResult {
   tracePath: string;
   summaryPath?: string;
   workspacePath?: string;
+  mcpConfigPath?: string;
   cleanup: () => void;
 }
 
@@ -81,10 +83,14 @@ export function buildDockerAgentCommand(params: {
   model: string;
   task: string;
   appendSystemPrompt?: string;
+  mcpConfigPath?: string;
+  networkName?: string;
   timeoutSeconds: number;
   envNames: string[];
 }): string {
   const envArgs = params.envNames.map((name) => `-e ${name}`).join(' ');
+  const mcpEnvArg = params.mcpConfigPath ? `-e MCPORTER_CONFIG=${params.mcpConfigPath}` : '';
+  const networkArg = params.networkName ? `--network ${shellQuote(params.networkName)}` : '';
   const taskBase64 = Buffer.from(params.task, 'utf-8').toString('base64');
   const appendSystemPromptBase64 = params.appendSystemPrompt
     ? Buffer.from(params.appendSystemPrompt, 'utf-8').toString('base64')
@@ -96,8 +102,10 @@ export function buildDockerAgentCommand(params: {
     '--workdir /work',
     `-e PATH=${AGENT_PATH}`,
     ...dockerCacheEnvFlags(),
+    networkArg,
     `-v ${shellQuote(`${params.workDir}:/work:rw`)}`,
     envArgs,
+    mcpEnvArg,
     shellQuote(params.image),
     '--agent',
     '--work /work',
@@ -106,9 +114,65 @@ export function buildDockerAgentCommand(params: {
     `--model ${shellQuote(params.model)}`,
     `--timeout-seconds ${params.timeoutSeconds}`,
     `--task-base64 ${shellQuote(taskBase64)}`,
+    params.mcpConfigPath ? `--mcp-config ${shellQuote(params.mcpConfigPath)}` : '',
     appendSystemPromptBase64
       ? `--append-system-prompt-base64 ${shellQuote(appendSystemPromptBase64)}`
       : '',
+  ].filter(Boolean).join(' ');
+}
+
+export function buildDockerMcpServiceCommand(params: {
+  image: string;
+  containerName: string;
+  networkName: string;
+  alias: string;
+  mcpDir: string;
+  command: string;
+  args: string[];
+  envNames?: string[];
+}): string {
+  const envArgs = (params.envNames ?? []).map((name) => `-e ${name}`).join(' ');
+  const serviceCommand = [params.command, ...params.args].map(shellQuote).join(' ');
+  return [
+    'docker run -d',
+    `--name ${shellQuote(params.containerName)}`,
+    ...dockerSandboxFlags(),
+    `--network ${shellQuote(params.networkName)}`,
+    `--network-alias ${shellQuote(params.alias)}`,
+    '--workdir /mcp',
+    `-v ${shellQuote(`${params.mcpDir}:/mcp:ro`)}`,
+    envArgs,
+    '--entrypoint /bin/sh',
+    shellQuote(params.image),
+    '-lc',
+    shellQuote(serviceCommand),
+  ].filter(Boolean).join(' ');
+}
+
+export function buildDockerMcpServiceProbeCommand(params: {
+  image: string;
+  networkName: string;
+  workDir: string;
+  serverName: string;
+}): string {
+  const probeCommand = [
+    '/app/node_modules/.bin/mcporter',
+    '--config /work/mcporter.json',
+    '--root /work',
+    'list',
+    shellQuote(params.serverName),
+    '--schema',
+  ].join(' ');
+  return [
+    'docker run --rm',
+    ...dockerSandboxFlags(),
+    `--network ${shellQuote(params.networkName)}`,
+    '--workdir /work',
+    `-v ${shellQuote(`${params.workDir}:/work:rw`)}`,
+    '--entrypoint /bin/sh',
+    shellQuote(params.image),
+    '-lc',
+    shellQuote(probeCommand),
   ].filter(Boolean).join(' ');
 }
 
@@ -204,6 +268,12 @@ function buildBundledCaseFile(params: {
   if (params.source.cleanup.length > 0) {
     bundled.cleanup = [...params.source.cleanup];
   }
+  if (Object.keys(params.source.mcpServers).length > 0) {
+    bundled.mcpServers = { ...params.source.mcpServers };
+  }
+  if (Object.keys(params.source.mcpServices).length > 0) {
+    bundled.mcpServices = { ...params.source.mcpServices };
+  }
 
   return bundled;
 }
@@ -227,8 +297,83 @@ function copyCaseSupportDir(sourceCaseDir: string, bundledCaseDir: string, name:
 }
 
 function copyCaseSupportDirs(sourceCaseDir: string, bundledCaseDir: string): void {
-  for (const name of ['checks', 'fixtures', 'bin', 'workspace']) {
+  for (const name of ['checks', 'fixtures', 'bin', 'workspace', 'mcp']) {
     copyCaseSupportDir(sourceCaseDir, bundledCaseDir, name);
+  }
+}
+
+function mcpNetworkName(tempDir: string): string {
+  return `skill-optimizer-mcp-${tempDir.split('/').pop() ?? 'run'}`;
+}
+
+async function createDockerNetwork(networkName: string, repoRoot: string): Promise<void> {
+  const create = await runShellCommand(`docker network create ${shellQuote(networkName)}`, { cwd: repoRoot });
+  if (create.exitCode !== 0) {
+    throw new Error(['Failed to create MCP Docker network', create.stdout.trim(), create.stderr.trim()].filter(Boolean).join('\n\n'));
+  }
+}
+
+async function removeDockerNetwork(networkName: string | undefined, repoRoot: string): Promise<void> {
+  if (!networkName) return;
+  await runShellCommand(`docker network rm ${shellQuote(networkName)}`, { cwd: repoRoot });
+}
+
+async function startMcpServices(params: {
+  image: string;
+  networkName: string;
+  caseDir: string;
+  tempDir: string;
+  services: ResolvedWorkbenchCase['mcpServices'];
+  envNames: string[];
+  repoRoot: string;
+}): Promise<string[]> {
+  const containerNames: string[] = [];
+  for (const [name, service] of Object.entries(params.services)) {
+    const containerName = `${mcpNetworkName(params.tempDir)}-${name}`;
+    console.log(`Starting MCP service ${name}...`);
+    const command = buildDockerMcpServiceCommand({
+      image: params.image,
+      containerName,
+      networkName: params.networkName,
+      alias: name,
+      mcpDir: join(params.caseDir, 'mcp'),
+      command: service.command,
+      args: service.args,
+      envNames: params.envNames,
+    });
+    const run = await runShellCommand(command, { cwd: params.repoRoot });
+    if (run.exitCode !== 0) {
+      throw new Error([`Failed to start MCP service ${name}`, run.stdout.trim(), run.stderr.trim()].filter(Boolean).join('\n\n'));
+    }
+    containerNames.push(containerName);
+  }
+  return containerNames;
+}
+
+async function waitForMcpServices(params: {
+  image: string;
+  networkName: string;
+  workDir: string;
+  services: ResolvedWorkbenchCase['mcpServices'];
+  repoRoot: string;
+}): Promise<void> {
+  for (const name of Object.keys(params.services)) {
+    console.log(`Waiting for MCP service ${name}...`);
+    const command = buildDockerMcpServiceProbeCommand({
+      image: params.image,
+      networkName: params.networkName,
+      workDir: params.workDir,
+      serverName: name,
+    });
+    const probe = await runShellCommand(command, { cwd: params.repoRoot, timeoutSeconds: 30 });
+    if (probe.exitCode !== 0) {
+      throw new Error([
+        `MCP service ${name} did not become ready`,
+        probe.stdout.trim(),
+        probe.stderr.trim(),
+      ].filter(Boolean).join('\n\n'));
+    }
+    console.log(`MCP service ${name} ready.`);
   }
 }
 
@@ -280,6 +425,7 @@ export function prepareDockerWorkbenchRun(
     modelOverride: options.model,
   });
   writeFileSync(bundledCasePath, `${stringifyYaml(bundledCase)}`, 'utf-8');
+  const mcpConfigPath = writeWorkbenchMcpConfig(resolvedCase, workDir);
 
   return {
     tempDir,
@@ -289,6 +435,7 @@ export function prepareDockerWorkbenchRun(
     resultsDir,
     resultPath: join(resultsDir, 'result.json'),
     tracePath: join(resultsDir, 'trace.jsonl'),
+    ...(mcpConfigPath ? { mcpConfigPath } : {}),
     cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
   };
 }
@@ -369,6 +516,8 @@ export async function runDockerWorkbenchCase(
   const resolvedCase = resolveDockerWorkbenchCase(options);
   const prepared = prepareDockerWorkbenchRun({ ...options, case: resolvedCase });
   const containerName = agentContainerName(prepared.tempDir);
+  const networkName = Object.keys(resolvedCase.mcpServices).length > 0 ? mcpNetworkName(prepared.tempDir) : undefined;
+  let mcpServiceContainers: string[] = [];
 
   try {
     await ensureDockerImage(image, repoRoot);
@@ -400,6 +549,26 @@ export async function runDockerWorkbenchCase(
       }
     }
 
+    if (networkName) {
+      await createDockerNetwork(networkName, repoRoot);
+      mcpServiceContainers = await startMcpServices({
+        image,
+        networkName,
+        caseDir: prepared.caseDir,
+        tempDir: prepared.tempDir,
+        services: resolvedCase.mcpServices,
+        envNames,
+        repoRoot,
+      });
+      await waitForMcpServices({
+        image,
+        networkName,
+        workDir: prepared.workDir,
+        services: resolvedCase.mcpServices,
+        repoRoot,
+      });
+    }
+
     const agentCommand = buildDockerAgentCommand({
       image,
       containerName,
@@ -408,6 +577,8 @@ export async function runDockerWorkbenchCase(
       model: options.model ?? resolvedCase.model,
       task: resolvedCase.task,
       appendSystemPrompt: options.appendSystemPrompt,
+      mcpConfigPath: prepared.mcpConfigPath ? MCPORTER_CONFIG_CONTAINER_PATH : undefined,
+      networkName,
       timeoutSeconds: resolvedCase.timeoutSeconds,
       envNames,
     });
@@ -444,6 +615,8 @@ export async function runDockerWorkbenchCase(
     return copyWorkspaceIfRequested(prepared, options.keepWorkspace);
   } finally {
     await removeContainer(containerName, repoRoot);
+    await Promise.all(mcpServiceContainers.map((name) => removeContainer(name, repoRoot)));
+    await removeDockerNetwork(networkName, repoRoot);
     prepared.cleanup();
   }
 }

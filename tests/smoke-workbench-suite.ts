@@ -68,6 +68,54 @@ test('loadWorkbenchSuite supports inline cases with suite defaults', () => {
   }
 });
 
+test('loadWorkbenchSuite applies and merges MCP defaults for inline cases', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-mcp-'));
+  try {
+    const suitePath = join(root, 'suite.yml');
+    mkdirSync(join(root, 'references'), { recursive: true });
+    writeFileSync(join(root, 'references', 'SKILL.md'), '# Skill\n', 'utf-8');
+    writeFileSync(suitePath, [
+      'name: mcp-suite',
+      'references: ./references',
+      'models:',
+      '  - openrouter/google/gemini-2.5-flash',
+      'mcpServers:',
+      '  context7:',
+      '    baseUrl: https://mcp.context7.com/mcp',
+      '  local-tools:',
+      '    command: node',
+      '    args:',
+      '      - mcp/default-server.mjs',
+      'cases:',
+      '  - name: mcp-inline',
+      '    task: Use MCP.',
+      '    mcpServers:',
+      '      context7:',
+      '        baseUrl: https://example.test/mcp',
+      '        allowedTools:',
+      '          - lookup',
+      '    graders:',
+      '      - name: output',
+      '        command: test -f answer.json',
+    ].join('\n'), 'utf-8');
+
+    const suite = loadWorkbenchSuite(suitePath);
+
+    assert.deepEqual(suite.cases[0]?.case?.mcpServers, {
+      context7: {
+        baseUrl: 'https://example.test/mcp',
+        allowedTools: ['lookup'],
+      },
+      'local-tools': {
+        command: 'node',
+        args: ['mcp/default-server.mjs'],
+      },
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('loadWorkbenchSuite reads suite appendSystemPrompt', () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-prompt-'));
   try {

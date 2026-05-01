@@ -82,6 +82,23 @@ test('createWorkbenchPiResourceLoader appends suite prompt after workbench promp
   }
 });
 
+test('createWorkbenchPiResourceLoader documents MCP command when configured', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-mcp-prompt-'));
+  try {
+    const loader = await createWorkbenchPiResourceLoader({
+      cwd: root,
+      mcpConfigPath: '/work/mcporter.json',
+    });
+
+    const appended = loader.getAppendSystemPrompt().join('\n\n');
+    assert.match(appended, /`mcp` is available on PATH/);
+    assert.match(appended, /Run `mcp list <server> --schema`/);
+    assert.doesNotMatch(appended, /calculator\.add/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('createWorkbenchPiTools passes process env through bash subprocesses', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-tool-env-'));
   const previousSecret = process.env.WORKBENCH_AGENT_SECRET;

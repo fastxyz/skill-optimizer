@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import {
   buildAgentSystemPrompt,
   buildContainerWorkbenchEnv,
+  parseContainerRunnerArgs,
   prepareWorkbenchDirectory,
   runAgentPromptWithTimeout,
   writeBestEffortTrace,
@@ -84,6 +85,22 @@ test('prepareWorkbenchDirectory copies references then optional workspace seed',
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('parseContainerRunnerArgs reads optional MCP config path for agent mode', () => {
+  const parsed = parseContainerRunnerArgs([
+    '--agent',
+    '--case-name', 'mcp-case',
+    '--model', 'openrouter/google/gemini-2.5-flash',
+    '--task-base64', Buffer.from('Use MCP.', 'utf-8').toString('base64'),
+    '--timeout-seconds', '600',
+    '--work', '/work',
+    '--results', '/tmp/workbench-results',
+    '--mcp-config', '/work/mcporter.json',
+  ]);
+
+  assert.equal(parsed.mode, 'agent');
+  assert.equal(parsed.mcpConfigPath, '/work/mcporter.json');
 });
 
 test('runAgentPromptWithTimeout rejects when agent exceeds timeout', async () => {

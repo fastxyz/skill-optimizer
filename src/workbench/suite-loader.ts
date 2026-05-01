@@ -3,9 +3,9 @@ import { basename, dirname, extname, resolve } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
-import { resolveWorkbenchCaseConfig } from './case-loader.js';
+import { readMcpServers, readMcpServices, resolveWorkbenchCaseConfig } from './case-loader.js';
 import { ensureOpenRouterModelRef } from './models.js';
-import type { ResolvedWorkbenchCase } from './types.js';
+import type { ResolvedWorkbenchCase, WorkbenchMcpServersConfig, WorkbenchMcpServicesConfig } from './types.js';
 import { slugPathSegment } from './utils.js';
 
 export interface ResolvedWorkbenchSuiteCase {
@@ -68,6 +68,8 @@ interface SuiteCaseDefaults {
   env: string[];
   setup: string[];
   cleanup: string[];
+  mcpServers: WorkbenchMcpServersConfig;
+  mcpServices: WorkbenchMcpServicesConfig;
   timeoutSeconds?: number;
 }
 
@@ -81,6 +83,8 @@ function readSuiteCaseDefaults(parsed: Record<string, unknown>, configPath: stri
     env: readStringArray(parsed, 'env', configPath, true),
     setup: readStringArray(parsed, 'setup', configPath, true),
     cleanup: readStringArray(parsed, 'cleanup', configPath, true),
+    mcpServers: readMcpServers(parsed, configPath),
+    mcpServices: readMcpServices(parsed, configPath),
     timeoutSeconds: readOptionalTimeoutSeconds(parsed, configPath),
   };
 }
@@ -97,7 +101,7 @@ function resolveSuiteCase(
     return { slug: caseSlugFromPath(path), path };
   }
 
-  const inlineConfig = applySuiteDefaults(entry, defaults);
+  const inlineConfig = applySuiteDefaults(entry, defaults, `${suitePath}#cases[${index}]`);
   const resolvedCase = resolveWorkbenchCaseConfig(inlineConfig, `${suitePath}#cases[${index}]`, suiteDir);
   return { slug: slugPathSegment(resolvedCase.name), case: resolvedCase };
 }
@@ -105,14 +109,34 @@ function resolveSuiteCase(
 function applySuiteDefaults(
   entry: Record<string, unknown>,
   defaults: SuiteCaseDefaults,
+  configPath: string,
 ): Record<string, unknown> {
+  const entryMcpServers = entry.mcpServers === undefined
+    ? {}
+    : readMcpServers({ mcpServers: entry.mcpServers }, configPath);
+  const mcpServers = {
+    ...defaults.mcpServers,
+    ...entryMcpServers,
+  };
+  const entryMcpServices = entry.mcpServices === undefined
+    ? {}
+    : readMcpServices({ mcpServices: entry.mcpServices }, configPath);
+  const mcpServices = {
+    ...defaults.mcpServices,
+    ...entryMcpServices,
+  };
+
   return {
     references: defaults.references,
     ...(defaults.env.length > 0 ? { env: defaults.env } : {}),
     ...(defaults.setup.length > 0 ? { setup: defaults.setup } : {}),
     ...(defaults.cleanup.length > 0 ? { cleanup: defaults.cleanup } : {}),
+    ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),
+    ...(Object.keys(mcpServices).length > 0 ? { mcpServices } : {}),
     ...(defaults.timeoutSeconds !== undefined ? { timeoutSeconds: defaults.timeoutSeconds } : {}),
     ...entry,
+    ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),
+    ...(Object.keys(mcpServices).length > 0 ? { mcpServices } : {}),
   };
 }
 

@@ -77,6 +77,134 @@ test('JSON case loads', () => {
   }
 });
 
+test('YAML case loads MCP server definitions', () => {
+  const root = makeTempCaseDir('skill-workbench-mcp-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: mcp-docs',
+      'references: ./references',
+      'task: Use the configured MCP docs server.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'env:',
+      '  - CONTEXT7_API_KEY',
+      'mcpServers:',
+      '  context7:',
+      '    baseUrl: https://mcp.context7.com/mcp',
+      '    headers:',
+      '      Authorization: "Bearer ${CONTEXT7_API_KEY}"',
+      '  local-tools:',
+      '    command: node',
+      '    args:',
+      '      - mcp/local-server.mjs',
+      '    env:',
+      '      FIXTURE_TOKEN: "${FIXTURE_TOKEN}"',
+    ].join('\n'));
+
+    const loaded = loadWorkbenchCase(casePath);
+
+    assert.deepEqual(loaded.mcpServers, {
+      context7: {
+        baseUrl: 'https://mcp.context7.com/mcp',
+        headers: {
+          Authorization: 'Bearer ${CONTEXT7_API_KEY}',
+        },
+      },
+      'local-tools': {
+        command: 'node',
+        args: ['mcp/local-server.mjs'],
+        env: {
+          FIXTURE_TOKEN: '${FIXTURE_TOKEN}',
+        },
+      },
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('invalid MCP server without transport throws', () => {
+  const root = makeTempCaseDir('skill-workbench-invalid-mcp-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: mcp-docs',
+      'references: ./references',
+      'task: Use MCP.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'mcpServers:',
+      '  missing-transport:',
+      '    description: Missing URL or command',
+    ].join('\n'));
+
+    assert.throws(
+      () => loadWorkbenchCase(casePath),
+      /field "mcpServers" server "missing-transport" must define a non-empty url, baseUrl, serverUrl, or command/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('MCP service without matching MCP server throws', () => {
+  const root = makeTempCaseDir('skill-workbench-invalid-mcp-service-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: mcp-docs',
+      'references: ./references',
+      'task: Use MCP.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'mcpServices:',
+      '  calculator:',
+      '    command: node',
+      '    args:',
+      '      - calculator-server.mjs',
+    ].join('\n'));
+
+    assert.throws(
+      () => loadWorkbenchCase(casePath),
+      /field "mcpServices" service "calculator" requires a matching "mcpServers" entry/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('invalid MCP service command reports mcpServices field', () => {
+  const root = makeTempCaseDir('skill-workbench-invalid-mcp-service-command-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: mcp-docs',
+      'references: ./references',
+      'task: Use MCP.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'mcpServers:',
+      '  calculator:',
+      '    baseUrl: http://calculator:3000/mcp',
+      'mcpServices:',
+      '  calculator:',
+      '    command: ""',
+    ].join('\n'));
+
+    assert.throws(
+      () => loadWorkbenchCase(casePath),
+      /field "mcpServices" service "calculator" command must be a non-empty string/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('defaults are applied', () => {
   const root = makeTempCaseDir('skill-workbench-defaults-');
   try {

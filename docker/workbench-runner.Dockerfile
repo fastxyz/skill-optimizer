@@ -1,6 +1,6 @@
 FROM node:22-bookworm
 
-ENV PATH="/work/.venv/bin:${PATH}" \
+ENV PATH="/app/node_modules/.bin:/work/.venv/bin:${PATH}" \
     PIP_REQUIRE_VIRTUALENV=1
 
 WORKDIR /app

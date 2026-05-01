@@ -1,27 +1,17 @@
 # skill-optimizer
 
-Docker workbench for running and grading agent skill cases.
+Docker workbench and Agent Skill for running deterministic evals against agent skills.
 
-The workbench gives an agent a skill/reference folder, an isolated `/work` directory, and deterministic graders. It is designed for evals where success can be verified from files, command logs, SQL, generated outputs, or other local state.
+Use this repo in two ways:
 
-## Requirements
+- Install the `skill-optimizer` skill/plugin into your agent so it can author and debug eval suites.
+- Run the local CLI to execute cases and suites in Docker against OpenRouter models.
 
-- Node.js 20+
-- Docker
-- `OPENROUTER_API_KEY` for real agent runs
+## Install For Agents
 
-Only `openrouter/...` model refs are supported.
+The canonical skill is `skills/skill-optimizer/SKILL.md`. Plugin metadata points at that same file for every supported agent.
 
-## Local Install
-
-```bash
-npm install
-npm run build
-```
-
-## Agent Skill / Plugin Install
-
-The canonical Agent Skill is `skills/skill-optimizer/SKILL.md`. Install it for common agents with the open skills CLI:
+Install the skill for common agents with the open skills CLI:
 
 ```bash
 npx skills add fastxyz/skill-optimizer --skill skill-optimizer -a claude-code -a opencode -a codex -a cursor
@@ -42,180 +32,89 @@ OpenCode plugin install in `opencode.json`:
 }
 ```
 
+See `docs/README.opencode.md` for OpenCode details.
+
 Codex plugin install:
 
 ```bash
 codex plugin marketplace add fastxyz/skill-optimizer
 ```
 
-Then open `/plugins` and install `skill-optimizer`. See `docs/README.codex.md` for the skill-only Codex install path.
+Then open `/plugins` and install `skill-optimizer`. See `docs/README.codex.md` for the skill-only Codex path.
 
 Cursor can install the skill through the skills CLI command above or from GitHub via Settings -> Rules -> Project Rules -> Add Rule -> Remote Rule (Github). The Cursor plugin metadata lives at `.cursor-plugin/plugin.json`.
 
 Gemini extension metadata is provided by `gemini-extension.json`; it loads `GEMINI.md`, which references the canonical skill and workbench reference.
 
-## Run One Case
+## Local CLI Setup
+
+Requirements:
+
+- Node.js 20+
+- Docker
+- `OPENROUTER_API_KEY` for real model runs
+
+Install and build:
 
 ```bash
-npx tsx src/cli.ts run-case ./case.yml
+npm install
+npm run build
 ```
 
-Run a case against multiple models:
+Only `openrouter/...` model refs are supported.
+
+## Quick Start
+
+Verify a suite's fixtures, reference solutions, and graders without calling a model:
 
 ```bash
-npx tsx src/cli.ts run-case ./case.yml \
-  --models openrouter/google/gemini-2.5-flash,openrouter/openai/gpt-5.4 \
-  --trials 3 \
-  --concurrency 2
+npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
 ```
 
-Useful options:
-
-- `--out <path>`: results root, default `<case-dir>/.results`
-- `--model <model>`: single model override
-- `--models <models>`: comma-separated OpenRouter model refs
-- `--trials <n>`: independent trials per model, default `1`
-- `--concurrency <n>`: maximum concurrent trial containers, default `1`
-- `--image <image>`: Docker image name, default `skill-optimizer-workbench:local`
-- `--keep-workspace`: copy final `/work` to results; failed trials are always preserved
-
-## Run A Suite
+Run the suite against the models listed in `suite.yml`:
 
 ```bash
-npx tsx src/cli.ts run-suite ./suite.yml
+npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
 ```
 
-Example `suite.yml`:
-
-```yaml
-name: supabase-postgres-best-practices
-appendSystemPrompt: |
-  Prefer simple, deterministic shell commands when possible.
-models:
-  - openrouter/google/gemini-2.5-flash
-  - openrouter/openai/gpt-5.4
-cases:
-  - cases/missing-index/case.yml
-  - cases/partial-index/case.yml
-```
-
-`run-suite` executes the full `cases x models x trials` matrix. Models are defined in `suite.yml`. Use `--trials <n>` to run independent trials per case/model and report trial pass rate, pass@k, pass^k, and mean score. Use `--concurrency <n>` to run independent trial containers in parallel.
-
-Suites may include `appendSystemPrompt` to add suite-wide instructions after the workbench's default operating-environment prompt. This applies to every case in the suite.
-
-## Case Format
-
-```yaml
-name: pdf-merge
-references: ./references
-task: |
-  Merge /work/inputs/cover.pdf and /work/inputs/body.pdf into /work/outputs/book.pdf.
-graders:
-  - name: output-exists
-    command: node $CASE/checks/output-exists.mjs
-  - name: merged-content
-    command: node $CASE/checks/merged-content.mjs
-setup:
-  - npm install
-  - node scripts/create-inputs.mjs
-cleanup: []
-env:
-  - OPENROUTER_API_KEY
-model: openrouter/google/gemini-2.5-flash
-timeoutSeconds: 600
-```
-
-Required fields:
-
-- `name`: case name
-- `references`: directory copied into `/work` before the agent runs
-- `task`: prompt task given to the agent
-- `graders`: commands run after the agent finishes; every grader must pass for the case to pass
-
-Optional fields:
-
-- `setup`: commands run in `/work` before the agent, with `/case` mounted read-only for fixtures/check helpers
-- `cleanup`: commands run after grading
-- `env`: host environment variable names passed into setup, agent, grading, and cleanup containers
-- `model`: default model for single-case runs
-- `timeoutSeconds`: agent timeout, default `600`
-
-## Case Directories
-
-The case file directory may include these support directories. In setup, grading, and cleanup commands, `$CASE` is exactly the mounted case directory at `/case`; these are just optional directories under it.
-
-- `checks/`: copied read-only to `/case/checks`; use for graders
-- `fixtures/`: copied read-only to `/case/fixtures`; use for immutable inputs
-- `bin/`: copied read-only to `/case/bin` and prepended to `PATH`; use for fixture CLIs like `gws`
-- `workspace/`: copied into `/work` after references; use to seed an app repo or starter files
-
-The agent can modify only `/work`. Graders should live under `/case/checks` so the agent cannot edit them.
-
-Environment variables listed in `env` are available to the agent's shell tools unchanged, including credentials and tokens. Use dedicated test accounts and scoped credentials for live integration evals. Treat `trace.jsonl`, `result.json`, grader evidence, stdout/stderr, and preserved `workspace/` directories as potentially sensitive if an agent or grader prints or writes secret values.
-
-## Outputs
-
-Single-model `run-case`:
-
-```text
-case/.results/<run-id>/
-  trace.jsonl
-  result.json
-  workspace/        # on failure or --keep-workspace
-```
-
-Multi-model `run-case`:
-
-```text
-case/.results/<run-id>/
-  trials/<model-slug>--001/trace.jsonl
-  trials/<model-slug>--001/result.json
-  run-result.json
-```
-
-`run-suite`:
-
-```text
-suite/.results/<run-id>/
-  trials/<case-slug>--<model-slug>--001/trace.jsonl
-  trials/<case-slug>--<model-slug>--001/result.json
-  suite-result.json
-```
-
-`trace.jsonl` is the primary agent-loop trace. `result.json` contains `pass`, `score`, `evidence`, per-grader results, and trace-derived metrics. A case passes only when every grader passes; the top-level score is the fraction of graders that passed. Aggregates include trial pass rate, pass@k, pass^k, mean score, and relative paths to each trace/result.
-
-## Suite Validation
-
-Suites can include authored reference solutions. These run through the same graders as model attempts, proving that the task is solvable and that the graders can accept a known-good solution before running models.
+Run one case directly:
 
 ```bash
-npx tsx src/cli.ts verify-suite ./suite.yml
+npx tsx src/cli.ts run-case ./case.yml --model openrouter/google/gemini-2.5-flash
 ```
 
-`verify-suite` is a dry preflight: it prints the reference grade to stdout and does not write a `.results` run.
+CLI help:
 
-Reference solution convention:
-
-```text
-solutions/<case-slug>/solution.sh
+```bash
+npx tsx src/cli.ts --help
+npx tsx src/cli.ts run-case --help
+npx tsx src/cli.ts run-suite --help
+npx tsx src/cli.ts verify-suite --help
 ```
 
-## Grader Patterns
+## How The Workbench Works
 
-For CLI skills, put a fixture executable in `bin/` that records invocations to `$WORK/*.json`, then grade command names, flags, JSON bodies, saved outputs, and safety behavior as separate graders where useful.
+The workbench gives an agent a skill/reference folder, an isolated `/work` directory, and deterministic graders. It is designed for evals where success can be verified from files, command logs, SQL, generated artifacts, or other local state.
 
-For SQL skills, ask the agent to write `solution.sql`, then check it statically or execute it against a disposable local database from `checks/`.
+Core concepts:
 
-For file-output skills, check output validity directly: PDF page counts, DOCX/PPTX/XLSX structure, browser console output, screenshot properties, or file hashes.
+- A case is one user-like task plus one or more graders.
+- A suite is a matrix of cases and OpenRouter models.
+- `references/` is copied into `/work`; this is where the skill under test lives.
+- The agent phase sees only `/work`, not graders, fixtures, hidden answers, `/case`, or `/results`.
+- Graders run after the agent with `$CASE`, `$WORK`, and `$RESULTS` available.
+- `solutions/<case-slug>/solution.sh` is an optional known-good producer used by `verify-suite`; it is not the answer key.
 
-For negative cases, grade `trace.jsonl` directly. For example, a task that should not need the PDF skill can fail when `trace.jsonl` contains a `read` tool call for `/work/pdf-skill/SKILL.md`.
+Read `docs/workbench.md` for the full model: directory layout, Docker phases, graders, reference solutions, outputs, and debugging.
 
 ## Examples
 
-Tracked examples live under `examples/workbench/`. The PDF example includes positive PDF extraction/splitting/creation cases and a negative case that checks the agent did not read the PDF skill file for a non-PDF task.
+Tracked examples live under `examples/workbench/`. The PDF example includes positive PDF extraction/splitting/creation cases and a negative case that checks the agent did not read the PDF skill file for a non-PDF task. The MCP example shows a local calculator server started as a hidden Docker service and exposed through the workbench `mcp` command.
 
 ```bash
-npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml
+npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
+npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
+npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
 ```
 
 ## Development
@@ -223,11 +122,14 @@ npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml
 ```bash
 npm run typecheck
 npm test
+npm run build
 npx tsx src/cli.ts --help
 ```
 
-Run authored reference solutions for a local suite:
+For Docker runner or image changes:
 
 ```bash
-npx tsx src/cli.ts verify-suite ./suite.yml
+docker build -t skill-optimizer-workbench:local -f docker/workbench-runner.Dockerfile .
 ```
+
+Do not commit `.skill-eval/`, `.results/`, `.env`, or credentials.

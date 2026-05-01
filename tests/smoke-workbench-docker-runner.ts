@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import {
   buildDockerAgentCommand,
   buildDockerGradeCommand,
+  buildDockerMcpServiceCommand,
+  buildDockerMcpServiceProbeCommand,
   buildDockerSetupCommand,
   packageRootFromModuleUrl,
   prepareDockerWorkbenchRun,
@@ -30,7 +32,7 @@ test('workbench image runs agents as non-root with venv-only pip installs', () =
   assert.match(dockerfile, /USER agent/);
   assert.match(dockerfile, /ENTRYPOINT \["node", "\/app\/dist\/workbench\/container-runner\.js"\]/);
   assert.match(dockerfile, /PIP_REQUIRE_VIRTUALENV=1/);
-  assert.match(dockerfile, /PATH="\/work\/\.venv\/bin:/);
+  assert.match(dockerfile, /PATH="\/app\/node_modules\/\.bin:\/work\/\.venv\/bin:/);
   assert.doesNotMatch(dockerfile, /PIP_BREAK_SYSTEM_PACKAGES/);
 });
 
@@ -110,6 +112,7 @@ test('prepareDockerWorkbenchRun bundles case support directories', () => {
     assert.ok(existsSync(join(prepared.caseDir, 'checks', 'check.mjs')));
     assert.ok(existsSync(join(prepared.caseDir, 'fixtures', 'input.json')));
     assert.ok(existsSync(join(prepared.caseDir, 'bin', 'fixture-tool')));
+    assert.equal(existsSync(join(prepared.caseDir, 'mcp')), false);
     assert.ok(existsSync(join(prepared.caseDir, 'workspace', 'seed.txt')));
     assert.ok(existsSync(join(prepared.workDir, 'SKILL.md')));
     assert.ok(existsSync(join(prepared.workDir, 'seed.txt')));
@@ -117,6 +120,103 @@ test('prepareDockerWorkbenchRun bundles case support directories', () => {
     assert.equal(existsSync(join(prepared.workDir, 'case.yml')), false);
     assert.equal(existsSync(join(prepared.workDir, 'checks', 'check.mjs')), false);
     assert.equal(existsSync(join(prepared.workDir, 'fixtures', 'input.json')), false);
+    prepared.cleanup();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('prepareDockerWorkbenchRun writes isolated mcporter config for MCP servers', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-mcp-bundle-'));
+  try {
+    const sourceCaseDir = join(root, 'source-case');
+    mkdirSync(join(sourceCaseDir, 'references'), { recursive: true });
+    writeFileSync(join(sourceCaseDir, 'references', 'SKILL.md'), '# Test Skill\n', 'utf-8');
+    writeFileSync(join(sourceCaseDir, 'case.yml'), [
+      'name: mcp-case',
+      'references: ./references',
+      'task: Use MCP.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'mcpServers:',
+      '  local-tools:',
+      '    command: node',
+      '    args:',
+      '      - mcp/server.mjs',
+      '  context7:',
+      '    baseUrl: https://mcp.context7.com/mcp',
+    ].join('\n'));
+
+    const prepared = prepareDockerWorkbenchRun({
+      casePath: join(sourceCaseDir, 'case.yml'),
+      tempRoot: join(root, 'temp'),
+      now: new Date('2026-04-27T10:11:12.000Z'),
+    });
+
+    assert.equal(prepared.mcpConfigPath, join(prepared.workDir, 'mcporter.json'));
+    assert.ok(existsSync(prepared.mcpConfigPath));
+    assert.ok(existsSync(join(prepared.workDir, 'bin', 'mcp')));
+    const mcpCommand = readFileSync(join(prepared.workDir, 'bin', 'mcp'), 'utf-8');
+    assert.match(mcpCommand, /mcporter --config "\$MCPORTER_CONFIG" --root \/work "\$@"/);
+    const mcporterConfig = JSON.parse(readFileSync(prepared.mcpConfigPath, 'utf-8')) as unknown;
+    assert.deepEqual(mcporterConfig, {
+      imports: [],
+      mcpServers: {
+        'local-tools': {
+          command: 'node',
+          args: ['mcp/server.mjs'],
+        },
+        context7: {
+          baseUrl: 'https://mcp.context7.com/mcp',
+        },
+      },
+    });
+
+    const bundledCase = readFileSync(prepared.bundledCasePath, 'utf-8');
+    assert.match(bundledCase, /mcpServers:/);
+    assert.match(bundledCase, /local-tools:/);
+    prepared.cleanup();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('prepareDockerWorkbenchRun bundles hidden MCP service support outside work', () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-mcp-service-'));
+  try {
+    const sourceCaseDir = join(root, 'source-case');
+    mkdirSync(join(sourceCaseDir, 'references'), { recursive: true });
+    mkdirSync(join(sourceCaseDir, 'mcp'), { recursive: true });
+    writeFileSync(join(sourceCaseDir, 'references', 'SKILL.md'), '# Test Skill\n', 'utf-8');
+    writeFileSync(join(sourceCaseDir, 'mcp', 'server.mjs'), 'console.log("mcp");\n', 'utf-8');
+    writeFileSync(join(sourceCaseDir, 'case.yml'), [
+      'name: mcp-service-case',
+      'references: ./references',
+      'task: Use MCP.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'mcpServices:',
+      '  calculator:',
+      '    command: node',
+      '    args:',
+      '      - server.mjs',
+      '    port: 3000',
+      'mcpServers:',
+      '  calculator:',
+      '    baseUrl: http://calculator:3000/mcp',
+    ].join('\n'));
+
+    const prepared = prepareDockerWorkbenchRun({
+      casePath: join(sourceCaseDir, 'case.yml'),
+      tempRoot: join(root, 'temp'),
+      now: new Date('2026-04-27T10:11:12.000Z'),
+    });
+
+    assert.ok(existsSync(join(prepared.caseDir, 'mcp', 'server.mjs')));
+    assert.equal(existsSync(join(prepared.workDir, 'server.mjs')), false);
+    assert.equal(existsSync(join(prepared.workDir, 'mcp', 'server.mjs')), false);
     prepared.cleanup();
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -154,7 +254,7 @@ test('agent docker command mounts only work and uses sandbox hardening flags', (
   assert.match(command, /--name 'skill-optimizer-agent-test'/);
   assert.match(command, /-v '\/tmp\/work:\/work:rw'/);
   assert.match(command, /--workdir \/work/);
-  assert.match(command, /-e PATH=\/work\/bin:\/work\/\.venv\/bin:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin/);
+  assert.match(command, /-e PATH=\/work\/bin:\/app\/node_modules\/\.bin:\/work\/\.venv\/bin:\/usr\/local\/sbin:\/usr\/local\/bin:\/usr\/sbin:\/usr\/bin:\/sbin:\/bin/);
   assert.match(command, /--cap-drop=ALL/);
   assert.match(command, /--security-opt no-new-privileges/);
   assert.match(command, /-e OPENROUTER_API_KEY/);
@@ -178,6 +278,71 @@ test('agent docker command passes optional appended system prompt', () => {
 
   assert.match(command, /--append-system-prompt-base64/);
   assert.match(command, new RegExp(Buffer.from('Prefer simple shell commands when possible.', 'utf-8').toString('base64')));
+});
+
+test('agent docker command passes optional MCP config path', () => {
+  const command = buildDockerAgentCommand({
+    image: 'skill-optimizer-workbench:local',
+    containerName: 'skill-optimizer-agent-test',
+    workDir: '/tmp/work',
+    caseName: 'mcp-case',
+    model: 'openrouter/google/gemini-2.5-flash',
+    task: 'Use MCP.',
+    timeoutSeconds: 600,
+    envNames: [],
+    mcpConfigPath: '/work/mcporter.json',
+  });
+
+  assert.match(command, /-e MCPORTER_CONFIG=\/work\/mcporter\.json/);
+  assert.match(command, /--mcp-config '\/work\/mcporter\.json'/);
+});
+
+test('agent docker command joins optional MCP network', () => {
+  const command = buildDockerAgentCommand({
+    image: 'skill-optimizer-workbench:local',
+    containerName: 'skill-optimizer-agent-test',
+    workDir: '/tmp/work',
+    caseName: 'mcp-case',
+    model: 'openrouter/google/gemini-2.5-flash',
+    task: 'Use MCP.',
+    timeoutSeconds: 600,
+    envNames: [],
+    networkName: 'skill-optimizer-mcp-test',
+  });
+
+  assert.match(command, /--network 'skill-optimizer-mcp-test'/);
+});
+
+test('MCP service docker command mounts hidden service files outside agent work', () => {
+  const command = buildDockerMcpServiceCommand({
+    image: 'skill-optimizer-workbench:local',
+    containerName: 'skill-optimizer-mcp-test-calculator',
+    networkName: 'skill-optimizer-mcp-test',
+    alias: 'calculator',
+    mcpDir: '/tmp/case/mcp',
+    command: 'node',
+    args: ['server.mjs'],
+  });
+
+  assert.match(command, /-v '\/tmp\/case\/mcp:\/mcp:ro'/);
+  assert.match(command, /--workdir \/mcp/);
+  assert.match(command, /--network-alias 'calculator'/);
+  assert.doesNotMatch(command, /\/work/);
+});
+
+test('MCP service probe command verifies service through mcporter on private network', () => {
+  const command = buildDockerMcpServiceProbeCommand({
+    image: 'skill-optimizer-workbench:local',
+    networkName: 'skill-optimizer-mcp-test',
+    workDir: '/tmp/work',
+    serverName: 'calculator',
+  });
+
+  assert.match(command, /--network 'skill-optimizer-mcp-test'/);
+  assert.match(command, /-v '\/tmp\/work:\/work:rw'/);
+  assert.match(command, /mcporter --config \/work\/mcporter\.json --root \/work list/);
+  assert.match(command, /calculator/);
+  assert.match(command, /--schema/);
 });
 
 test('grade docker command mounts case after agent phase', () => {

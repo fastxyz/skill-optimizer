@@ -15,6 +15,7 @@ Use this skill as the source of truth for authoring eval suites in this repo. De
 - A suite is a set of cases and OpenRouter models to run as a matrix.
 - `references` are copied into `/work` before the agent starts; this is where eval skills live.
 - The agent phase sees `/work` only. It cannot see `/case`, `/results`, graders, fixtures, or hidden metadata.
+- Cases can define `mcpServers`; these are exposed through a workbench `mcp` command during the agent phase.
 - Graders run after the agent with `/case`, `/work`, and `/results` mounted.
 - `trace.jsonl` is the debugging source for what the agent saw, said, and did.
 
@@ -68,6 +69,8 @@ Plugin entrypoints:
 8. Run `run-suite --trials <n>` and inspect `suite-result.json`, failing `result.json`, `summary.json`, and `trace.jsonl`.
 
 Variables listed in `env` are forwarded unchanged into setup, agent, grading, and cleanup containers. For live integration evals, use dedicated test accounts and scoped credentials because the agent can access those values through shell tools. Treat `trace.jsonl`, `result.json`, grader evidence, stdout/stderr, and preserved `workspace/` directories as potentially sensitive if an agent or grader prints or writes secret values.
+
+Use `mcpServers` when the task should interact with MCP tools. For local servers whose source should stay hidden from the agent, put server files under the case `mcp/` support directory and define `mcpServices`; Docker starts those as separate service containers and the agent only sees their HTTP MCP URL. Direct stdio `mcpServers.command` entries run inside the agent container and are only appropriate when the server implementation is intentionally agent-visible. Remote HTTP/SSE servers must be reachable from Docker. The workbench generates `/work/mcporter.json` with `imports: []`, so host/user MCP configs are not imported. OAuth/browser auth is not supported; use env/header credentials listed in `env`.
 
 Prefer the real CLI/API/service when you do not know its internal behavior well enough to mock it faithfully. Mock only when you are sure the mock matches the real command surface, validation, outputs, and failure modes; otherwise the eval will measure the mock, not the skill.
 
@@ -140,9 +143,13 @@ If no JSON object is printed, exit code `0` passes and non-zero fails. Keep grad
 solutions/<case-slug>/solution.sh
 ```
 
-The script runs from `$WORK` with `$CASE`, `$WORK`, and `$RESULTS` set. It can call Node, Python, shell tools, or helper scripts. After it exits, normal graders run against the resulting workspace.
+`solution.sh` is not the answer key. Graders define acceptance; the solution is one deterministic way to produce a correct final workspace. This proves setup, fixtures, solution logic, and graders agree before spending model tokens.
 
-Use `verify-suite` to prove fixtures, setup, solutions, and graders agree before spending model tokens. It is stdout-only and does not create a `.results` run.
+The script runs from `$WORK` with `$CASE`, `$WORK`, and `$RESULTS` set. It can call Node, Python, shell tools, fixture CLIs, or helper scripts. After it exits, normal graders run against the resulting workspace.
+
+The solution contract is shell-based because correct outputs may be JSON, PDFs, archives, multiple files, edited repos, command logs, or other workspace state. For simple JSON cases, the shell script can just write `answer.json`.
+
+Use `verify-suite` to prove fixtures, setup, solutions, and graders agree before spending model tokens. It is stdout-only and does not create a `.results` run. Current `verify-suite` execution is host-side preflight: it reuses case loading, workspace preparation, setup, env vars, and graders, but it does not run the solution inside the Docker workbench image.
 
 ## Outputs
 
@@ -189,10 +196,13 @@ Tracked demos live in `examples/` (the same repo path users may refer to as `@ex
 | `examples/workbench/pdf/references/pdf-skill/SKILL.md` | Example skill copied into `/work` for the agent |
 | `examples/workbench/pdf/checks/*.mjs` | Deterministic grader and fixture helper patterns |
 | `examples/workbench/pdf/solutions/*/solution.sh` | Reference solutions used by `verify-suite` |
+| `examples/workbench/mcp/suite.yml` | Hidden-service MCP calculator example |
+| `examples/workbench/mcp/mcp/calculator-server.mjs` | Example MCP server with add/subtract/multiply/divide tools |
 
 ```bash
 npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
 npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
+npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
 ```
 
 The PDF demo covers setup, suite models, reference solutions, positive output grading, and trace-based negative grading.

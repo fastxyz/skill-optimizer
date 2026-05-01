@@ -57,6 +57,15 @@ setup:
 cleanup: []
 env:
   - OPENROUTER_API_KEY
+mcpServers:
+  calculator:
+    baseUrl: http://calculator:3000/mcp
+mcpServices:
+  calculator:
+    command: node
+    args:
+      - calculator-server.mjs
+    port: 3000
 model: openrouter/google/gemini-2.5-flash
 timeoutSeconds: 600
 ```
@@ -77,6 +86,8 @@ Optional fields:
 | `setup` | string[] | Commands run in `/work` before the agent phase |
 | `cleanup` | string[] | Commands run after grading |
 | `env` | string[] | Host environment variable names forwarded into setup, agent, grading, and cleanup containers |
+| `mcpServers` | object | MCP servers exposed through the agent `mcp` tool |
+| `mcpServices` | object | Hidden local MCP services started as separate Docker containers |
 | `model` | string | Default model for `run-case`; defaults to `openrouter/google/gemini-2.5-flash` |
 | `timeoutSeconds` | number | Agent timeout; defaults to `600` |
 
@@ -119,12 +130,54 @@ Suite fields:
 | `env` | no | Default env allowlist for inline cases |
 | `setup` | no | Default setup commands for inline cases |
 | `cleanup` | no | Default cleanup commands for inline cases |
+| `mcpServers` | no | Default MCP servers for inline cases, merged by server name |
+| `mcpServices` | no | Default hidden MCP service containers for inline cases, merged by service name |
 | `timeoutSeconds` | no | Default agent timeout for inline cases |
 | `appendSystemPrompt` | no | Extra suite-wide system prompt appended after the workbench prompt |
 
 Inline case fields override suite defaults. External case files are loaded from their own file directory and do not inherit suite defaults.
 
 Environment variables listed in `env` are forwarded unchanged. This intentionally supports live integration evals such as authenticated CLI calls, but it also means the agent can read or print those values through shell tools. Use dedicated test accounts, least-privilege credentials, and cleanup routines for live systems. Treat `trace.jsonl`, `result.json`, grader evidence, stdout/stderr, and preserved `workspace/` directories as potentially sensitive if an agent or grader prints or writes secret values.
+
+## MCP Servers
+
+`mcpServers` uses mcporter-compatible server entries. During each Docker trial, the workbench writes `/work/mcporter.json` with `imports: []` and exposes an `mcp` command on `PATH`.
+
+The `mcp` command delegates to `mcporter`:
+
+```bash
+mcp list calculator
+mcp call calculator.add a=17 b=25
+```
+
+Example suite default:
+
+```yaml
+mcpServers:
+  calculator:
+    baseUrl: http://calculator:3000/mcp
+  context7:
+    baseUrl: https://mcp.context7.com/mcp
+    headers:
+      Authorization: "Bearer ${CONTEXT7_API_KEY}"
+env:
+  - OPENROUTER_API_KEY
+  - CONTEXT7_API_KEY
+mcpServices:
+  calculator:
+    command: node
+    args:
+      - calculator-server.mjs
+    port: 3000
+```
+
+Suite-level `mcpServers` apply only to inline cases. Inline cases merge by server name and win on conflicts. External case files define their own MCP servers and do not inherit suite defaults.
+
+Use `mcpServices` for local MCP servers whose source should not be visible to the agent. Service files live under the case `mcp/` support directory. During Docker runs, the workbench mounts that directory read-only into separate service containers at `/mcp`, joins those containers to a private Docker network, and joins the agent container to the same network. The agent sees only the configured `mcpServers` URL such as `http://calculator:3000/mcp`; it does not mount `/case` or the `mcp/` source directory.
+
+Remote HTTP/SSE servers must be reachable from Docker. `localhost` means the container, not the host, so use `host.docker.internal` or Docker networking for host-local services. Direct stdio `mcpServers.command` entries run inside the agent container and are only appropriate when the server implementation is intentionally agent-visible.
+
+OAuth/browser auth is not supported. Use non-interactive headers, bearer tokens, or env placeholders. Only variables listed in `env` are forwarded.
 
 ## Directory Layout
 
@@ -161,6 +214,8 @@ Directory behavior:
 
 ## Execution Phases
 
+`run-case` and `run-suite` use Docker for model attempts. Each trial is prepared on the host, then mounted into phase containers.
+
 | Phase | Docker Mounts | Working Dir | What Happens |
 |-------|---------------|-------------|--------------|
 | setup | `/case:ro`, `/work:rw` | `/work` | Run `setup` commands and prepare fixtures |
@@ -175,9 +230,12 @@ Agent phase constraints:
 - No Docker socket
 - No global/user Pi skills
 - Additional skills are discovered from `/work`
+- Configured MCP servers are exposed through the `mcp` command using `/work/mcporter.json`
 - Python installs should use `/work/.venv`
 - Internet is available unless Docker environment blocks it
 - `env` allowlisted credentials are available unchanged to agent shell commands
+
+`verify-suite` is different. It is a host-side preflight that reuses case loading, workspace preparation, setup, `$CASE`/`$WORK`/`$RESULTS`, and graders, but it does not run `solution.sh` inside the Docker workbench image.
 
 ## Task Writing Rules
 
@@ -297,6 +355,8 @@ process.exit(readForbiddenSkill ? 1 : 0);
 solutions/<case-slug>/solution.sh
 ```
 
+`solution.sh` is not the answer key. The grader remains the acceptance contract. A reference solution is one deterministic producer of a correct final workspace, used to prove that setup, fixtures, solution logic, and graders agree before model tokens are spent.
+
 Script behavior:
 
 - Runs in `$WORK`
@@ -305,13 +365,15 @@ Script behavior:
 - Should write the same deliverables expected from the model
 - Should not depend on model APIs
 
+The shell convention is intentionally general. Correct outputs may be JSON, PDFs, archives, multiple files, edited repos, command logs, or other workspace state. For simple JSON cases, `solution.sh` can just write `answer.json`.
+
 Run this before model runs:
 
 ```bash
 npx tsx src/cli.ts verify-suite path/to/suite.yml
 ```
 
-`verify-suite` is stdout-only. It uses temporary work/results directories for `$WORK` and `$RESULTS`, then removes them instead of writing a `.results` run.
+`verify-suite` is stdout-only. It uses temporary host work/results directories for `$WORK` and `$RESULTS`, then removes them instead of writing a `.results` run. It does not provide full Docker parity; a reference solution can pass while depending on a host tool that is absent from the workbench image.
 
 Failures here mean the eval harness, fixtures, reference solution, or graders are inconsistent. Fix those before running `run-suite`.
 
@@ -457,6 +519,8 @@ examples/
       references/pdf-skill/SKILL.md
       checks/*.mjs
       solutions/*/solution.sh
+    mcp/
+      mcp/calculator-server.mjs
 ```
 
 The tracked PDF demo is the best starting point:
@@ -476,6 +540,8 @@ Files to inspect:
 | `examples/workbench/pdf/checks/*.mjs` | Deterministic graders and fixture helpers |
 | `examples/workbench/pdf/solutions/*/solution.sh` | Reference solutions for preflight |
 | `examples/workbench/pdf/README.md` | Demo walkthrough |
+| `examples/workbench/mcp/suite.yml` | Hidden-service MCP calculator demo |
+| `examples/workbench/mcp/mcp/calculator-server.mjs` | Calculator MCP server with add/subtract/multiply/divide |
 
 ## Repository Verification
 
@@ -488,6 +554,7 @@ npm run build
 npx tsx src/cli.ts --help
 node dist/cli.js --help
 npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
+npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
 ```
 
 For runner/Docker changes, rebuild the image:

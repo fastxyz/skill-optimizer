@@ -43,9 +43,10 @@ export function createWorkbenchPiTools(cwd: string): AgentTool<any>[] {
 export async function createWorkbenchPiResourceLoader(params: {
   cwd: string;
   appendSystemPrompt?: string;
+  mcpConfigPath?: string;
 }): Promise<ResourceLoader> {
   const cwd = resolve(params.cwd);
-  const appendSystemPrompt = [buildAgentSystemPrompt(), params.appendSystemPrompt]
+  const appendSystemPrompt = [buildAgentSystemPrompt(), buildMcpSystemPrompt(params.mcpConfigPath), params.appendSystemPrompt]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join('\n\n');
   const loader = new DefaultResourceLoader({
@@ -65,6 +66,7 @@ export async function createWorkbenchPiSession(params: {
   modelRef: string;
   apiKeyEnv?: string;
   appendSystemPrompt?: string;
+  mcpConfigPath?: string;
   thinkingLevel?: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 }) {
   const { provider, model } = parseModelRef(params.modelRef);
@@ -95,6 +97,7 @@ export async function createWorkbenchPiSession(params: {
   const resourceLoader = await createWorkbenchPiResourceLoader({
     cwd: params.cwd,
     appendSystemPrompt: params.appendSystemPrompt,
+    mcpConfigPath: params.mcpConfigPath,
   });
 
   return createAgentSession({
@@ -107,6 +110,19 @@ export async function createWorkbenchPiSession(params: {
     tools: createWorkbenchPiTools(params.cwd),
     sessionManager: SessionManager.inMemory(),
   });
+}
+
+function buildMcpSystemPrompt(mcpConfigPath: string | undefined): string | undefined {
+  if (!mcpConfigPath) {
+    return undefined;
+  }
+
+  return [
+    'Additional command:',
+    '- `mcp` is available on PATH for configured MCP servers.',
+    '- Run `mcp list <server> --schema` to inspect available tools when needed.',
+    '- Run `mcp call <server.tool> key=value` to call a tool from bash.',
+  ].join('\n');
 }
 
 function parseModelRef(modelRef: string): { provider: string; model: string } {

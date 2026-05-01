@@ -35,6 +35,7 @@ interface AgentRunnerArgs {
   timeoutSeconds: number;
   workDir: string;
   resultsDir: string;
+  mcpConfigPath?: string;
 }
 
 interface GradeRunnerArgs {
@@ -50,7 +51,7 @@ interface SetupRunnerArgs {
   workDir: string;
 }
 
-type ContainerRunnerArgs = AgentRunnerArgs | GradeRunnerArgs | SetupRunnerArgs;
+export type ContainerRunnerArgs = AgentRunnerArgs | GradeRunnerArgs | SetupRunnerArgs;
 
 export function buildContainerWorkbenchEnv(params: {
   casePath: string;
@@ -66,7 +67,7 @@ export function buildContainerWorkbenchEnv(params: {
   });
 }
 
-function parseArgs(args: string[]): ContainerRunnerArgs {
+export function parseContainerRunnerArgs(args: string[]): ContainerRunnerArgs {
   const workDir = getFlagValue(args, '--work');
   const resultsDir = getFlagValue(args, '--results');
 
@@ -75,6 +76,7 @@ function parseArgs(args: string[]): ContainerRunnerArgs {
     const model = getFlagValue(args, '--model');
     const taskBase64 = getFlagValue(args, '--task-base64');
     const appendSystemPromptBase64 = getFlagValue(args, '--append-system-prompt-base64');
+    const mcpConfigPath = getFlagValue(args, '--mcp-config');
     const timeoutSeconds = Number(getFlagValue(args, '--timeout-seconds'));
     if (!caseName || !model || !taskBase64 || !Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0 || !workDir || !resultsDir) {
       throw new Error('Usage: container-runner --agent --case-name <name> --model <model> --task-base64 <task> --timeout-seconds <seconds> --work <path> --results <path>');
@@ -90,6 +92,7 @@ function parseArgs(args: string[]): ContainerRunnerArgs {
       timeoutSeconds,
       workDir,
       resultsDir,
+      mcpConfigPath,
     };
   }
 
@@ -394,8 +397,11 @@ async function runAgentMode(parsed: AgentRunnerArgs): Promise<number> {
   let startedAt: string | undefined;
 
   mkdirSync(parsed.resultsDir, { recursive: true });
-  process.env.WORK = parsed.workDir;
-  process.env.RESULTS = parsed.resultsDir;
+    process.env.WORK = parsed.workDir;
+    process.env.RESULTS = parsed.resultsDir;
+    if (parsed.mcpConfigPath) {
+      process.env.MCPORTER_CONFIG = parsed.mcpConfigPath;
+    }
 
   try {
     startedAt = new Date().toISOString();
@@ -404,6 +410,7 @@ async function runAgentMode(parsed: AgentRunnerArgs): Promise<number> {
       modelRef: parsed.model,
       apiKeyEnv: 'OPENROUTER_API_KEY',
       appendSystemPrompt: parsed.appendSystemPrompt,
+      mcpConfigPath: parsed.mcpConfigPath,
     });
     session = created.session as PromptSession;
     const systemPrompt = typeof session.systemPrompt === 'string'
@@ -527,7 +534,7 @@ async function runGradeMode(parsed: GradeRunnerArgs): Promise<number> {
 }
 
 export async function runContainerWorkbenchCase(args: string[]): Promise<number> {
-  const parsed = parseArgs(args);
+  const parsed = parseContainerRunnerArgs(args);
   if (parsed.mode === 'agent') {
     return runAgentMode(parsed);
   }

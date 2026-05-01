@@ -3,7 +3,15 @@ import { dirname, extname, resolve } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
-import type { ResolvedWorkbenchCase, WorkbenchGraderConfig } from './types.js';
+import type {
+  ResolvedWorkbenchCase,
+  WorkbenchGraderConfig,
+  WorkbenchMcpJsonValue,
+  WorkbenchMcpServerConfig,
+  WorkbenchMcpServersConfig,
+  WorkbenchMcpServiceConfig,
+  WorkbenchMcpServicesConfig,
+} from './types.js';
 
 export const DEFAULT_WORKBENCH_MODEL = 'openrouter/google/gemini-2.5-flash';
 export const DEFAULT_WORKBENCH_TIMEOUT_SECONDS = 600;
@@ -50,6 +58,9 @@ export function resolveWorkbenchCaseConfig(
   const references = requireNonEmptyString(parsed, 'references', resolvedConfigPath);
   const task = requireNonEmptyString(parsed, 'task', resolvedConfigPath);
   const graders = readGraders(parsed, resolvedConfigPath);
+  const mcpServers = readMcpServers(parsed, resolvedConfigPath);
+  const mcpServices = readMcpServices(parsed, resolvedConfigPath);
+  validateMcpServiceServers(mcpServices, mcpServers, resolvedConfigPath);
   const env = readStringArray(parsed, 'env', resolvedConfigPath);
   const setup = readStringArray(parsed, 'setup', resolvedConfigPath);
   const cleanup = readStringArray(parsed, 'cleanup', resolvedConfigPath);
@@ -75,12 +86,273 @@ export function resolveWorkbenchCaseConfig(
     referencesDir,
     task,
     graders,
+    mcpServers,
+    mcpServices,
     env,
     setup,
     cleanup,
     model,
     timeoutSeconds,
   };
+}
+
+export function readMcpServices(
+  parsed: Record<string, unknown>,
+  configPath: string,
+): WorkbenchMcpServicesConfig {
+  const value = parsed.mcpServices;
+  if (value === undefined) {
+    return {};
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServices" must be an object`);
+  }
+
+  const services: WorkbenchMcpServicesConfig = {};
+  for (const [rawName, rawService] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (name === '') {
+      throw new Error(`Workbench case ${configPath}: field "mcpServices" service names must be non-empty strings`);
+    }
+    if (!isPlainObject(rawService)) {
+      throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${name}" must be an object`);
+    }
+    services[name] = readMcpService(rawService, name, configPath);
+  }
+
+  return services;
+}
+
+function readMcpService(
+  parsed: Record<string, unknown>,
+  name: string,
+  configPath: string,
+): WorkbenchMcpServiceConfig {
+  const command = readMcpServiceString(parsed.command, 'command', name, configPath);
+  const args = parsed.args === undefined ? [] : readMcpServiceStringArray(parsed.args, 'args', name, configPath);
+  const port = parsed.port;
+  if (port !== undefined && (typeof port !== 'number' || !Number.isInteger(port) || port <= 0 || port > 65535)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${name}" port must be an integer from 1 to 65535`);
+  }
+  return {
+    command,
+    args,
+    ...(port !== undefined ? { port } : {}),
+  };
+}
+
+function validateMcpServiceServers(
+  services: WorkbenchMcpServicesConfig,
+  servers: WorkbenchMcpServersConfig,
+  configPath: string,
+): void {
+  for (const name of Object.keys(services)) {
+    if (servers[name] === undefined) {
+      throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${name}" requires a matching "mcpServers" entry`);
+    }
+  }
+}
+
+export function readMcpServers(
+  parsed: Record<string, unknown>,
+  configPath: string,
+): WorkbenchMcpServersConfig {
+  const value = parsed.mcpServers;
+  if (value === undefined) {
+    return {};
+  }
+  if (!isPlainObject(value)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" must be an object`);
+  }
+
+  const servers: WorkbenchMcpServersConfig = {};
+  for (const [rawName, rawServer] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (name === '') {
+      throw new Error(`Workbench case ${configPath}: field "mcpServers" server names must be non-empty strings`);
+    }
+    if (!isPlainObject(rawServer)) {
+      throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${name}" must be an object`);
+    }
+    servers[name] = readMcpServer(rawServer, name, configPath);
+  }
+
+  return servers;
+}
+
+function readMcpServer(
+  parsed: Record<string, unknown>,
+  name: string,
+  configPath: string,
+): WorkbenchMcpServerConfig {
+  const server: WorkbenchMcpServerConfig = {};
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (isMcpStringField(key)) {
+      server[key] = readMcpString(value, key, name, configPath);
+      continue;
+    }
+
+    if (isMcpStringArrayField(key)) {
+      server[key] = readMcpStringArray(value, key, name, configPath);
+      continue;
+    }
+
+    if (key === 'env' || key === 'headers') {
+      server[key] = readMcpStringRecord(value, key, name, configPath);
+      continue;
+    }
+
+    server[key] = cloneMcpJsonValue(value, key, name, configPath);
+  }
+
+  if (server.auth === 'oauth') {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${name}" auth "oauth" is not supported; use non-interactive headers or env credentials`);
+  }
+
+  const hasUrl = [server.url, server.baseUrl, server.serverUrl]
+    .some((value) => typeof value === 'string' && value.trim() !== '');
+  const hasCommand = typeof server.command === 'string' && server.command.trim() !== '';
+  if (!hasUrl && !hasCommand) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${name}" must define a non-empty url, baseUrl, serverUrl, or command`);
+  }
+
+  if ((server.allowedTools || server.allowed_tools) && (server.blockedTools || server.blocked_tools)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${name}" cannot define both allowedTools and blockedTools`);
+  }
+
+  return server;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isMcpStringField(key: string): boolean {
+  return [
+    'description',
+    'baseUrl',
+    'url',
+    'serverUrl',
+    'command',
+    'auth',
+    'tokenCacheDir',
+    'clientName',
+    'oauthRedirectUrl',
+    'oauthScope',
+  ].includes(key);
+}
+
+function isMcpStringArrayField(key: string): boolean {
+  return ['args', 'allowedTools', 'allowed_tools', 'blockedTools', 'blocked_tools'].includes(key);
+}
+
+function readMcpString(
+  value: unknown,
+  field: string,
+  serverName: string,
+  configPath: string,
+): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function readMcpServiceString(
+  value: unknown,
+  field: string,
+  serviceName: string,
+  configPath: string,
+): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${serviceName}" ${field} must be a non-empty string`);
+  }
+  return value.trim();
+}
+
+function readMcpStringArray(
+  value: unknown,
+  field: string,
+  serverName: string,
+  configPath: string,
+): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} must be an array of non-empty strings`);
+  }
+  return value.map((item, index) => {
+    if (typeof item !== 'string' || item.trim() === '') {
+      throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} item at index ${index} must be a non-empty string`);
+    }
+    return item.trim();
+  });
+}
+
+function readMcpServiceStringArray(
+  value: unknown,
+  field: string,
+  serviceName: string,
+  configPath: string,
+): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${serviceName}" ${field} must be an array of non-empty strings`);
+  }
+  return value.map((item, index) => {
+    if (typeof item !== 'string' || item.trim() === '') {
+      throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${serviceName}" ${field} item at index ${index} must be a non-empty string`);
+    }
+    return item.trim();
+  });
+}
+
+function readMcpStringRecord(
+  value: unknown,
+  field: string,
+  serverName: string,
+  configPath: string,
+): Record<string, string> {
+  if (!isPlainObject(value)) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} must be an object of string values`);
+  }
+
+  const record: Record<string, string> = {};
+  for (const [rawKey, rawValue] of Object.entries(value)) {
+    const key = rawKey.trim();
+    if (key === '' || typeof rawValue !== 'string') {
+      throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} entries must have non-empty string keys and string values`);
+    }
+    record[key] = rawValue;
+  }
+  return record;
+}
+
+function cloneMcpJsonValue(
+  value: unknown,
+  field: string,
+  serverName: string,
+  configPath: string,
+): WorkbenchMcpJsonValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} must be JSON-compatible`);
+    }
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneMcpJsonValue(item, field, serverName, configPath));
+  }
+  if (isPlainObject(value)) {
+    const record: Record<string, WorkbenchMcpJsonValue> = {};
+    for (const [key, item] of Object.entries(value)) {
+      record[key] = cloneMcpJsonValue(item, field, serverName, configPath);
+    }
+    return record;
+  }
+
+  throw new Error(`Workbench case ${configPath}: field "mcpServers" server "${serverName}" ${field} must be JSON-compatible`);
 }
 
 function parseWorkbenchCase(raw: string, configPath: string): Record<string, unknown> {
