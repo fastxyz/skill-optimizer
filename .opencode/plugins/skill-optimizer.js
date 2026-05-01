@@ -1,8 +1,8 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const pluginDir = path.dirname(fileURLToPath(import.meta.url));
-const skillsDir = path.resolve(pluginDir, '..', '..', 'skills');
+const skillsDir = path.resolve(pluginDir, "..", "..", "skills");
 
 function registerSkillsDir(config) {
   config.skills = config.skills || {};
@@ -20,6 +20,6 @@ export const SkillOptimizerPlugin = async () => ({
 });
 
 export default {
-  id: 'skill-optimizer',
+  id: "skill-optimizer",
   server: SkillOptimizerPlugin,
 };
