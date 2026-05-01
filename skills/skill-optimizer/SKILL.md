@@ -147,6 +147,10 @@ Graders are the acceptance contract. They should evaluate evidence in `/work`, g
 
 Use `trace.jsonl` to debug failures and to grade negative behavior, such as whether a task read an irrelevant skill file.
 
+## Optimization Loop
+
+After a run, inspect failing `result.json`, `summary.json`, `trace.jsonl`, and preserved `workspace/` evidence. Classify each failure before changing anything: unclear skill guidance, missing reference material, brittle grader, unrealistic fixture, task ambiguity, or product/code bug. Update the target skill, references, fixtures, graders, or code according to that diagnosis, then re-run the same case or suite to verify the change. Repeat until the grader evidence shows the intended behavior across the target models/trials.
+
 ## Programmatic SDK
 
 The package exports workbench APIs from `skill-optimizer` after build:

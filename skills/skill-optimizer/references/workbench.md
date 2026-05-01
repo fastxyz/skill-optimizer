@@ -474,7 +474,9 @@ Negative/control cases:
 3. Open `summary.json` for final assistant text and bash commands.
 4. Open `trace.jsonl` to inspect tool calls and file reads.
 5. Inspect preserved `workspace/` for failed trials.
-6. If only model runs fail, improve the skill, task clarity, fixtures, or grader tolerance.
+6. Classify the failure as unclear skill guidance, missing reference material, brittle grader, unrealistic fixture, task ambiguity, or product/code bug.
+7. Update the target skill, references, fixtures, graders, or code according to that diagnosis.
+8. Re-run the same case or suite and compare grader evidence across the target models/trials.
 
 ## Example Suite
 
