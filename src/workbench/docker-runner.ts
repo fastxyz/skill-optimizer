@@ -129,9 +129,7 @@ export function buildDockerMcpServiceCommand(params: {
   mcpDir: string;
   command: string;
   args: string[];
-  envNames?: string[];
 }): string {
-  const envArgs = (params.envNames ?? []).map((name) => `-e ${name}`).join(' ');
   const serviceCommand = [params.command, ...params.args].map(shellQuote).join(' ');
   return [
     'docker run -d',
@@ -141,7 +139,6 @@ export function buildDockerMcpServiceCommand(params: {
     `--network-alias ${shellQuote(params.alias)}`,
     '--workdir /mcp',
     `-v ${shellQuote(`${params.mcpDir}:/mcp:ro`)}`,
-    envArgs,
     '--entrypoint /bin/sh',
     shellQuote(params.image),
     '-lc',
@@ -324,7 +321,6 @@ async function startMcpServices(params: {
   caseDir: string;
   tempDir: string;
   services: ResolvedWorkbenchCase['mcpServices'];
-  envNames: string[];
   repoRoot: string;
 }): Promise<string[]> {
   const containerNames: string[] = [];
@@ -339,7 +335,6 @@ async function startMcpServices(params: {
       mcpDir: join(params.caseDir, 'mcp'),
       command: service.command,
       args: service.args,
-      envNames: params.envNames,
     });
     const run = await runShellCommand(command, { cwd: params.repoRoot });
     if (run.exitCode !== 0) {
@@ -557,7 +552,6 @@ export async function runDockerWorkbenchCase(
         caseDir: prepared.caseDir,
         tempDir: prepared.tempDir,
         services: resolvedCase.mcpServices,
-        envNames,
         repoRoot,
       });
       await waitForMcpServices({

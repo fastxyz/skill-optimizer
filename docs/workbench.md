@@ -103,12 +103,11 @@ mcpServices:
     command: node
     args:
       - calculator-server.mjs
-    port: 3000
 ```
 
 Suite-level `mcpServers` apply to inline cases. Inline case definitions merge by server name, with the inline case winning. External case files do not inherit suite defaults.
 
-Use `mcpServices` for local MCP servers whose source should not be visible to the agent. Service files live under the case `mcp/` support directory. During `run-case` and `run-suite`, Docker mounts that directory read-only into separate service containers at `/mcp`, joins those containers to a private Docker network, and joins the agent container to the same network. The agent sees only the configured `mcpServers` URL such as `http://calculator:3000/mcp`; it does not mount `/case` or the `mcp/` source directory.
+Use `mcpServices` for local MCP servers whose source should not be visible to the agent. Service files live under the case `mcp/` support directory. During `run-case` and `run-suite`, Docker mounts that directory read-only into separate service containers at `/mcp`, joins those containers to a private Docker network, and joins the agent container to the same network. The agent sees only the configured `mcpServers` URL such as `http://calculator:3000/mcp`; it does not mount `/case` or the `mcp/` source directory. Set service ports in the matching `mcpServers` URL rather than in `mcpServices`.
 
 Remote HTTP/SSE servers must be reachable from Docker. Host-local endpoints need Docker-reachable addresses such as `host.docker.internal`. Direct stdio `mcpServers.command` entries run inside the agent container and are only appropriate when the server implementation is intentionally agent-visible.
 

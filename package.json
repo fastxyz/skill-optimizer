@@ -21,7 +21,7 @@
     "model-evaluation"
   ],
   "type": "module",
-  "main": ".opencode/plugins/skill-optimizer.js",
+  "main": "./dist/index.js",
   "files": [
     "dist/",
     "docker/",

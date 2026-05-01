@@ -9,6 +9,7 @@ import {
   buildContainerWorkbenchEnv,
   parseContainerRunnerArgs,
   prepareWorkbenchDirectory,
+  runContainerWorkbenchCase,
   runAgentPromptWithTimeout,
   writeBestEffortTrace,
 } from '../src/workbench/container-runner.js';
@@ -101,6 +102,59 @@ test('parseContainerRunnerArgs reads optional MCP config path for agent mode', (
 
   assert.equal(parsed.mode, 'agent');
   assert.equal(parsed.mcpConfigPath, '/work/mcporter.json');
+});
+
+test('runContainerWorkbenchCase restores global WORK/RESULTS/MCPORTER_CONFIG after agent mode failure', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-env-restore-'));
+  const workDir = join(root, 'work');
+  const resultsDir = join(root, 'results');
+  mkdirSync(workDir, { recursive: true });
+  mkdirSync(resultsDir, { recursive: true });
+
+  const previousWork = process.env.WORK;
+  const previousResults = process.env.RESULTS;
+  const previousMcporterConfig = process.env.MCPORTER_CONFIG;
+
+  process.env.WORK = 'existing-work';
+  process.env.RESULTS = 'existing-results';
+  delete process.env.MCPORTER_CONFIG;
+
+  try {
+    const exitCode = await runContainerWorkbenchCase([
+      '--agent',
+      '--case-name', 'env-restore',
+      '--model', 'openrouter/google/gemini-2.5-flash',
+      '--task-base64', Buffer.from('test', 'utf-8').toString('base64'),
+      '--timeout-seconds', '1',
+      '--work', workDir,
+      '--results', resultsDir,
+      '--mcp-config', join(root, 'missing-mcporter-config.json'),
+    ]);
+
+    assert.equal(exitCode, 1);
+    assert.equal(process.env.WORK, 'existing-work');
+    assert.equal(process.env.RESULTS, 'existing-results');
+    assert.equal(process.env.MCPORTER_CONFIG, undefined);
+  } finally {
+    if (previousWork === undefined) {
+      delete process.env.WORK;
+    } else {
+      process.env.WORK = previousWork;
+    }
+
+    if (previousResults === undefined) {
+      delete process.env.RESULTS;
+    } else {
+      process.env.RESULTS = previousResults;
+    }
+
+    if (previousMcporterConfig === undefined) {
+      delete process.env.MCPORTER_CONFIG;
+    } else {
+      process.env.MCPORTER_CONFIG = previousMcporterConfig;
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('runAgentPromptWithTimeout rejects when agent exceeds timeout', async () => {

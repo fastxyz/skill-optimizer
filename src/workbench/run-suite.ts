@@ -34,11 +34,14 @@ function parseConcurrencyFlag(value: string | undefined): number | undefined {
   if (value === undefined) {
     return undefined;
   }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`--concurrency must be a positive integer, got: ${value}`);
+  return validateConcurrency(Number(value), `--concurrency must be a positive integer, got: ${value}`);
+}
+
+function validateConcurrency(value: number, errorMessage?: string): number {
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+    throw new Error(errorMessage ?? `Field "concurrency" must be a positive integer, got: ${String(value)}`);
   }
-  return parsed;
+  return value;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -76,16 +79,16 @@ export async function runWorkbenchSuite(
   const models = suite.models;
   const trials = params.trials ?? 1;
   if (models.length === 0) {
-    throw new Error('Workbench suite requires at least one model via suite models or --models');
+    throw new Error('Workbench suite requires at least one model in suite.yml via the suite "models" field');
   }
 
   const dockerRunner = deps.runDockerWorkbenchCase ?? runDockerWorkbenchCase;
   const startedAt = new Date().toISOString();
   const resultsDir = join(resolve(params.outDir ?? join(suite.configDir, '.results')), timestampSlug(deps.now ?? new Date()));
   const caseSlugs = suite.cases.map((suiteCase) => suiteCase.slug);
-  const concurrency = params.concurrency && params.concurrency > 0
-    ? Math.floor(params.concurrency)
-    : 1;
+  const concurrency = params.concurrency === undefined
+    ? 1
+    : validateConcurrency(params.concurrency);
 
   mkdirSync(resultsDir, { recursive: true });
 

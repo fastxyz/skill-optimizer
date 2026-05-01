@@ -395,80 +395,105 @@ async function runAgentMode(parsed: AgentRunnerArgs): Promise<number> {
   let session: PromptSession | undefined;
   let recorder: TraceRecorder | undefined;
   let startedAt: string | undefined;
+  const previousWork = process.env.WORK;
+  const previousResults = process.env.RESULTS;
+  const previousMcporterConfig = process.env.MCPORTER_CONFIG;
 
   mkdirSync(parsed.resultsDir, { recursive: true });
-    process.env.WORK = parsed.workDir;
-    process.env.RESULTS = parsed.resultsDir;
-    if (parsed.mcpConfigPath) {
-      process.env.MCPORTER_CONFIG = parsed.mcpConfigPath;
-    }
+  process.env.WORK = parsed.workDir;
+  process.env.RESULTS = parsed.resultsDir;
+  if (parsed.mcpConfigPath) {
+    process.env.MCPORTER_CONFIG = parsed.mcpConfigPath;
+  } else {
+    delete process.env.MCPORTER_CONFIG;
+  }
 
   try {
-    startedAt = new Date().toISOString();
-    const created = await createWorkbenchPiSession({
-      cwd: parsed.workDir,
-      modelRef: parsed.model,
-      apiKeyEnv: 'OPENROUTER_API_KEY',
-      appendSystemPrompt: parsed.appendSystemPrompt,
-      mcpConfigPath: parsed.mcpConfigPath,
-    });
-    session = created.session as PromptSession;
-    const systemPrompt = typeof session.systemPrompt === 'string'
-      ? session.systemPrompt
-      : buildAgentSystemPrompt();
-    logAgentSystemPrompt(systemPrompt);
-    recorder = createTraceRecorder();
-    const unsubscribe = session.subscribe?.((event) => {
-      recorder?.record(event);
-      logAgentEvent(event);
-    });
-
     try {
-      await runAgentPromptWithTimeout(session, parsed.task, parsed.timeoutSeconds);
-    } finally {
-      unsubscribe?.();
-    }
+      startedAt = new Date().toISOString();
+      const created = await createWorkbenchPiSession({
+        cwd: parsed.workDir,
+        modelRef: parsed.model,
+        apiKeyEnv: 'OPENROUTER_API_KEY',
+        appendSystemPrompt: parsed.appendSystemPrompt,
+        mcpConfigPath: parsed.mcpConfigPath,
+      });
+      session = created.session as PromptSession;
+      const systemPrompt = typeof session.systemPrompt === 'string'
+        ? session.systemPrompt
+        : buildAgentSystemPrompt();
+      logAgentSystemPrompt(systemPrompt);
+      recorder = createTraceRecorder();
+      const unsubscribe = session.subscribe?.((event) => {
+        recorder?.record(event);
+        logAgentEvent(event);
+      });
 
-    const endedAt = new Date().toISOString();
-    const trace = recorder.toTrace({
-      caseName: parsed.caseName,
-      model: parsed.model,
-      startedAt,
-      endedAt,
-      messages: session.state?.messages ?? [],
-    });
-    trace.entries.unshift({
-      type: 'message',
-      role: 'system',
-      text: systemPrompt,
-      timestamp: startedAt,
-    });
+      try {
+        await runAgentPromptWithTimeout(session, parsed.task, parsed.timeoutSeconds);
+      } finally {
+        unsubscribe?.();
+      }
 
-    writeTraceFile(tracePath, trace);
-    return 0;
-  } catch (error) {
-    const endedAt = new Date().toISOString();
-    try {
-      writeBestEffortTrace({
-        tracePath,
+      const endedAt = new Date().toISOString();
+      const trace = recorder.toTrace({
         caseName: parsed.caseName,
         model: parsed.model,
         startedAt,
         endedAt,
-        session,
-        recorder,
+        messages: session.state?.messages ?? [],
       });
-    } catch {
-      // Fatal result writing is more important than partial trace persistence.
+      trace.entries.unshift({
+        type: 'message',
+        role: 'system',
+        text: systemPrompt,
+        timestamp: startedAt,
+      });
+
+      writeTraceFile(tracePath, trace);
+      return 0;
+    } catch (error) {
+      const endedAt = new Date().toISOString();
+      try {
+        writeBestEffortTrace({
+          tracePath,
+          caseName: parsed.caseName,
+          model: parsed.model,
+          startedAt,
+          endedAt,
+          session,
+          recorder,
+        });
+      } catch {
+        // Fatal result writing is more important than partial trace persistence.
+      }
+      writeJsonFile(resultPath, {
+        caseName: parsed.caseName,
+        model: parsed.model,
+        endedAt,
+        ...buildFatalGrade(error),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return 1;
     }
-    writeJsonFile(resultPath, {
-      caseName: parsed.caseName,
-      model: parsed.model,
-      endedAt,
-      ...buildFatalGrade(error),
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return 1;
+  } finally {
+    if (previousWork === undefined) {
+      delete process.env.WORK;
+    } else {
+      process.env.WORK = previousWork;
+    }
+
+    if (previousResults === undefined) {
+      delete process.env.RESULTS;
+    } else {
+      process.env.RESULTS = previousResults;
+    }
+
+    if (previousMcporterConfig === undefined) {
+      delete process.env.MCPORTER_CONFIG;
+    } else {
+      process.env.MCPORTER_CONFIG = previousMcporterConfig;
+    }
   }
 }
 

@@ -205,6 +205,37 @@ test('invalid MCP service command reports mcpServices field', () => {
   }
 });
 
+test('MCP service port is rejected because mcpServers URL owns the port', () => {
+  const root = makeTempCaseDir('skill-workbench-invalid-mcp-service-port-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: mcp-docs',
+      'references: ./references',
+      'task: Use MCP.',
+      'graders:',
+      '  - name: output',
+      '    command: test -f answer.json',
+      'mcpServers:',
+      '  calculator:',
+      '    baseUrl: http://calculator:3000/mcp',
+      'mcpServices:',
+      '  calculator:',
+      '    command: node',
+      '    args:',
+      '      - calculator-server.mjs',
+      '    port: 3000',
+    ].join('\n'));
+
+    assert.throws(
+      () => loadWorkbenchCase(casePath),
+      /field "mcpServices" service "calculator" port is not supported; set the port in the matching mcpServers URL/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('defaults are applied', () => {
   const root = makeTempCaseDir('skill-workbench-defaults-');
   try {
@@ -267,6 +298,53 @@ test('invalid non-array env throws', () => {
       () => loadWorkbenchCase(casePath),
       /field "env" must be an array of non-empty strings/,
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('invalid env variable names are rejected', () => {
+  const root = makeTempCaseDir('skill-workbench-invalid-env-name-');
+  try {
+    mkdirSync(join(root, 'references'));
+
+    for (const envName of ['OPENROUTER_API_KEY;touch /tmp/pwned', 'BAD-NAME', '1BAD']) {
+      const casePath = writeCaseFile(root, `case-${envName.length}.json`, JSON.stringify({
+        name: 'merge-pdfs',
+        references: './references',
+        task: 'Merge files',
+        graders: [
+          { name: 'merged-output', command: 'node $CASE/checks/merge-pdfs.js' },
+        ],
+        env: [envName],
+      }, null, 2));
+
+      assert.throws(
+        () => loadWorkbenchCase(casePath),
+        /field "env" item at index 0 must match \^\[A-Za-z_\]\[A-Za-z0-9_\]\*\$/,
+      );
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('valid env variable names still load', () => {
+  const root = makeTempCaseDir('skill-workbench-valid-env-name-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.json', JSON.stringify({
+      name: 'merge-pdfs',
+      references: './references',
+      task: 'Merge files',
+      graders: [
+        { name: 'merged-output', command: 'node $CASE/checks/merge-pdfs.js' },
+      ],
+      env: ['OPENROUTER_API_KEY', '_TOKEN1'],
+    }, null, 2));
+
+    const loaded = loadWorkbenchCase(casePath);
+    assert.deepEqual(loaded.env, ['OPENROUTER_API_KEY', '_TOKEN1']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

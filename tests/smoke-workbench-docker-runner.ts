@@ -202,7 +202,6 @@ test('prepareDockerWorkbenchRun bundles hidden MCP service support outside work'
       '    command: node',
       '    args:',
       '      - server.mjs',
-      '    port: 3000',
       'mcpServers:',
       '  calculator:',
       '    baseUrl: http://calculator:3000/mcp',
@@ -328,6 +327,20 @@ test('MCP service docker command mounts hidden service files outside agent work'
   assert.match(command, /--workdir \/mcp/);
   assert.match(command, /--network-alias 'calculator'/);
   assert.doesNotMatch(command, /\/work/);
+});
+
+test('MCP service docker command does not forward case env vars', () => {
+  const command = buildDockerMcpServiceCommand({
+    image: 'skill-optimizer-workbench:local',
+    containerName: 'skill-optimizer-mcp-test-calculator',
+    networkName: 'skill-optimizer-mcp-test',
+    alias: 'calculator',
+    mcpDir: '/tmp/case/mcp',
+    command: 'node',
+    args: ['server.mjs'],
+  });
+
+  assert.doesNotMatch(command, /-e OPENROUTER_API_KEY/);
 });
 
 test('MCP service probe command verifies service through mcporter on private network', () => {

@@ -32,7 +32,6 @@ export type WorkbenchMcpServersConfig = Record<string, WorkbenchMcpServerConfig>
 export interface WorkbenchMcpServiceConfig {
   command: string;
   args: string[];
-  port?: number;
 }
 
 export type WorkbenchMcpServicesConfig = Record<string, WorkbenchMcpServiceConfig>;

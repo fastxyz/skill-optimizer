@@ -64,7 +64,6 @@ mcpServices:
     command: node
     args:
       - calculator-server.mjs
-    port: 3000
 model: openrouter/google/gemini-2.5-flash
 timeoutSeconds: 600
 ```
@@ -167,12 +166,11 @@ mcpServices:
     command: node
     args:
       - calculator-server.mjs
-    port: 3000
 ```
 
 Suite-level `mcpServers` apply only to inline cases. Inline cases merge by server name and win on conflicts. External case files define their own MCP servers and do not inherit suite defaults.
 
-Use `mcpServices` for local MCP servers whose source should not be visible to the agent. Service files live under the case `mcp/` support directory. During Docker runs, the workbench mounts that directory read-only into separate service containers at `/mcp`, joins those containers to a private Docker network, and joins the agent container to the same network. The agent sees only the configured `mcpServers` URL such as `http://calculator:3000/mcp`; it does not mount `/case` or the `mcp/` source directory.
+Use `mcpServices` for local MCP servers whose source should not be visible to the agent. Service files live under the case `mcp/` support directory. During Docker runs, the workbench mounts that directory read-only into separate service containers at `/mcp`, joins those containers to a private Docker network, and joins the agent container to the same network. The agent sees only the configured `mcpServers` URL such as `http://calculator:3000/mcp`; it does not mount `/case` or the `mcp/` source directory. Set service ports in the matching `mcpServers` URL rather than in `mcpServices`.
 
 Remote HTTP/SSE servers must be reachable from Docker. `localhost` means the container, not the host, so use `host.docker.internal` or Docker networking for host-local services. Direct stdio `mcpServers.command` entries run inside the agent container and are only appropriate when the server implementation is intentionally agent-visible.
 

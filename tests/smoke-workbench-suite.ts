@@ -293,6 +293,58 @@ test('runWorkbenchSuiteFromCli rejects model overrides because suites own models
   );
 });
 
+test('runWorkbenchSuite missing models error references suite models only', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-missing-models-'));
+  try {
+    const suitePath = join(root, 'suite.yml');
+    const casePath = join(root, 'cases', 'no-models', 'case.yml');
+    mkdirSync(join(root, 'cases', 'no-models'), { recursive: true });
+    writeFileSync(casePath, 'name: no-models\nreferences: ./refs\ntask: Test\ngraders:\n  - name: passes\n    command: "true"\n', 'utf-8');
+    writeFileSync(suitePath, [
+      'name: no-models-suite',
+      'cases:',
+      '  - cases/no-models/case.yml',
+    ].join('\n'), 'utf-8');
+
+    await assert.rejects(
+      () => runWorkbenchSuite({ suitePath }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /suite\.yml|models/);
+        assert.doesNotMatch(error.message, /--models/);
+        return true;
+      },
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runWorkbenchSuite rejects non-integer programmatic concurrency', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-concurrency-invalid-'));
+  try {
+    const suitePath = join(root, 'suite.yml');
+    const casePath = join(root, 'cases', 'invalid-concurrency', 'case.yml');
+    mkdirSync(join(root, 'cases', 'invalid-concurrency'), { recursive: true });
+    mkdirSync(join(root, 'cases', 'invalid-concurrency', 'refs'), { recursive: true });
+    writeFileSync(casePath, 'name: invalid-concurrency\nreferences: ./refs\ntask: Test\ngraders:\n  - name: passes\n    command: "true"\n', 'utf-8');
+    writeFileSync(suitePath, [
+      'name: invalid-concurrency-suite',
+      'models:',
+      '  - openrouter/google/gemini-2.5-flash',
+      'cases:',
+      '  - cases/invalid-concurrency/case.yml',
+    ].join('\n'), 'utf-8');
+
+    await assert.rejects(
+      () => runWorkbenchSuite({ suitePath, concurrency: 1.5 }),
+      /concurrency.*positive integer/i,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('runWorkbenchSuite honors concurrency for independent trials', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-suite-concurrency-'));
   const previousExitCode = process.exitCode;

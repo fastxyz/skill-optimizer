@@ -15,6 +15,7 @@ import type {
 
 export const DEFAULT_WORKBENCH_MODEL = 'openrouter/google/gemini-2.5-flash';
 export const DEFAULT_WORKBENCH_TIMEOUT_SECONDS = 600;
+const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function loadWorkbenchCase(configPath: string): ResolvedWorkbenchCase {
   const resolvedConfigPath = resolve(configPath);
@@ -130,14 +131,12 @@ function readMcpService(
 ): WorkbenchMcpServiceConfig {
   const command = readMcpServiceString(parsed.command, 'command', name, configPath);
   const args = parsed.args === undefined ? [] : readMcpServiceStringArray(parsed.args, 'args', name, configPath);
-  const port = parsed.port;
-  if (port !== undefined && (typeof port !== 'number' || !Number.isInteger(port) || port <= 0 || port > 65535)) {
-    throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${name}" port must be an integer from 1 to 65535`);
+  if (parsed.port !== undefined) {
+    throw new Error(`Workbench case ${configPath}: field "mcpServices" service "${name}" port is not supported; set the port in the matching mcpServers URL`);
   }
   return {
     command,
     args,
-    ...(port !== undefined ? { port } : {}),
   };
 }
 
@@ -478,6 +477,12 @@ function readStringArray(
         `Workbench case ${configPath}: field "${field}" item at index ${index} must be a non-empty string`,
       );
     }
-    return item.trim();
+    const trimmed = item.trim();
+    if (field === 'env' && !ENV_NAME_PATTERN.test(trimmed)) {
+      throw new Error(
+        `Workbench case ${configPath}: field "env" item at index ${index} must match ^[A-Za-z_][A-Za-z0-9_]*$`,
+      );
+    }
+    return trimmed;
   });
 }
