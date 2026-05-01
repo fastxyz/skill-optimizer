@@ -2,12 +2,6 @@
 
 This example shows a local MCP server started as a separate hidden Docker service beside the agent container. The agent sees the `calculator` MCP URL through the workbench `mcp` command, but it cannot read the server source file. The server exposes calculator tools: `add`, `subtract`, `multiply`, and `divide`.
 
-Run the reference solution:
-
-```bash
-npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
-```
-
 Run a model trial:
 
 ```bash

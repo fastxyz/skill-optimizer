@@ -21,7 +21,6 @@ npx tsx src/cli.ts run-case <case.yml>
 npx tsx src/cli.ts run-case <case.yml> --model openrouter/google/gemini-2.5-flash
 npx tsx src/cli.ts run-case <case.yml> --models openrouter/google/gemini-2.5-flash,openrouter/openai/gpt-5.4 --trials 3 --concurrency 2
 npx tsx src/cli.ts run-suite <suite.yml> --trials 3 --concurrency 2
-npx tsx src/cli.ts verify-suite <suite.yml>
 ```
 
 Options:
@@ -197,8 +196,6 @@ eval-root/
     fake-product-cli
   workspace/
     starter-repo/
-  solutions/
-    extract-pdf-facts/solution.sh
 ```
 
 Directory behavior:
@@ -210,7 +207,6 @@ Directory behavior:
 | `checks/` | no during agent phase | Graders and setup helpers under `/case/checks` |
 | `fixtures/` | no during agent phase | Immutable grader/setup inputs under `/case/fixtures` |
 | `bin/` | no as files, available on `PATH` in setup/grading | Fixture CLIs for command-selection evals |
-| `solutions/` | no during model runs | `verify-suite` known-good scripts |
 
 ## Execution Phases
 
@@ -234,8 +230,6 @@ Agent phase constraints:
 - Python installs should use `/work/.venv`
 - Internet is available unless Docker environment blocks it
 - `env` allowlisted credentials are available unchanged to agent shell commands
-
-`verify-suite` is different. It is a host-side preflight that reuses case loading, workspace preparation, setup, `$CASE`/`$WORK`/`$RESULTS`, and graders, but it does not run `solution.sh` inside the Docker workbench image.
 
 ## Task Writing Rules
 
@@ -347,35 +341,16 @@ console.log(JSON.stringify({
 process.exit(readForbiddenSkill ? 1 : 0);
 ```
 
-## Reference Solutions
+## Acceptance Contract
 
-`verify-suite` expects one shell script per case:
+Graders are the source of truth for pass/fail. They can evaluate:
 
-```text
-solutions/<case-slug>/solution.sh
-```
+- Files and generated artifacts in `/work`
+- Structured outputs such as `answer.json`
+- Behavior traces in `$RESULTS/trace.jsonl`
+- Any additional result-state files your checks create under `$RESULTS`
 
-`solution.sh` is not the answer key. The grader remains the acceptance contract. A reference solution is one deterministic producer of a correct final workspace, used to prove that setup, fixtures, solution logic, and graders agree before model tokens are spent.
-
-Script behavior:
-
-- Runs in `$WORK`
-- Has `$CASE`, `$WORK`, and `$RESULTS` set
-- Can call Node, Python, shell, fixture CLIs, or helper modules
-- Should write the same deliverables expected from the model
-- Should not depend on model APIs
-
-The shell convention is intentionally general. Correct outputs may be JSON, PDFs, archives, multiple files, edited repos, command logs, or other workspace state. For simple JSON cases, `solution.sh` can just write `answer.json`.
-
-Run this before model runs:
-
-```bash
-npx tsx src/cli.ts verify-suite path/to/suite.yml
-```
-
-`verify-suite` is stdout-only. It uses temporary host work/results directories for `$WORK` and `$RESULTS`, then removes them instead of writing a `.results` run. It does not provide full Docker parity; a reference solution can pass while depending on a host tool that is absent from the workbench image.
-
-Failures here mean the eval harness, fixtures, reference solution, or graders are inconsistent. Fix those before running `run-suite`.
+Keep grading deterministic and local so results stay stable and reproducible.
 
 ## Results And Metrics
 
@@ -445,7 +420,6 @@ After `npm run build`, the package exports these workbench APIs from `skill-opti
 | `loadWorkbenchSuite(path)` | Parse and validate a suite file |
 | `runWorkbenchCase(params)` | Run one case or a model/trial matrix |
 | `runWorkbenchSuite(params)` | Run a suite matrix |
-| `runWorkbenchReferenceSolutions(params)` | Run `verify-suite` behavior programmatically |
 | `runDockerWorkbenchCase(params)` | Lower-level Docker case runner |
 | `runGraderCommands(graders, opts)` | Execute grader commands and normalize results |
 | `normalizeCheckResult(result)` | Normalize shell output into a grade |
@@ -491,7 +465,7 @@ Negative/control cases:
 
 - Ask for a task that should not require the target skill.
 - Grade `trace.jsonl` for forbidden reads, tool calls, or commands.
-- Make reference-solution graders tolerate absent trace files because `verify-suite` does not run an agent.
+- For trace-based negative cases, ensure graders handle missing or empty trace entries defensively.
 
 ## Debugging Failed Runs
 
@@ -500,8 +474,7 @@ Negative/control cases:
 3. Open `summary.json` for final assistant text and bash commands.
 4. Open `trace.jsonl` to inspect tool calls and file reads.
 5. Inspect preserved `workspace/` for failed trials.
-6. If `verify-suite` fails, fix fixtures/graders/reference solutions first.
-7. If only model runs fail, improve the skill, task clarity, fixtures, or grader tolerance.
+6. If only model runs fail, improve the skill, task clarity, fixtures, or grader tolerance.
 
 ## Example Suite
 
@@ -518,7 +491,6 @@ examples/
       suite.yml
       references/pdf-skill/SKILL.md
       checks/*.mjs
-      solutions/*/solution.sh
     mcp/
       mcp/calculator-server.mjs
 ```
@@ -526,7 +498,6 @@ examples/
 The tracked PDF demo is the best starting point:
 
 ```bash
-npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
 npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
 ```
 
@@ -538,7 +509,6 @@ Files to inspect:
 | `examples/workbench/pdf/suite.yml` | Inline suite using models, setup, graders, and append prompt |
 | `examples/workbench/pdf/references/pdf-skill/SKILL.md` | Skill under test copied into `/work` |
 | `examples/workbench/pdf/checks/*.mjs` | Deterministic graders and fixture helpers |
-| `examples/workbench/pdf/solutions/*/solution.sh` | Reference solutions for preflight |
 | `examples/workbench/pdf/README.md` | Demo walkthrough |
 | `examples/workbench/mcp/suite.yml` | Hidden-service MCP calculator demo |
 | `examples/workbench/mcp/mcp/calculator-server.mjs` | Calculator MCP server with add/subtract/multiply/divide |
@@ -553,8 +523,6 @@ npm test
 npm run build
 npx tsx src/cli.ts --help
 node dist/cli.js --help
-npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
-npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
 ```
 
 For runner/Docker changes, rebuild the image:

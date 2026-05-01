@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "skill-optimizer",
     "shortDescription": "Author and run deterministic Docker evals for agent skills.",
-    "longDescription": "Use skill-optimizer to create realistic agent skill eval cases, run OpenRouter model matrices in Docker, preflight reference solutions, inspect traces, and grade deterministic local outcomes.",
+    "longDescription": "Use skill-optimizer to create realistic agent skill eval cases, run OpenRouter model matrices in Docker, inspect traces, and grade deterministic local outcomes.",
     "developerName": "Fast",
     "category": "Coding",
     "capabilities": [

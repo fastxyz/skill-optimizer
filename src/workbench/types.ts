@@ -190,27 +190,6 @@ export interface RunSuiteAggregateResultFile {
   results: WorkbenchCaseModelAggregateResult[];
 }
 
-export interface WorkbenchSimpleSummary {
-  total: number;
-  passed: number;
-  failed: number;
-  passRate: number;
-}
-
-export interface ReferenceCaseResultFile extends WorkbenchGrade {
-  caseName: string;
-  solutionPath: string;
-  resultPath?: string;
-}
-
-export interface ReferenceSuiteResultFile {
-  name: string;
-  startedAt: string;
-  endedAt: string;
-  summary: WorkbenchSimpleSummary;
-  results: ReferenceCaseResultFile[];
-}
-
 export type WorkbenchTraceEntry =
   | {
       type: 'message';

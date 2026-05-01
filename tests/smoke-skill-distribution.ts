@@ -57,7 +57,6 @@ test('package metadata does not include broad example result directories', () =>
   assert.ok(pkg.files.includes('examples/workbench/pdf/suite.yml'));
   assert.ok(pkg.files.includes('examples/workbench/pdf/checks/'));
   assert.ok(pkg.files.includes('examples/workbench/pdf/references/'));
-  assert.ok(pkg.files.includes('examples/workbench/pdf/solutions/'));
 });
 
 test('Claude plugin and marketplace metadata point at the canonical skill', () => {

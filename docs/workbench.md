@@ -10,8 +10,7 @@
 - `workspace/` is copied into `/work` after `references/`. Use it to seed starter files or repos.
 - `checks/`, `fixtures/`, and `bin/` are case support files. They are mounted for setup and grading, not for the agent.
 - The agent phase sees only `/work`. It cannot see `/case`, `/results`, graders, fixtures, or hidden metadata.
-- Graders define acceptance. They inspect files, command logs, generated artifacts, or `trace.jsonl`.
-- Reference solutions produce one known-good workspace state so you can preflight the eval without a model.
+- Graders define acceptance. They inspect files, command logs, generated artifacts, `answer.json`, `trace.jsonl`, and result state.
 
 ## Directory Layout
 
@@ -30,8 +29,6 @@ my-eval/
     fake-product-cli
   workspace/
     starter-repo/
-  solutions/
-    extract-facts/solution.sh
 ```
 
 Support directory behavior:
@@ -43,7 +40,6 @@ Support directory behavior:
 | `checks/` | no during agent phase | Setup helpers and graders under `$CASE/checks` |
 | `fixtures/` | no during agent phase | Immutable setup/grader inputs under `$CASE/fixtures` |
 | `bin/` | yes, copied to `/work/bin` | Fixture CLIs and command recorders; also mounted under `$CASE/bin` for setup/grading |
-| `solutions/` | no during model runs | Known-good scripts for `verify-suite` |
 
 ## Suite And Case Files
 
@@ -170,41 +166,16 @@ Good graders check one thing when practical:
 - Static SQL, source code, diffs, or generated files.
 - `trace.jsonl` for negative behavior, such as reading an irrelevant skill file.
 
-## Reference Solutions
+## Acceptance Contract
 
-Reference solutions are used by `verify-suite`:
+Graders are the only source of truth for pass/fail. Design graders to inspect whatever local evidence the task should produce, including:
 
-```text
-solutions/<case-slug>/solution.sh
-```
+- Workspace files and generated artifacts under `$WORK`
+- Structured outputs such as `answer.json`
+- Agent behavior captured in `$RESULTS/trace.jsonl`
+- Any additional result-state files your setup/graders write under `$RESULTS`
 
-`solution.sh` is not the answer key. The grader is still the source of acceptance. A solution is a deterministic producer that creates one correct final workspace so you can prove fixtures, setup, solution logic, and graders agree before spending model tokens.
-
-The script contract:
-
-- Runs from `$WORK`.
-- Has `$CASE`, `$WORK`, and `$RESULTS` set.
-- Can call Node, Python, shell tools, fixture CLIs, or helper scripts.
-- Should write the same deliverables expected from the model.
-- Should not call model APIs.
-
-Shell is used because outputs are not always one static JSON file. A case might need to create a PDF, split an archive, edit a seeded repo, write several files, or invoke a fake CLI so command logs exist. Simple JSON cases can still use a tiny shell script:
-
-```sh
-cat > answer.json <<'JSON'
-{ "approvalCode": "PDF-7429" }
-JSON
-```
-
-Current `verify-suite` behavior is a preflight, not perfect Docker parity. It reuses suite/case loading, workspace preparation, setup commands, `$CASE`/`$WORK`/`$RESULTS`, and normal graders, but it runs setup, `solution.sh`, and graders as host shell commands. It does not run the solution inside the workbench Docker image and does not write a `.results` run.
-
-Run it before model runs:
-
-```bash
-npx tsx src/cli.ts verify-suite path/to/suite.yml
-```
-
-If `verify-suite` fails, fix fixtures, setup, reference solutions, or graders before running models.
+Keep graders deterministic and local so acceptance criteria stay stable across model runs.
 
 ## Running Evals
 
@@ -282,17 +253,15 @@ suite/.results/<run-id>/
 3. Open `summary.json` for final assistant text and commands.
 4. Open `trace.jsonl` to inspect tool calls and file reads.
 5. Inspect preserved `workspace/` for failed trials.
-6. If `verify-suite` fails, fix the harness first.
-7. If only model runs fail, improve the skill, task clarity, fixtures, or grader tolerance.
+6. If model runs fail, improve the skill, task clarity, fixtures, or grader tolerance.
 
 ## Example
 
 The tracked PDF demo is the best starting point:
 
 ```bash
-npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
 npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
-npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
+npx tsx src/cli.ts run-suite examples/workbench/mcp/suite.yml --trials 1
 ```
 
 Useful files:
@@ -300,5 +269,4 @@ Useful files:
 - `examples/workbench/pdf/suite.yml`: inline suite with models, setup, graders, and append prompt.
 - `examples/workbench/pdf/references/pdf-skill/SKILL.md`: skill under test copied into `/work`.
 - `examples/workbench/pdf/checks/*.mjs`: deterministic graders and fixture helpers.
-- `examples/workbench/pdf/solutions/*/solution.sh`: reference solutions for `verify-suite`.
 - `examples/workbench/pdf/README.md`: demo walkthrough.

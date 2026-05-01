@@ -5,7 +5,6 @@ import { pathToFileURL } from 'node:url';
 
 import { config as loadDotenv } from 'dotenv';
 
-import { runWorkbenchReferenceSolutionsFromCli } from './workbench/reference-solutions.js';
 import { runWorkbenchCaseFromCli } from './workbench/run-case.js';
 import { runWorkbenchSuiteFromCli } from './workbench/run-suite.js';
 
@@ -18,7 +17,6 @@ Skill Optimizer Workbench
 Usage:
   skill-optimizer run-case <case.yml>
   skill-optimizer run-suite <suite.yml>
-  skill-optimizer verify-suite <suite.yml>
 
 Run-case options:
   --out <path>                                  Results directory (default: <case-dir>/.results)
@@ -35,9 +33,6 @@ Run-suite options:
   --concurrency <n>                             Maximum concurrent trial containers (default: 1)
   --image <image>                               Docker image (default: skill-optimizer-workbench:local)
   --keep-workspace                              Copy final /work into each result workspace; failures are always preserved
-
-Validation commands:
-  verify-suite <suite.yml>                       Run authored reference solutions through graders
 
 Examples:
   skill-optimizer run-case ./case.yml
@@ -56,7 +51,7 @@ async function main(): Promise<void> {
   }
 
   const command = args[0];
-  const commands = new Set(['run-case', 'run-suite', 'verify-suite']);
+  const commands = new Set(['run-case', 'run-suite']);
   if (!commands.has(command ?? '')) {
     if (command) {
       console.error(`ERROR: Unknown command '${command}'.`);
@@ -69,8 +64,6 @@ async function main(): Promise<void> {
     await runWorkbenchCaseFromCli(args.slice(1));
   } else if (command === 'run-suite') {
     await runWorkbenchSuiteFromCli(args.slice(1));
-  } else if (command === 'verify-suite') {
-    await runWorkbenchReferenceSolutionsFromCli(args.slice(1));
   }
   process.exit(process.exitCode ?? 0);
 }

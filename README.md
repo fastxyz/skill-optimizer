@@ -65,12 +65,6 @@ Only `openrouter/...` model refs are supported.
 
 ## Quick Start
 
-Verify a suite's fixtures, reference solutions, and graders without calling a model:
-
-```bash
-npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
-```
-
 Run the suite against the models listed in `suite.yml`:
 
 ```bash
@@ -89,7 +83,6 @@ CLI help:
 npx tsx src/cli.ts --help
 npx tsx src/cli.ts run-case --help
 npx tsx src/cli.ts run-suite --help
-npx tsx src/cli.ts verify-suite --help
 ```
 
 ## How The Workbench Works
@@ -103,18 +96,17 @@ Core concepts:
 - `references/` is copied into `/work`; this is where the skill under test lives.
 - The agent phase sees only `/work`, not graders, fixtures, hidden answers, `/case`, or `/results`.
 - Graders run after the agent with `$CASE`, `$WORK`, and `$RESULTS` available.
-- `solutions/<case-slug>/solution.sh` is an optional known-good producer used by `verify-suite`; it is not the answer key.
+- Graders are the acceptance contract. They can inspect workspace files and artifacts, `answer.json`, `trace.jsonl`, and result state under `$RESULTS`.
 
-Read `docs/workbench.md` for the full model: directory layout, Docker phases, graders, reference solutions, outputs, and debugging.
+Read `docs/workbench.md` for the full model: directory layout, Docker phases, graders, outputs, and debugging.
 
 ## Examples
 
 Tracked examples live under `examples/workbench/`. The PDF example includes positive PDF extraction/splitting/creation cases and a negative case that checks the agent did not read the PDF skill file for a non-PDF task. The MCP example shows a local calculator server started as a hidden Docker service and exposed through the workbench `mcp` command.
 
 ```bash
-npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
 npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
-npx tsx src/cli.ts verify-suite examples/workbench/mcp/suite.yml
+npx tsx src/cli.ts run-suite examples/workbench/mcp/suite.yml --trials 1
 ```
 
 ## Development

@@ -8,16 +8,12 @@ This suite demonstrates the main workbench features with a PDF skill:
 - `setup`: fixture generation before the agent starts
 - `graders`: deterministic post-run checks
 - trace grading: the negative case checks `trace.jsonl` for forbidden skill reads
-- `verify-suite`: known-good references for grader preflight
 
 ## Run The Demo
 
 ```bash
-npx tsx src/cli.ts verify-suite examples/workbench/pdf/suite.yml
 npx tsx src/cli.ts run-suite examples/workbench/pdf/suite.yml --trials 1
 ```
-
-`verify-suite` runs `solutions/<case-slug>/solution.sh` in a temporary `/work`, then runs the same graders as a model attempt. It does not call a model or write `.results`.
 
 `run-suite` runs each case against the suite models. Results are written to:
 
