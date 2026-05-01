@@ -7,7 +7,7 @@ This reference is for humans and agents authoring evals with the `skill-optimize
 The workbench is for tasks that can be graded from local evidence:
 
 - Files the agent creates or edits in `/work`
-- Command invocations recorded by fixture CLIs
+- Command invocations recorded by fake CLIs
 - Generated files such as PDF, DOCX, PPTX, XLSX, images, JSON, or code
 - Static SQL, shell scripts, config, or source code
 - Agent behavior captured in `trace.jsonl`
@@ -52,7 +52,7 @@ graders:
   - name: answer-json
     command: node $CASE/checks/extract-pdf-facts.mjs
 setup:
-  - node $CASE/checks/create-fixtures.mjs
+  - node $CASE/checks/create-inputs.mjs
 cleanup: []
 env:
   - OPENROUTER_API_KEY
@@ -105,7 +105,7 @@ env:
   - OPENROUTER_API_KEY
 timeoutSeconds: 600
 setup:
-  - node $CASE/checks/_pdf.mjs write-fixtures input
+  - node $CASE/checks/_pdf.mjs write-inputs input
 appendSystemPrompt: |
   Keep task outputs at the top level of /work unless the user asks otherwise.
 cases:
@@ -187,11 +187,9 @@ eval-root/
     product-skill/SKILL.md
     product-skill/references/api.md
   checks/
-    create-fixtures.mjs
+    create-inputs.mjs
     grade-output.mjs
     trace-guards.mjs
-  fixtures/
-    input-data.json
   bin/
     fake-product-cli
   workspace/
@@ -205,8 +203,7 @@ Directory behavior:
 | `references/` | yes, copied into `/work` | Skills, docs, examples, starter reference files |
 | `workspace/` | yes, copied into `/work` | Seed app repo or starter files the agent may edit |
 | `checks/` | no during agent phase | Graders and setup helpers under `/case/checks` |
-| `fixtures/` | no during agent phase | Immutable grader/setup inputs under `/case/fixtures` |
-| `bin/` | no as files, available on `PATH` in setup/grading | Fixture CLIs for command-selection evals |
+| `bin/` | no as files, available on `PATH` in setup/grading | Fake CLIs for command-selection evals |
 
 ## Execution Phases
 
@@ -214,7 +211,7 @@ Directory behavior:
 
 | Phase | Docker Mounts | Working Dir | What Happens |
 |-------|---------------|-------------|--------------|
-| setup | `/case:ro`, `/work:rw` | `/work` | Run `setup` commands and prepare fixtures |
+| setup | `/case:ro`, `/work:rw` | `/work` | Run `setup` commands and prepare inputs |
 | agent | `/work:rw` only | `/work` | Pi agent receives task and uses tools |
 | grade | `/case:ro`, `/work:rw`, `/results:rw` | `/work` | Run grader commands and write result files |
 | cleanup | `/case:ro`, `/work:rw`, `/results:rw` | `/work` | Run optional cleanup commands |
@@ -237,7 +234,7 @@ Write tasks like normal user requests:
 
 - Ask for the actual deliverable and path.
 - Include enough business detail to complete the task.
-- Keep hidden expected answers in fixtures/graders, not in the task.
+- Keep hidden expected answers in graders or hidden case support files, not in the task.
 - Do not mention graders, answer keys, trace checks, `/case`, `/results`, or benchmark metadata.
 - Do not instruct the agent to read or not read a skill unless that is the real user behavior being evaluated.
 
@@ -474,8 +471,8 @@ Negative/control cases:
 3. Open `summary.json` for final assistant text and bash commands.
 4. Open `trace.jsonl` to inspect tool calls and file reads.
 5. Inspect preserved `workspace/` for failed trials.
-6. Classify the failure as unclear skill guidance, missing reference material, brittle grader, unrealistic fixture, task ambiguity, or product/code bug.
-7. Update the target skill, references, fixtures, graders, or code according to that diagnosis.
+6. Classify the failure as unclear skill guidance, missing reference material, brittle grader, unrealistic input data, task ambiguity, or product/code bug.
+7. Update the target skill, references, inputs, graders, or code according to that diagnosis.
 8. Re-run the same case or suite and compare grader evidence across the target models/trials.
 
 ## Example Suite
@@ -510,7 +507,7 @@ Files to inspect:
 | `examples/workbench/README.md` | Top-level example command walkthrough |
 | `examples/workbench/pdf/suite.yml` | Inline suite using models, setup, graders, and append prompt |
 | `examples/workbench/pdf/references/pdf-skill/SKILL.md` | Skill under test copied into `/work` |
-| `examples/workbench/pdf/checks/*.mjs` | Deterministic graders and fixture helpers |
+| `examples/workbench/pdf/checks/*.mjs` | Deterministic graders and setup helpers |
 | `examples/workbench/pdf/README.md` | Demo walkthrough |
 | `examples/workbench/mcp/suite.yml` | Hidden-service MCP calculator demo |
 | `examples/workbench/mcp/mcp/calculator-server.mjs` | Calculator MCP server with add/subtract/multiply/divide |

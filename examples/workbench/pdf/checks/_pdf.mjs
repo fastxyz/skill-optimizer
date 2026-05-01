@@ -253,7 +253,7 @@ export function missingStrings(text, expected) {
   return expected.filter((value) => !text.includes(value));
 }
 
-export function writeFixturePdfs(rootDir) {
+export function writeInputPdfs(rootDir) {
   createPdf(join(rootDir, 'statement.pdf'), [
     [
       'Quarterly Statement',
@@ -296,10 +296,10 @@ export function writeFixturePdfs(rootDir) {
   ]);
 }
 
-if (process.argv[1] === new URL(import.meta.url).pathname && process.argv[2] === 'write-fixtures') {
+if (process.argv[1] === new URL(import.meta.url).pathname && process.argv[2] === 'write-inputs') {
   const outputDir = process.argv[3];
   if (!outputDir) {
-    throw new Error('Usage: node _pdf.mjs write-fixtures <output-dir>');
+    throw new Error('Usage: node _pdf.mjs write-inputs <output-dir>');
   }
-  writeFixturePdfs(outputDir);
+  writeInputPdfs(outputDir);
 }

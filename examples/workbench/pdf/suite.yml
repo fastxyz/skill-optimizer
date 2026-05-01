@@ -9,7 +9,7 @@ env:
 timeoutSeconds: 600
 setup:
   - mkdir -p input
-  - node $CASE/checks/_pdf.mjs write-fixtures input
+  - node $CASE/checks/_pdf.mjs write-inputs input
   - cp input/statement.pdf statement.pdf
   - cp input/customer-packet.pdf customer-packet.pdf
   - cp input/briefing-source.pdf briefing-source.pdf

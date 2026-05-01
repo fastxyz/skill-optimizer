@@ -14,7 +14,7 @@ Use this skill as the source of truth for authoring eval suites in this repo. De
 - A case is one user-like task plus one or more deterministic graders.
 - A suite is a set of cases and OpenRouter models to run as a matrix.
 - `references` are copied into `/work` before the agent starts; this is where eval skills live.
-- The agent phase sees `/work` only. It cannot see `/case`, `/results`, graders, fixtures, or hidden metadata.
+- The agent phase sees `/work` only. It cannot see `/case`, `/results`, graders, hidden answers, or hidden metadata.
 - Cases can define `mcpServers`; these are exposed through a workbench `mcp` command during the agent phase.
 - Graders run after the agent with `/case`, `/work`, and `/results` mounted.
 - `trace.jsonl` is the debugging source for what the agent saw, said, and did.
@@ -61,7 +61,7 @@ Plugin entrypoints:
 1. Create `suite.yml` with `models`, shared defaults, and inline cases or case paths.
 2. Put the skill/reference material under `references/`; it will be copied into `/work`.
 3. Write natural user tasks. Do not mention graders, hidden answers, `/case`, or eval internals.
-4. Put immutable fixtures and grader helpers under `checks/`, `fixtures/`, or `bin/` beside the suite/case.
+4. Put setup helpers, grader helpers, and fake CLIs under `checks/` or `bin/` beside the suite/case.
 5. Add one or more `graders` per case. Prefer small deterministic graders over one broad grader.
 6. Run `run-suite --trials <n>` and inspect `suite-result.json`, failing `result.json`, `summary.json`, and `trace.jsonl`.
 
@@ -82,7 +82,7 @@ env:
   - OPENROUTER_API_KEY
 timeoutSeconds: 600
 setup:
-  - node $CASE/checks/create-fixtures.mjs
+  - node $CASE/checks/create-inputs.mjs
 appendSystemPrompt: |
   Keep task outputs at the top level of /work unless the user asks otherwise.
 cases:
@@ -102,17 +102,15 @@ my-eval/
   references/
     my-skill/SKILL.md
   checks/
-    create-fixtures.mjs
+    create-inputs.mjs
     extract-pdf-facts.mjs
-  fixtures/
-    seed-data.json
   bin/
     fake-cli
   workspace/
     starter-app/
 ```
 
-Support directories are optional. `checks/`, `fixtures/`, and `bin/` are mounted read-only at `/case/...` for setup/grading. `workspace/` is copied into `/work` after `references/`.
+Support directories are optional. `checks/` and `bin/` are mounted read-only at `/case/...` for setup/grading. `workspace/` is copied into `/work` after `references/`.
 
 ## Grader Contract
 
@@ -149,7 +147,7 @@ Use `trace.jsonl` to debug failures and to grade negative behavior, such as whet
 
 ## Optimization Loop
 
-After a run, inspect failing `result.json`, `summary.json`, `trace.jsonl`, and preserved `workspace/` evidence. Classify each failure before changing anything: unclear skill guidance, missing reference material, brittle grader, unrealistic fixture, task ambiguity, or product/code bug. Update the target skill, references, fixtures, graders, or code according to that diagnosis, then re-run the same case or suite to verify the change. Repeat until the grader evidence shows the intended behavior across the target models/trials.
+After a run, inspect failing `result.json`, `summary.json`, `trace.jsonl`, and preserved `workspace/` evidence. Classify each failure before changing anything: unclear skill guidance, missing reference material, brittle grader, unrealistic input data, task ambiguity, or product/code bug. Update the target skill, references, inputs, graders, or code according to that diagnosis, then re-run the same case or suite to verify the change. Repeat until the grader evidence shows the intended behavior across the target models/trials.
 
 ## Programmatic SDK
 
@@ -178,7 +176,7 @@ Tracked demos live in `examples/` (the same repo path users may refer to as `@ex
 | `examples/workbench/pdf/README.md` | Explains the PDF demo cases and expected outputs |
 | `examples/workbench/pdf/suite.yml` | Concrete suite using models, setup, env, graders, and append prompt |
 | `examples/workbench/pdf/references/pdf-skill/SKILL.md` | Example skill copied into `/work` for the agent |
-| `examples/workbench/pdf/checks/*.mjs` | Deterministic grader and fixture helper patterns |
+| `examples/workbench/pdf/checks/*.mjs` | Deterministic grader and setup helper patterns |
 | `examples/workbench/mcp/suite.yml` | Hidden-service MCP calculator example |
 | `examples/workbench/mcp/mcp/calculator-server.mjs` | Example MCP server with add/subtract/multiply/divide tools |
 

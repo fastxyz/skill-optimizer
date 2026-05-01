@@ -94,7 +94,7 @@ Core concepts:
 - A case is one user-like task plus one or more graders.
 - A suite is a matrix of cases and OpenRouter models.
 - `references/` is copied into `/work`; this is where the skill under test lives.
-- The agent phase sees only `/work`, not graders, fixtures, hidden answers, `/case`, or `/results`.
+- The agent phase sees only `/work`, not graders, hidden answers, `/case`, or `/results`.
 - Graders run after the agent with `$CASE`, `$WORK`, and `$RESULTS` available.
 - Graders are the acceptance contract. They can inspect workspace files and artifacts, `answer.json`, `trace.jsonl`, and result state under `$RESULTS`.
 

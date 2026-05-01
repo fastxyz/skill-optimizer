@@ -84,7 +84,7 @@ test('Codex and Cursor plugin metadata point at the canonical skill', () => {
     assert.equal(manifest.name, 'skill-optimizer');
     assert.equal(manifest.version, pkg.version);
     assert.equal(manifest.skills, './skills/');
-    assert.equal(manifest.interface.displayName, 'skill-optimizer');
+    assert.equal(manifest.interface.displayName, 'Skill Optimizer');
     assert.ok(manifest.interface.defaultPrompt.length > 0);
   }
 });
@@ -93,7 +93,7 @@ test('Codex marketplace metadata exposes the root plugin with install policy', (
   const marketplace = readJson('.agents/plugins/marketplace.json');
 
   assert.equal(marketplace.name, 'skill-optimizer');
-  assert.equal(marketplace.interface.displayName, 'skill-optimizer');
+  assert.equal(marketplace.interface.displayName, 'Skill Optimizer');
   assert.equal(marketplace.plugins.length, 1);
 
   const plugin = marketplace.plugins[0];

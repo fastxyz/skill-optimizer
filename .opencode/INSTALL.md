@@ -16,6 +16,6 @@ To pin a version, append a tag or commit ref:
 
 ```json
 {
-  "plugin": ["skill-optimizer@git+https://github.com/fastxyz/skill-optimizer.git#v1.1.0"]
+  "plugin": ["skill-optimizer@git+https://github.com/fastxyz/skill-optimizer.git#v2.0.0"]
 }
 ```

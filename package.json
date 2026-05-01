@@ -1,7 +1,7 @@
 {
   "name": "skill-optimizer",
   "version": "2.0.0",
-  "description": "Local Docker workbench for running and grading agent skill cases.",
+  "description": "Build, run, and improve evals for agent skills.",
   "license": "MIT",
   "author": "Fast",
   "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
@@ -15,9 +15,10 @@
   "keywords": [
     "agent",
     "skills",
-    "docker",
-    "evaluation",
-    "workbench"
+    "agent-skills",
+    "evals",
+    "skill-testing",
+    "model-evaluation"
   ],
   "type": "module",
   "main": ".opencode/plugins/skill-optimizer.js",

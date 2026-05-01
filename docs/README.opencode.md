@@ -24,7 +24,7 @@ OpenCode reinstalls git plugins when it starts. To pin a tag or commit, append a
 
 ```json
 {
-  "plugin": ["skill-optimizer@git+https://github.com/fastxyz/skill-optimizer.git#v1.1.0"]
+  "plugin": ["skill-optimizer@git+https://github.com/fastxyz/skill-optimizer.git#v2.0.0"]
 }
 ```
 

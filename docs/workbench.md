@@ -8,8 +8,8 @@
 - A suite is a matrix of cases and OpenRouter models.
 - `references/` is copied into `/work` before the agent starts. Put the skill under test here.
 - `workspace/` is copied into `/work` after `references/`. Use it to seed starter files or repos.
-- `checks/`, `fixtures/`, and `bin/` are case support files. They are mounted for setup and grading, not for the agent.
-- The agent phase sees only `/work`. It cannot see `/case`, `/results`, graders, fixtures, or hidden metadata.
+- `checks/` and `bin/` are case support files. They are mounted for setup and grading, not for the agent.
+- The agent phase sees only `/work`. It cannot see `/case`, `/results`, graders, hidden answers, or hidden metadata.
 - Graders define acceptance. They inspect files, command logs, generated artifacts, `answer.json`, `trace.jsonl`, and result state.
 
 ## Directory Layout
@@ -21,10 +21,8 @@ my-eval/
     my-skill/SKILL.md
     my-skill/references/api.md
   checks/
-    create-fixtures.mjs
+    create-inputs.mjs
     grade-output.mjs
-  fixtures/
-    seed-data.json
   bin/
     fake-product-cli
   workspace/
@@ -38,8 +36,7 @@ Support directory behavior:
 | `references/` | yes, copied into `/work` | Skills and reference docs under test |
 | `workspace/` | yes, copied into `/work` | Starter repos, input files, seed state |
 | `checks/` | no during agent phase | Setup helpers and graders under `$CASE/checks` |
-| `fixtures/` | no during agent phase | Immutable setup/grader inputs under `$CASE/fixtures` |
-| `bin/` | yes, copied to `/work/bin` | Fixture CLIs and command recorders; also mounted under `$CASE/bin` for setup/grading |
+| `bin/` | yes, copied to `/work/bin` | Fake CLIs and command recorders; also mounted under `$CASE/bin` for setup/grading |
 
 ## Suite And Case Files
 
@@ -54,7 +51,7 @@ env:
   - OPENROUTER_API_KEY
 timeoutSeconds: 600
 setup:
-  - node $CASE/checks/create-fixtures.mjs
+  - node $CASE/checks/create-inputs.mjs
 appendSystemPrompt: |
   Keep task outputs at the top level of /work unless the user asks otherwise.
 cases:
@@ -162,7 +159,7 @@ Good graders check one thing when practical:
 
 - Exact JSON shape and values.
 - PDF, DOCX, PPTX, XLSX, image, ZIP, or database structure.
-- Command calls recorded by a fixture CLI.
+- Command calls recorded by a fake CLI.
 - Static SQL, source code, diffs, or generated files.
 - `trace.jsonl` for negative behavior, such as reading an irrelevant skill file.
 
@@ -253,8 +250,8 @@ suite/.results/<run-id>/
 3. Open `summary.json` for final assistant text and commands.
 4. Open `trace.jsonl` to inspect tool calls and file reads.
 5. Inspect preserved `workspace/` for failed trials.
-6. Classify the failure as unclear skill guidance, missing reference material, brittle grader, unrealistic fixture, task ambiguity, or product/code bug.
-7. Update the target skill, references, fixtures, graders, or code according to that diagnosis.
+6. Classify the failure as unclear skill guidance, missing reference material, brittle grader, unrealistic input data, task ambiguity, or product/code bug.
+7. Update the target skill, references, inputs, graders, or code according to that diagnosis.
 8. Re-run the same case or suite and compare grader evidence across the target models/trials.
 
 ## Example
@@ -270,5 +267,5 @@ Useful files:
 
 - `examples/workbench/pdf/suite.yml`: inline suite with models, setup, graders, and append prompt.
 - `examples/workbench/pdf/references/pdf-skill/SKILL.md`: skill under test copied into `/work`.
-- `examples/workbench/pdf/checks/*.mjs`: deterministic graders and fixture helpers.
+- `examples/workbench/pdf/checks/*.mjs`: deterministic graders and setup helpers.
 - `examples/workbench/pdf/README.md`: demo walkthrough.

@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.0 — 2026-05-01
+
+### Changed
+
+- Rebuilt Skill Optimizer around the eval workbench: realistic skill cases, model matrices, isolated agent workspaces, trace inspection, deterministic grader evidence, and iterative skill improvement.
+- Repositioned package and plugin metadata around the skill eval lab workflow instead of implementation mechanics.
+
+### Breaking Changes
+
+- Removed the legacy reference-solution preflight flow and `verify-suite`; graders are now the sole acceptance contract.
+- Removed reference-solution SDK exports and packaged example solution scripts.
+
+### Added
+
+- Hidden MCP services for eval cases, exposed to agents through the workbench `mcp` command.
+- Post-run optimization guidance for inspecting failures, updating skills or supporting code, and re-running evals.
+
 ## 1.1.0 — 2026-04-16
 
 ### Breaking Changes

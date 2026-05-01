@@ -5,7 +5,7 @@ This suite demonstrates the main workbench features with a PDF skill:
 - `models`: suite-owned model matrix
 - `env`: API key forwarding into the agent container
 - `appendSystemPrompt`: suite-wide prompt additions
-- `setup`: fixture generation before the agent starts
+- `setup`: input generation before the agent starts
 - `graders`: deterministic post-run checks
 - trace grading: the negative case checks `trace.jsonl` for forbidden skill reads
 

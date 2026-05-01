@@ -1,7 +1,7 @@
 {
   "name": "skill-optimizer",
-  "description": "Agent skill eval workbench for authoring, running, and grading deterministic Docker-based skill cases.",
-  "version": "1.1.0",
+  "description": "Build, run, and improve evals for agent skills.",
+  "version": "2.0.0",
   "author": {
     "name": "Fast"
   },
@@ -11,9 +11,9 @@
   "keywords": [
     "agent-skills",
     "evals",
-    "docker",
-    "workbench",
-    "openrouter"
+    "skill-testing",
+    "model-evaluation",
+    "optimization"
   ],
   "skills": "./skills/"
 }
