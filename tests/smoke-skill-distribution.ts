@@ -25,6 +25,37 @@ test('canonical skill follows the portable agent skills contract', () => {
   assert.doesNotMatch(body, /^description: .{1025,}$/m);
 });
 
+test('canonical skill documents current workbench command and live CLI patterns', () => {
+  const skill = readText('skills/skill-optimizer/SKILL.md');
+  const reference = readText('skills/skill-optimizer/references/workbench.md');
+
+  for (const text of [skill, reference]) {
+    assert.doesNotMatch(text, /verify-suite/);
+    assert.doesNotMatch(text, /runWorkbenchReferenceSolutions/);
+  }
+
+  assert.match(reference, /Live CLI\/API Skills/);
+  assert.match(reference, /Use dedicated test credentials/);
+  assert.match(reference, /Grade command names, flags, output files, and trace behavior/);
+  assert.match(reference, /Include a no-tool-needed control case/);
+  assert.match(reference, /Include a prompt-injection or unsafe-instruction case/);
+});
+
+test('workbench reference documents bin directory visibility accurately', () => {
+  const reference = readText('skills/skill-optimizer/references/workbench.md');
+
+  assert.match(
+    reference,
+    /`bin\/` \| yes, copied into `\/work\/bin` and mounted as `\/case\/bin` during setup and grading/,
+  );
+});
+
+test('packaged MCP example omits unsupported mcpService ports', () => {
+  const suite = readText('examples/workbench/mcp/suite.yml');
+
+  assert.doesNotMatch(suite, /^\s+port:/m);
+});
+
 test('package metadata exposes plugin and skill distribution files', () => {
   const pkg = readJson('package.json');
 
@@ -58,6 +89,10 @@ test('package metadata does not include broad example result directories', () =>
   assert.ok(pkg.files.includes('examples/workbench/pdf/suite.yml'));
   assert.ok(pkg.files.includes('examples/workbench/pdf/checks/'));
   assert.ok(pkg.files.includes('examples/workbench/pdf/references/'));
+  assert.equal(
+    pkg.files.some((entry: string) => entry.startsWith('examples/workbench/firecrawl-search')),
+    false,
+  );
 });
 
 test('Claude plugin and marketplace metadata point at the canonical skill', () => {

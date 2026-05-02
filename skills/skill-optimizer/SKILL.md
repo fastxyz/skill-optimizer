@@ -61,7 +61,7 @@ Plugin entrypoints:
 1. Create `suite.yml` with `models`, shared defaults, and inline cases or case paths.
 2. Put the skill/reference material under `references/`; it will be copied into `/work`.
 3. Write natural user tasks. Do not mention graders, hidden answers, `/case`, or eval internals.
-4. Put setup helpers, grader helpers, and fake CLIs under `checks/` or `bin/` beside the suite/case.
+4. Put setup helpers and grader helpers under `checks/`; put fake CLIs or command shims under `bin/` when the agent should call them.
 5. Add one or more `graders` per case. Prefer small deterministic graders over one broad grader.
 6. Run `run-suite --trials <n>` and inspect `suite-result.json`, failing `result.json`, `summary.json`, and `trace.jsonl`.
 
@@ -69,7 +69,7 @@ Variables listed in `env` are forwarded unchanged into setup, agent, grading, an
 
 Use `mcpServers` when the task should interact with MCP tools. For local servers whose source should stay hidden from the agent, put server files under the case `mcp/` support directory and define `mcpServices`; Docker starts those as separate service containers and the agent only sees their HTTP MCP URL. Direct stdio `mcpServers.command` entries run inside the agent container and are only appropriate when the server implementation is intentionally agent-visible. Remote HTTP/SSE servers must be reachable from Docker. The workbench generates `/work/mcporter.json` with `imports: []`, so host/user MCP configs are not imported. OAuth/browser auth is not supported; use env/header credentials listed in `env`.
 
-Prefer the real CLI/API/service when you do not know its internal behavior well enough to mock it faithfully. Mock only when you are sure the mock matches the real command surface, validation, outputs, and failure modes; otherwise the eval will measure the mock, not the skill.
+Prefer the real CLI/API/service when you do not know its internal behavior well enough to mock it faithfully. Mock only when you are sure the mock matches the real command surface, validation, outputs, and failure modes; otherwise the eval will measure the mock, not the skill. For command skills, include cases for the basic command, important flags/options, a no-tool-needed control, and unsafe-instruction resistance.
 
 ## Minimal Suite
 
@@ -110,7 +110,7 @@ my-eval/
     starter-app/
 ```
 
-Support directories are optional. `checks/` and `bin/` are mounted read-only at `/case/...` for setup/grading. `workspace/` is copied into `/work` after `references/`.
+Support directories are optional. `checks/` is mounted read-only at `/case/checks` for setup/grading. `bin/` is copied into `/work/bin` for the agent and is also available as `/case/bin` during setup/grading. `workspace/` is copied into `/work` after `references/`.
 
 ## Grader Contract
 
@@ -148,6 +148,8 @@ Use `trace.jsonl` to debug failures and to grade negative behavior, such as whet
 ## Optimization Loop
 
 After a run, inspect failing `result.json`, `summary.json`, `trace.jsonl`, and preserved `workspace/` evidence. Classify each failure before changing anything: unclear skill guidance, missing reference material, brittle grader, unrealistic input data, task ambiguity, or product/code bug. Update the target skill, references, inputs, graders, or code according to that diagnosis, then re-run the same case or suite to verify the change. Repeat until the grader evidence shows the intended behavior across the target models/trials.
+
+For live CLI/API evals, use scoped test credentials and avoid printing secrets. Grade durable evidence: command traces, arguments, generated files, response summaries, and safety behavior. Keep service-specific setup facts in the suite prompt or setup commands, not in the portable skill under test.
 
 ## Programmatic SDK
 

@@ -201,7 +201,7 @@ Directory behavior:
 | `references/` | yes, copied into `/work` | Skills, docs, examples, starter reference files |
 | `workspace/` | yes, copied into `/work` | Seed app repo or starter files the agent may edit |
 | `checks/` | no during agent phase | Graders and setup helpers under `/case/checks` |
-| `bin/` | no as files, available on `PATH` in setup/grading | Fake CLIs for command-selection evals |
+| `bin/` | yes, copied into `/work/bin` and mounted as `/case/bin` during setup and grading | Fake CLIs and command shims on `PATH` |
 
 ## Execution Phases
 
@@ -437,12 +437,16 @@ Use CLI commands for normal human workflows. Use SDK functions for tests, wrappe
 
 ## Eval Patterns
 
-CLI/API skills:
+Live CLI/API Skills:
 
 - Prefer the real CLI/API/service when you are not certain how to mock its internals.
 - Mock only when you know the real command surface, validation, outputs, and failure modes well enough to reproduce them faithfully.
-- If mocking is justified, put a fake executable in `bin/`, record calls to `$WORK/calls.jsonl`, and grade command names, flags, request bodies, output files, and safety behavior.
+- Use dedicated test credentials with least privilege, allowlist only the needed env vars, and avoid printing secrets into trace or grader evidence.
+- If mocking is justified, put a fake executable in `bin/` and record calls to `$WORK/calls.jsonl`. Grade command names, flags, output files, and trace behavior.
 - If the real tool is safe to call with setup/cleanup and scoped test credentials, install it in `setup` and grade its real dry-run or live request output.
+- Include a basic-command case and a flag/options case for command-selection coverage.
+- Include a no-tool-needed control case to catch unnecessary skill or CLI use.
+- Include a prompt-injection or unsafe-instruction case when external content, fetched pages, or third-party responses can influence the agent.
 
 File-output skills:
 
