@@ -1,0 +1,36 @@
+{
+  "name": "skill-optimizer",
+  "displayName": "Skill Optimizer",
+  "description": "Build, run, and improve evals for agent skills.",
+  "version": "2.0.0",
+  "author": {
+    "name": "Fast"
+  },
+  "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
+  "repository": "https://github.com/fastxyz/skill-optimizer",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "evals",
+    "skill-testing",
+    "model-evaluation",
+    "optimization"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Skill Optimizer",
+    "shortDescription": "Build, run, and improve evals for agent skills.",
+    "longDescription": "Create realistic skill eval suites, run them across models, inspect traces and grader evidence, then iterate on the skill or supporting code until behavior improves.",
+    "developerName": "Fast",
+    "category": "Coding",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use Skill Optimizer to design and run an eval suite for this agent skill.",
+      "Use Skill Optimizer to inspect failing traces and improve the skill."
+    ],
+    "brandColor": "#3B82F6"
+  }
+}

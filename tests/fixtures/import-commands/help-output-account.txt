@@ -1,9 +1,0 @@
-Usage: fast-cli account [options] [command]
-
-Commands:
-  create       Create a new account
-  list         List all accounts
-  delete <name>  Delete an account
-
-Options:
-  -h, --help  output usage information

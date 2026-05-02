@@ -1,10 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Project Overview
 
 `skill-optimizer` is a Docker workbench for running and grading agent skill eval cases. The current public CLI centers on `run-case` and `run-suite`.
-
-The workbench gives an agent an isolated Docker `/work` directory, captures traces, and grades deterministic local outcomes from files, command logs, generated artifacts, or other workspace state.
 
 ## Key Commands
 
@@ -23,7 +21,6 @@ npx tsx src/cli.ts run-suite --help
 - `src/workbench/`: workbench case loading, suite loading, Docker runner, Pi agent, graders, and traces
 - `docker/workbench-runner.Dockerfile`: generic non-root container image for setup, agent, grade, and cleanup phases
 - `skills/skill-optimizer/SKILL.md`: canonical distributable Agent Skill
-- `skills/skill-optimizer/references/workbench.md`: detailed workbench schema and usage reference
 - `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.opencode/`: cross-agent plugin manifests and install support
 - `.agents/plugins/marketplace.json`: Codex repo marketplace entry for the root plugin
 - `gemini-extension.json`, `GEMINI.md`: Gemini extension metadata and context file

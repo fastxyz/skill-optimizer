@@ -1,0 +1,21 @@
+{
+  "name": "skill-optimizer",
+  "description": "Skill eval lab for testing and improving agent skills.",
+  "owner": {
+    "name": "Fast"
+  },
+  "plugins": [
+    {
+      "name": "skill-optimizer",
+      "description": "Build, run, and improve evals for agent skills.",
+      "version": "2.0.0",
+      "source": "./",
+      "author": {
+        "name": "Fast"
+      },
+      "skills": [
+        "./skills/skill-optimizer"
+      ]
+    }
+  ]
+}

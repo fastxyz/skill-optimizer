@@ -1,0 +1,6 @@
+{
+  "name": "skill-optimizer",
+  "description": "Build, run, and improve evals for agent skills.",
+  "version": "2.0.0",
+  "contextFileName": "GEMINI.md"
+}

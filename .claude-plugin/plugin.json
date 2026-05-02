@@ -1,0 +1,19 @@
+{
+  "name": "skill-optimizer",
+  "description": "Build, run, and improve evals for agent skills.",
+  "version": "2.0.0",
+  "author": {
+    "name": "Fast"
+  },
+  "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
+  "repository": "https://github.com/fastxyz/skill-optimizer",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "evals",
+    "skill-testing",
+    "model-evaluation",
+    "optimization"
+  ],
+  "skills": "./skills/"
+}
