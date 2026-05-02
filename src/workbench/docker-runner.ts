@@ -315,15 +315,18 @@ async function removeDockerNetwork(networkName: string | undefined, repoRoot: st
   await runShellCommand(`docker network rm ${shellQuote(networkName)}`, { cwd: repoRoot });
 }
 
-async function startMcpServices(params: {
+export async function startMcpServices(params: {
   image: string;
   networkName: string;
   caseDir: string;
   tempDir: string;
   services: ResolvedWorkbenchCase['mcpServices'];
   repoRoot: string;
+  startedContainers?: string[];
+  runCommand?: typeof runShellCommand;
 }): Promise<string[]> {
-  const containerNames: string[] = [];
+  const containerNames = params.startedContainers ?? [];
+  const runCommand = params.runCommand ?? runShellCommand;
   for (const [name, service] of Object.entries(params.services)) {
     const containerName = `${mcpNetworkName(params.tempDir)}-${name}`;
     console.log(`Starting MCP service ${name}...`);
@@ -336,7 +339,7 @@ async function startMcpServices(params: {
       command: service.command,
       args: service.args,
     });
-    const run = await runShellCommand(command, { cwd: params.repoRoot });
+    const run = await runCommand(command, { cwd: params.repoRoot });
     if (run.exitCode !== 0) {
       throw new Error([`Failed to start MCP service ${name}`, run.stdout.trim(), run.stderr.trim()].filter(Boolean).join('\n\n'));
     }
@@ -553,6 +556,7 @@ export async function runDockerWorkbenchCase(
         tempDir: prepared.tempDir,
         services: resolvedCase.mcpServices,
         repoRoot,
+        startedContainers: mcpServiceContainers,
       });
       await waitForMcpServices({
         image,

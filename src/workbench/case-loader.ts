@@ -3,6 +3,7 @@ import { dirname, extname, resolve } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { ensureOpenRouterModelRef } from './models.js';
 import type {
   ResolvedWorkbenchCase,
   WorkbenchGraderConfig,
@@ -65,7 +66,7 @@ export function resolveWorkbenchCaseConfig(
   const env = readStringArray(parsed, 'env', resolvedConfigPath);
   const setup = readStringArray(parsed, 'setup', resolvedConfigPath);
   const cleanup = readStringArray(parsed, 'cleanup', resolvedConfigPath);
-  const model = readOptionalString(parsed, 'model', resolvedConfigPath) ?? DEFAULT_WORKBENCH_MODEL;
+  const model = ensureOpenRouterModelRef(readOptionalString(parsed, 'model', resolvedConfigPath) ?? DEFAULT_WORKBENCH_MODEL);
   const timeoutSeconds = readOptionalTimeoutSeconds(parsed, resolvedConfigPath) ?? DEFAULT_WORKBENCH_TIMEOUT_SECONDS;
 
   const referencesDir = resolve(resolvedConfigDir, references);

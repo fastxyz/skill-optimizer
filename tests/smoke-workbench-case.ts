@@ -260,6 +260,29 @@ test('defaults are applied', () => {
   }
 });
 
+test('invalid case model ref is rejected while loading', () => {
+  const root = makeTempCaseDir('skill-workbench-invalid-model-');
+  try {
+    mkdirSync(join(root, 'references'));
+    const casePath = writeCaseFile(root, 'case.yml', [
+      'name: merge-pdfs',
+      'references: ./references',
+      'task: Merge files',
+      'model: anthropic/claude-3-5-haiku-latest',
+      'graders:',
+      '  - name: merged-output',
+      '    command: node $CASE/checks/merge-pdfs.js',
+    ].join('\n'));
+
+    assert.throws(
+      () => loadWorkbenchCase(casePath),
+      /Workbench only supports OpenRouter model refs, got: anthropic\/claude-3-5-haiku-latest/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('invalid missing references throws', () => {
   const root = makeTempCaseDir('skill-workbench-missing-refs-');
   try {

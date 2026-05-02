@@ -5,7 +5,7 @@ import { loadWorkbenchCase } from './case-loader.js';
 import { getFlag, positionals } from './cli-args.js';
 import { runDockerWorkbenchCase } from './docker-runner.js';
 import type { DockerWorkbenchRunResult, RunDockerWorkbenchCaseOptions } from './docker-runner.js';
-import { parseModelList, slugModelRef } from './models.js';
+import { ensureOpenRouterModelRef, parseModelList, slugModelRef } from './models.js';
 import { aggregateTrials, formatTrialNumber, parseTrialsFlag, summarizeTrialAggregates } from './trials.js';
 import type { RunCaseAggregateResultFile, WorkbenchModelAggregateResult, WorkbenchTrialResultRef } from './types.js';
 import { readWorkbenchResultFile, timestampSlug, writeJsonFile } from './utils.js';
@@ -154,20 +154,23 @@ export async function runWorkbenchCase(
   params: RunWorkbenchCaseParams,
   deps: RunWorkbenchCaseDeps = {},
 ): Promise<void> {
-  if ((params.models && params.models.length > 0) || (params.trials ?? 1) > 1) {
-    const matrixModels = params.models && params.models.length > 0
-      ? params.models
-      : [params.model ?? loadWorkbenchCase(params.casePath).model];
-    await runWorkbenchCaseMatrix({ ...params, models: matrixModels }, deps);
+  const model = params.model ? ensureOpenRouterModelRef(params.model) : undefined;
+  const models = params.models?.map((modelRef) => ensureOpenRouterModelRef(modelRef));
+
+  if ((models && models.length > 0) || (params.trials ?? 1) > 1) {
+    const matrixModels = models && models.length > 0
+      ? models
+      : [model ?? loadWorkbenchCase(params.casePath).model];
+    await runWorkbenchCaseMatrix({ ...params, model, models: matrixModels }, deps);
     return;
   }
 
   const dockerRunner = deps.runDockerWorkbenchCase ?? runDockerWorkbenchCase;
-  const model = params.models?.[0] ?? params.model;
+  const selectedModel = models?.[0] ?? model;
   const run = await dockerRunner({
     casePath: params.casePath,
     outDir: params.outDir,
-    model,
+    model: selectedModel,
     image: params.image,
     keepWorkspace: params.keepWorkspace,
   });
@@ -209,7 +212,7 @@ export async function runWorkbenchCaseFromCli(args: string[]): Promise<void> {
   await runWorkbenchCase({
     casePath: resolve(caseArg),
     outDir: outDir ? resolve(outDir) : undefined,
-    model,
+    model: model ? ensureOpenRouterModelRef(model) : undefined,
     models: models ? parseModelList(models) : undefined,
     trials,
     concurrency,

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { runWorkbenchCase } from '../src/workbench/run-case.js';
+import { runWorkbenchCase, runWorkbenchCaseFromCli } from '../src/workbench/run-case.js';
 
 test('runWorkbenchCase preserves failing result as process exitCode 1', async () => {
   const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-run-case-'));
@@ -39,6 +39,22 @@ test('runWorkbenchCase preserves failing result as process exitCode 1', async ()
     assert.equal(process.exitCode, 1);
   } finally {
     process.exitCode = previousExitCode;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runWorkbenchCaseFromCli rejects invalid --model before loading the case', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'skill-opt-workbench-run-case-model-'));
+  try {
+    await assert.rejects(
+      runWorkbenchCaseFromCli([
+        join(root, 'missing-case.yml'),
+        '--model',
+        'anthropic/claude-3-5-haiku-latest',
+      ]),
+      /Workbench only supports OpenRouter model refs, got: anthropic\/claude-3-5-haiku-latest/,
+    );
+  } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });

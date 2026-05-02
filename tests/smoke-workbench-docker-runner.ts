@@ -12,6 +12,7 @@ import {
   buildDockerSetupCommand,
   packageRootFromModuleUrl,
   prepareDockerWorkbenchRun,
+  startMcpServices,
 } from '../src/workbench/docker-runner.js';
 
 test('packageRootFromModuleUrl resolves repo root independently of cwd', () => {
@@ -220,6 +221,33 @@ test('prepareDockerWorkbenchRun bundles hidden MCP service support outside work'
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('startMcpServices records services started before a later service fails', async () => {
+  const startedContainers: string[] = [];
+
+  await assert.rejects(
+    startMcpServices({
+      image: 'skill-optimizer-workbench:local',
+      networkName: 'skill-optimizer-mcp-test',
+      caseDir: '/tmp/case',
+      tempDir: '/tmp/skill-optimizer-workbench-test',
+      services: {
+        ok: { command: 'node', args: ['server.mjs'] },
+        fail: { command: 'node', args: ['server.mjs'] },
+      },
+      repoRoot: '/tmp/repo',
+      startedContainers,
+      runCommand: async (command) => ({
+        exitCode: command.includes('-fail') ? 7 : 0,
+        stdout: '',
+        stderr: command.includes('-fail') ? 'boom' : '',
+      }),
+    }),
+    /Failed to start MCP service fail/,
+  );
+
+  assert.deepEqual(startedContainers, ['skill-optimizer-mcp-skill-optimizer-workbench-test-ok']);
 });
 
 test('setup docker command mounts case and work before agent phase', () => {
