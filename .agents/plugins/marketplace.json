@@ -2,8 +2,8 @@
   "name": "skill-optimizer",
   "interface": {
     "displayName": "Skill Optimizer",
-    "shortDescription": "Build, run, and improve evals for agent skills.",
-    "longDescription": "Create realistic skill eval suites, run them across models, inspect traces and grader evidence, then iterate on the skill or supporting code until behavior improves."
+    "shortDescription": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
+    "longDescription": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs"
   },
   "plugins": [
     {

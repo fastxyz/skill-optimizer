@@ -1,6 +1,10 @@
 # Contributing to skill-optimizer
 
-Thanks for contributing! This project is a small, opinionated tool — changes should preserve its core invariants (static evaluation, `allowedPaths` safety boundary, per-model universality).
+Thanks for contributing! This project is a small, opinionated Docker workbench for evaluating agent skills. Changes should preserve deterministic grading, isolated agent workspaces, and the canonical `skills/skill-optimizer/SKILL.md` distribution path.
+
+## Installing The Skill
+
+See `README.md#installation` for provider-specific install instructions for Claude Code, OpenAI Codex CLI/App, Cursor, OpenCode, Gemini CLI, and skill-only installs.
 
 ## Local workflow
 
@@ -13,42 +17,48 @@ npm test
 npm run build
 ```
 
-All three commands must pass before opening a PR.
+All three commands must pass before opening a PR when code changes are involved.
 
 ## Project layout
 
-- `src/cli.ts` — CLI entry point (single source of truth; all `npm run <script>` aliases go through it).
-- `src/project/` — config load / validate / resolve.
-- `src/tasks/` — scope filtering, coverage-guaranteed task generation.
-- `src/benchmark/` — runner, evaluator, reporter, scoring.
-- `src/optimizer/` — mutation loop, feedback pipeline, ledger.
-- `src/verdict/` — recommendations critic + rendering.
+- `src/cli.ts` — public CLI entry point for `run-case` and `run-suite`.
+- `src/workbench/` — case/suite loading, Docker runner, Pi agent wiring, graders, traces, metrics, MCP support, and trial aggregation.
+- `docker/workbench-runner.Dockerfile` — non-root container image for setup, agent, grade, and cleanup phases.
+- `skills/skill-optimizer/SKILL.md` — canonical distributable Agent Skill.
+- `skills/skill-optimizer/references/workbench.md` — detailed workbench schema and authoring reference.
+- `examples/workbench/` — packaged example suites.
+- `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.opencode/`, `.agents/plugins/marketplace.json`, `gemini-extension.json`, `GEMINI.md` — cross-agent plugin and extension metadata.
 - `tests/` — hand-rolled smoke tests (`tsx tests/smoke-*.ts`).
 
 ## Pre-submit expectations
 
 - One feature per PR.
 - TDD: write the failing test first, implement, confirm green, commit.
-- Update `CHANGELOG.md` under the next release section.
+- Update docs and examples when behavior or install flow changes.
 - No new npm dependencies without discussion.
 - Error messages name the next step.
+- Do not commit `.skill-eval/`, `.results/`, `.env`, or credentials.
 
-## Adding a surface type
+## Workbench invariants
 
-A surface discoverer returns `ActionDefinition[]`. To add one:
+- Keep evaluation static: extraction and matching are allowed; do not execute model-produced code outside the Docker workbench as part of evaluation.
+- Use only `openrouter/...` model refs; real model runs require `OPENROUTER_API_KEY`.
+- `run-suite` uses models from `suite.yml`; do not add a `run-suite --models` override.
+- Cases use `graders: [{ name, command }]`; legacy `check:` and `artifacts:` are invalid.
+- The agent phase sees only `/work`, not `/case`, `/results`, graders, hidden answers, or hidden metadata.
+- Keep plugin metadata pointed at the canonical `skills/skill-optimizer/SKILL.md`; do not create divergent skill copies.
 
-1. Extend `BenchmarkSurface` in `src/benchmark/types.ts`.
-2. Add a branch to `src/project/validate.ts` and `src/project/resolve.ts`.
-3. Implement the new code-first discoverer in `src/actions/discover.ts`, then register it in `src/project/snapshot.ts` (the dispatcher that routes surfaces to discoverers).
-4. Add a discovery smoke test.
+## Testing guidance
 
-## Adding an LLM provider
+- Run `npm run typecheck` after TypeScript changes.
+- Run `npm test` before finishing behavior changes.
+- For Docker runner or image changes, also run `docker build -t skill-optimizer-workbench:local -f docker/workbench-runner.Dockerfile .`.
+- For CLI/docs changes, verify `npx tsx src/cli.ts --help` if touched docs mention CLI behavior.
+- For plugin/package metadata changes, run `npx tsx tests/smoke-skill-distribution.ts` and verify `npm pack --dry-run --json` includes required plugin files without result/cache directories.
 
-Current transport is pi-ai + OpenRouter. To add a provider:
+## Adding workbench capabilities
 
-1. Add a new format value to `LLMConfig.format` in `src/benchmark/types.ts`.
-2. Implement the transport adapter alongside `src/runtime/pi/`.
-3. Update `createDefaultPiTaskGenerator`, `createDefaultPiCritic`, and the benchmark runner to branch on the new format.
+Keep new capabilities small and deterministic. Add validation in the relevant loader, tests in `tests/smoke-workbench-*.ts`, and docs in `skills/skill-optimizer/references/workbench.md` or `docs/workbench.md` when users need to author new YAML fields or understand new runtime behavior.
 
 ## Commit style
 

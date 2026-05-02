@@ -1,6 +1,6 @@
 {
   "name": "skill-optimizer",
-  "description": "Build, run, and improve evals for agent skills.",
+  "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
   "version": "2.0.0",
   "contextFileName": "GEMINI.md"
 }

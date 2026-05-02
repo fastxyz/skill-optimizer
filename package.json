@@ -1,7 +1,7 @@
 {
   "name": "skill-optimizer",
   "version": "2.0.0",
-  "description": "Build, run, and improve evals for agent skills.",
+  "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
   "license": "MIT",
   "author": "Fast",
   "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
@@ -51,6 +51,7 @@
     ".cursor/INSTALL.md",
     "AGENTS.md",
     "CLAUDE.md",
+    "CONTRIBUTING.md",
     "README.md",
     "GEMINI.md",
     "gemini-extension.json",
