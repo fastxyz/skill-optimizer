@@ -1,13 +1,13 @@
 {
   "name": "skill-optimizer",
-  "description": "Skill eval lab for testing and improving agent skills.",
+  "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
   "owner": {
     "name": "Fast"
   },
   "plugins": [
     {
       "name": "skill-optimizer",
-      "description": "Build, run, and improve evals for agent skills.",
+      "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
       "version": "2.0.0",
       "source": "./",
       "author": {

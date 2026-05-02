@@ -1,7 +1,7 @@
 {
   "name": "skill-optimizer",
   "version": "2.0.0",
-  "description": "Build, run, and improve evals for agent skills.",
+  "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
   "author": {
     "name": "Fast"
   },
@@ -18,8 +18,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Skill Optimizer",
-    "shortDescription": "Build, run, and improve evals for agent skills.",
-    "longDescription": "Create realistic skill eval suites, run them across models, inspect traces and grader evidence, then iterate on the skill or supporting code until behavior improves.",
+    "shortDescription": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
+    "longDescription": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
     "developerName": "Fast",
     "category": "Coding",
     "capabilities": [

@@ -28,6 +28,19 @@ npx tsx src/cli.ts run-suite --help
 - `.agents/plugins/marketplace.json`: Codex repo marketplace entry for the root plugin
 - `gemini-extension.json`, `GEMINI.md`: Gemini extension metadata and context file
 - `examples/workbench/`: tracked example eval suites
+- `README.md`: provider-specific installation instructions for Claude Code, Codex, Cursor, OpenCode, Gemini CLI, and skill-only installs
+- `CONTRIBUTING.md`: contributor workflow and current workbench invariants
+
+## Installation Docs
+
+Keep the README installation section aligned with packaged plugin metadata:
+
+- Claude Code: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+- Codex: `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json`
+- Cursor: `.cursor-plugin/plugin.json` and `.cursor/INSTALL.md`
+- OpenCode: `.opencode/plugins/skill-optimizer.js` and `.opencode/INSTALL.md`
+- Gemini CLI: `gemini-extension.json` and `GEMINI.md`
+- Skill-only installs: `npx skills add fastxyz/skill-optimizer --skill skill-optimizer ...`
 
 ## Invariants
 
@@ -39,6 +52,7 @@ npx tsx src/cli.ts run-suite --help
 - The agent phase sees only `/work`, not `/case` or `/results`.
 - Keep plugin metadata pointed at the canonical `skills/skill-optimizer/SKILL.md`; do not create divergent skill copies.
 - Codex plugin metadata lives in `.codex-plugin/plugin.json`; the repo marketplace lives in `.agents/plugins/marketplace.json` and points at `./`.
+- Provider install docs should link to the same canonical skill/plugin metadata, not separate skill copies.
 - Do not commit `.skill-eval/`, `.results/`, `.env`, or credentials.
 
 ## Testing Guidance

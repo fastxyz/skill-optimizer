@@ -7,24 +7,69 @@ Use this repo in two ways:
 - Install the `skill-optimizer` skill/plugin into your agent so it can author and debug eval suites.
 - Run the local CLI to execute cases and suites in Docker against OpenRouter models.
 
-## Install For Agents
+## Installation
 
-The canonical skill is `skills/skill-optimizer/SKILL.md`. Plugin metadata points at that same file for every supported agent.
+Installation differs by agent. The canonical skill is `skills/skill-optimizer/SKILL.md`; every plugin manifest points at that same file.
 
-Install the skill for common agents with the open skills CLI:
+### Claude Code
 
-```bash
-npx skills add fastxyz/skill-optimizer --skill skill-optimizer -a claude-code -a opencode -a codex -a cursor
-```
-
-Claude Code plugin install:
+Register this repository as a Claude Code plugin marketplace:
 
 ```text
 /plugin marketplace add fastxyz/skill-optimizer
+```
+
+Then install the plugin:
+
+```text
 /plugin install skill-optimizer@skill-optimizer
 ```
 
-OpenCode plugin install in `opencode.json`:
+### OpenAI Codex CLI
+
+Register this repository as a Codex plugin marketplace:
+
+```bash
+codex plugin marketplace add fastxyz/skill-optimizer
+```
+
+Then open the plugin search interface:
+
+```text
+/plugins
+```
+
+Select `skill-optimizer` and install it.
+
+### OpenAI Codex App
+
+In the Codex app, open Plugins from the sidebar, search for `skill-optimizer`, and install it from the Coding section.
+
+If it is not listed, install it from Codex CLI first:
+
+```bash
+codex plugin marketplace add fastxyz/skill-optimizer
+```
+
+### Cursor
+
+Install the skill with the open skills CLI:
+
+```bash
+npx skills add fastxyz/skill-optimizer --skill skill-optimizer -a cursor -y
+```
+
+Cursor can also import the skill from GitHub via Settings -> Rules -> Project Rules -> Add Rule -> Remote Rule (Github). The Cursor plugin metadata lives at `.cursor-plugin/plugin.json`.
+
+### OpenCode
+
+Tell OpenCode:
+
+```text
+Fetch and follow instructions from https://raw.githubusercontent.com/fastxyz/skill-optimizer/refs/heads/main/.opencode/INSTALL.md
+```
+
+Or add the plugin to `opencode.json` at user or project scope:
 
 ```json
 {
@@ -32,19 +77,29 @@ OpenCode plugin install in `opencode.json`:
 }
 ```
 
-See `docs/README.opencode.md` for OpenCode details.
+Restart OpenCode. See `docs/README.opencode.md` for details.
 
-Codex plugin install:
+### Gemini CLI
+
+Install the Gemini extension from GitHub:
 
 ```bash
-codex plugin marketplace add fastxyz/skill-optimizer
+gemini extensions install https://github.com/fastxyz/skill-optimizer
 ```
 
-Then open `/plugins` and install `skill-optimizer`. See `docs/README.codex.md` for the skill-only Codex path.
+To update:
 
-Cursor can install the skill through the skills CLI command above or from GitHub via Settings -> Rules -> Project Rules -> Add Rule -> Remote Rule (Github). The Cursor plugin metadata lives at `.cursor-plugin/plugin.json`.
+```bash
+gemini extensions update skill-optimizer
+```
 
-Gemini extension metadata is provided by `gemini-extension.json`; it loads `GEMINI.md`, which references the canonical skill and workbench reference.
+### Skill-Only Install
+
+If you only want the skill files without plugin metadata, use the open skills CLI:
+
+```bash
+npx skills add fastxyz/skill-optimizer --skill skill-optimizer -a claude-code -a opencode -a codex -a cursor -y
+```
 
 ## Local CLI Setup
 
