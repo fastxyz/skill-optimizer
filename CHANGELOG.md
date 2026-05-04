@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.0.0 — 2026-05-01
+
+### Changed
+
+- Rebuilt Skill Optimizer around the eval workbench: realistic skill cases, model matrices, isolated agent workspaces, trace inspection, deterministic grader evidence, and iterative skill improvement.
+- Repositioned package and plugin metadata around the skill eval lab workflow instead of implementation mechanics.
+
+### Breaking Changes
+
+- Removed the legacy reference-solution preflight flow and `verify-suite`; graders are now the sole acceptance contract.
+- Removed reference-solution SDK exports and packaged example solution scripts.
+
+### Added
+
+- Hidden MCP services for eval cases, exposed to agents through the workbench `mcp` command.
+- Post-run optimization guidance for inspecting failures, updating skills or supporting code, and re-running evals.
+
 ## 1.1.0 — 2026-04-16
 
 ### Breaking Changes
@@ -25,7 +42,7 @@ The config file `skill-benchmark.json` is no longer auto-detected. Rename it to 
 ### Added
 - **prompt surface type** — benchmark and optimize prompt templates, Claude Code skills, and agent instructions. Discovers phases and capabilities from markdown, evaluates output quality with content-based criteria.
 - **Codex auth** — direct OpenAI model runs can use browser-login tokens stored by Codex (`~/.codex/auth.json`) instead of requiring `OPENAI_API_KEY`. Set `benchmark.authMode: "codex"` and use `openai/<model>` IDs.
-- **SKILL folder** — bundled AI-agent guidance (`SKILL/SKILL.md`) so agents can use skill-optimizer reliably without extra setup.
+- **skills folder** — bundled AI-agent guidance (`skills/skill-optimizer/SKILL.md`) so agents can use skill-optimizer reliably without extra setup.
 - **Optimizer loop diagram** — README now includes a visual workflow diagram of the optimizer loop.
 - **Stable task IDs** — task IDs are now derived from a SHA-1 hash of the action names (SDK/CLI/MCP surfaces) or prompt text (prompt surface). For SDK/CLI/MCP surfaces, where action names come from discovered code rather than LLM output, IDs are stable across regenerations and the `--task <id>` filter works reliably. For the prompt surface, IDs are stable when the LLM produces identical wording; if it rephrases a task the ID changes (fixes [#17](https://github.com/fastxyz/skill-optimizer/issues/17)).
 

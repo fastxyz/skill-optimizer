@@ -1,0 +1,30 @@
+name: mcp-calculator-example
+references: ./references
+models:
+  - openrouter/google/gemini-2.5-flash
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+mcpServers:
+  calculator:
+    baseUrl: http://calculator:3000/mcp
+mcpServices:
+  calculator:
+    command: node
+    args:
+      - calculator-server.mjs
+cases:
+  - name: use-calculator-mcp
+    task: |
+      Compute this expression:
+
+      ((17 + 25) * 3 - 18) / 6
+
+      Write answer.json with this exact shape:
+      {
+        "expression": "((17 + 25) * 3 - 18) / 6",
+        "result": <number>
+      }
+    graders:
+      - name: calculator-answer
+        command: node $CASE/checks/calculator-answer.mjs

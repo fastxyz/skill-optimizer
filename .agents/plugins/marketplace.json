@@ -1,0 +1,22 @@
+{
+  "name": "skill-optimizer",
+  "interface": {
+    "displayName": "Skill Optimizer",
+    "shortDescription": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
+    "longDescription": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs"
+  },
+  "plugins": [
+    {
+      "name": "skill-optimizer",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Coding"
+    }
+  ]
+}

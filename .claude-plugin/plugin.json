@@ -1,0 +1,19 @@
+{
+  "name": "skill-optimizer",
+  "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
+  "version": "2.0.0",
+  "author": {
+    "name": "Fast"
+  },
+  "homepage": "https://github.com/fastxyz/skill-optimizer#readme",
+  "repository": "https://github.com/fastxyz/skill-optimizer",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "evals",
+    "skill-testing",
+    "model-evaluation",
+    "optimization"
+  ],
+  "skills": "./skills/"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "skill-optimizer",
+  "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
+  "owner": {
+    "name": "Fast"
+  },
+  "plugins": [
+    {
+      "name": "skill-optimizer",
+      "description": "Benchmark, evaluate, and optimize skills to ensure reliable performance across all LLMs",
+      "version": "2.0.0",
+      "source": "./",
+      "author": {
+        "name": "Fast"
+      },
+      "skills": [
+        "./skills/skill-optimizer"
+      ]
+    }
+  ]
+}
