@@ -1,0 +1,30 @@
+name: find-skills-discovery-instinct
+references: ./references
+appendSystemPrompt: |
+  A skill is available at /work/find-skills/SKILL.md. Read it before starting and
+  follow its guidance about when to search for or recommend skills versus
+  completing the task directly.
+models:
+  - openrouter/openai/gpt-oss-120b:free
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 300
+cases:
+  - name: discover-react-perf
+    task: |
+      I want to set up React performance monitoring in my Next.js app.
+      Find the most appropriate existing skill and write the install command to answer.txt.
+      The install command should be on its own line, like: npx skills add <package>
+    graders:
+      - name: discovery-and-recommendation
+        command: node $CASE/checks/discover-react-perf.mjs
+
+  - name: no-search-readme
+    setup:
+      - cp $CASE/fixtures/README.md README.md
+    task: |
+      Read /work/README.md and summarize it in 3 bullets. Write the summary to answer.txt
+      with each bullet on its own line, starting with "- ".
+    graders:
+      - name: bullets-without-skill-search
+        command: node $CASE/checks/no-search-readme.mjs
