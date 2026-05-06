@@ -9,10 +9,12 @@
 //   .superpowers/categorization/failed.json
 //
 // CLI:
-//   node _categorize.mjs                  # all uncached skills
-//   node _categorize.mjs --limit 5        # smoke test
-//   node _categorize.mjs --concurrency 4  # override default 6
-//   node _categorize.mjs --force          # re-classify everything
+//   node _categorize.mjs                          # all uncached skills
+//   node _categorize.mjs --limit 5                # smoke test
+//   node _categorize.mjs --concurrency 4          # override default 6
+//   node _categorize.mjs --force                  # re-classify everything
+//   node _categorize.mjs --max-budget-usd 0.30    # bump per-call cost cap (default 0.20)
+//   node _categorize.mjs --per-call-timeout-ms 90000  # wall-clock timeout per claude call (default 120000)
 
 import { spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -34,6 +36,8 @@ const args = process.argv.slice(2);
 const LIMIT = parseLimit(args);
 const FORCE = args.includes('--force');
 const CONCURRENCY = parseConcurrency(args);
+const MAX_BUDGET_USD = parseMaxBudgetUsd(args);
+const PER_CALL_TIMEOUT_MS = parsePerCallTimeoutMs(args);
 
 mkdirSync(CLASS_DIR, { recursive: true });
 
@@ -51,6 +55,20 @@ function parseConcurrency(args) {
   if (!Number.isInteger(n) || n < 1) throw new Error('--concurrency requires a positive integer');
   return n;
 }
+function parseMaxBudgetUsd(args) {
+  const i = args.indexOf('--max-budget-usd');
+  if (i < 0 || !args[i + 1]) return 0.20;
+  const n = Number(args[i + 1]);
+  if (!Number.isFinite(n) || n <= 0) throw new Error('--max-budget-usd requires a positive number');
+  return n;
+}
+function parsePerCallTimeoutMs(args) {
+  const i = args.indexOf('--per-call-timeout-ms');
+  if (i < 0 || !args[i + 1]) return 120_000;
+  const n = Number(args[i + 1]);
+  if (!Number.isInteger(n) || n < 1000) throw new Error('--per-call-timeout-ms requires an integer >= 1000');
+  return n;
+}
 
 function logProgress(line) {
   appendFileSync(PROGRESS_LOG, `${new Date().toISOString()} ${line}\n`, 'utf-8');
@@ -66,16 +84,23 @@ function callClaude(prompt) {
       '--no-session-persistence',
       '--disable-slash-commands',
       '--effort', 'low',
-      '--max-budget-usd', '0.20',
+      '--max-budget-usd', String(MAX_BUDGET_USD),
     ];
     // Unset CLAUDECODE so the child process is not blocked by the nested-session guard.
     const childEnv = { ...process.env };
     delete childEnv.CLAUDECODE;
     const child = spawn('claude', args, { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv });
-    let stdout = '', stderr = '';
+    let stdout = '', stderr = '', timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 5000).unref();
+    }, PER_CALL_TIMEOUT_MS);
     child.stdout.on('data', (c) => stdout += c);
     child.stderr.on('data', (c) => stderr += c);
     child.on('close', (code) => {
+      clearTimeout(timer);
+      if (timedOut) return reject(new Error(`claude timeout after ${PER_CALL_TIMEOUT_MS}ms`));
       if (code !== 0) return reject(new Error(`claude exit ${code}: ${stderr.trim().slice(0, 400)}`));
       // claude --output-format json wraps the response in a metadata envelope.
       // Extract the actual schema-validated payload from `result` (or fall back to the whole stdout).
