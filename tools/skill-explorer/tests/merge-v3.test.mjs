@@ -1,0 +1,61 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mergeRows, applyTopNFilter, rankByYield } from '../_merge-v3.mjs';
+
+const v2Rows = [
+  { source: 'anthropics/skills', name: 'pdf', is_official: 'true', is_popular_top1212: 'true', installs_raw: '93700', org_total_installs: '1446330' },
+  { source: 'anthropics/skills', name: 'docx', is_official: 'true', is_popular_top1212: 'true', installs_raw: '76400', org_total_installs: '1446330' },
+  { source: 'someguy/random', name: 'fluff', is_official: 'false', is_popular_top1212: 'false', installs_raw: '12', org_total_installs: '' },
+];
+const classifications = new Map([
+  ['anthropics__skills__pdf', {
+    source: 'anthropics/skills', name: 'pdf', type: 'document', gradability: 'easy',
+    improvement_potential: 'medium', author_effort: 'low', land_probability: 'high',
+    summary: 'PDF skill', notable_issues: ['missing OCR example'], eval_sketch: 'check answer.json shape',
+  }],
+  ['anthropics__skills__docx', {
+    source: 'anthropics/skills', name: 'docx', type: 'document', gradability: 'easy',
+    improvement_potential: 'low', author_effort: 'low', land_probability: 'high',
+    summary: 'docx skill', notable_issues: [], eval_sketch: 'docx round-trip',
+  }],
+]);
+
+test('mergeRows attaches classification fields when present', () => {
+  const merged = mergeRows(v2Rows, classifications);
+  const pdf = merged.find((r) => r.source === 'anthropics/skills' && r.name === 'pdf');
+  assert.equal(pdf.type, 'document');
+  assert.equal(pdf.gradability, 'easy');
+  assert.equal(pdf.summary, 'PDF skill');
+});
+
+test('mergeRows leaves classification fields empty when no match', () => {
+  const merged = mergeRows(v2Rows, classifications);
+  const fluff = merged.find((r) => r.name === 'fluff');
+  assert.equal(fluff.type, '');
+  assert.equal(fluff.summary, '');
+});
+
+test('mergeRows pipe-joins notable_issues for CSV-friendliness', () => {
+  const merged = mergeRows(v2Rows, classifications);
+  const pdf = merged.find((r) => r.name === 'pdf');
+  assert.equal(pdf.notable_issues_pipe_joined, 'missing OCR example');
+});
+
+test('applyTopNFilter passes only gold cohort with permitted enum values', () => {
+  const merged = mergeRows(v2Rows, classifications);
+  const filtered = applyTopNFilter(merged);
+  // Both pdf and docx are official+popular+document+easy+low-effort+high-land,
+  // BUT pdf has improvement_potential=medium (passes), docx has low (rejected).
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0].name, 'pdf');
+});
+
+test('rankByYield sorts by installs_raw * org_total_installs descending', () => {
+  const rows = [
+    { installs_raw: '100', org_total_installs: '1000' },  // 100k
+    { installs_raw: '500', org_total_installs: '2000' },  // 1M
+    { installs_raw: '50',  org_total_installs: '5000' },  // 250k
+  ];
+  const ranked = rankByYield(rows);
+  assert.deepEqual(ranked.map((r) => r.installs_raw), ['500', '50', '100']);
+});
