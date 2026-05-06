@@ -16,7 +16,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Papa from 'papaparse';
-import { parseSlug } from './lib/slug.mjs';
+import { sourceSlug } from './lib/slug.mjs';
 import { ENUM_COLUMNS, FREETEXT_COLUMNS } from './lib/categorization-schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -45,7 +45,9 @@ export function mergeRows(v2Rows, classifications) {
   return v2Rows.map((r) => {
     // Match by (source, name lowercased + spaces->hyphens).
     const skillId = (r.name ?? '').toLowerCase().replace(/\s+/g, '-');
-    const slug = `${(r.source ?? '').replace('/', '__')}__${encodeSkillIdForKey(skillId)}`;
+    let slug;
+    try { slug = sourceSlug({ source: r.source ?? '', skillId }); }
+    catch { slug = ''; }
     const c = classifications.get(slug);
     if (!c) {
       const blanks = {};
@@ -64,10 +66,6 @@ export function mergeRows(v2Rows, classifications) {
       eval_sketch: c.eval_sketch ?? '',
     };
   });
-}
-
-function encodeSkillIdForKey(skillId) {
-  return skillId.replace(/[^A-Za-z0-9\-_.]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
 }
 
 export function applyTopNFilter(rows) {
@@ -103,7 +101,12 @@ function emitCsv(headers, rows) {
 async function main() {
   const args = process.argv.slice(2);
   const topNArgIdx = args.indexOf('--top');
-  const TOP_N = topNArgIdx >= 0 && args[topNArgIdx + 1] ? Number(args[topNArgIdx + 1]) : 50;
+  let TOP_N = 50;
+  if (topNArgIdx >= 0 && args[topNArgIdx + 1]) {
+    const n = Number(args[topNArgIdx + 1]);
+    if (!Number.isInteger(n) || n < 1) throw new Error('--top requires a positive integer');
+    TOP_N = n;
+  }
 
   const csvText = readFileSync(V2_CSV, 'utf-8');
   const v2 = Papa.parse(csvText, { header: true, skipEmptyLines: true }).data;
