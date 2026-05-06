@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeRows, applyTopNFilter, rankByYield } from '../_merge-v3.mjs';
+import { mergeRows, applyTopNFilter, rankByYield, computeRepoSiblings } from '../_merge-v3.mjs';
 
 const v2Rows = [
   { source: 'anthropics/skills', name: 'pdf', is_official: 'true', is_popular_top1212: 'true', installs_raw: '93700', org_total_installs: '1446330' },
@@ -58,4 +58,26 @@ test('rankByYield sorts by installs_raw descending', () => {
   ];
   const ranked = rankByYield(rows);
   assert.deepEqual(ranked.map((r) => r.installs_raw), ['500', '100', '50']);
+});
+
+test('computeRepoSiblings groups names by source, only counting cohort rows', () => {
+  const rows = [
+    { source: 'microsoft/azure-skills', name: 'azure-vm', is_official: 'true', is_popular_top1212: 'true' },
+    { source: 'microsoft/azure-skills', name: 'azure-storage', is_official: 'true', is_popular_top1212: 'true' },
+    // Below cohort — should be excluded.
+    { source: 'microsoft/azure-skills', name: 'azure-obscure', is_official: 'true', is_popular_top1212: 'false' },
+    { source: 'anthropics/skills', name: 'pdf', is_official: 'true', is_popular_top1212: 'true' },
+    // Different repo, no siblings.
+    { source: 'someone/random', name: 'fluff', is_official: 'false', is_popular_top1212: 'false' },
+  ];
+  const map = computeRepoSiblings(rows);
+  assert.deepEqual(map.get('microsoft/azure-skills'), ['azure-vm', 'azure-storage']);
+  assert.deepEqual(map.get('anthropics/skills'), ['pdf']);
+  // someone/random did not pass cohort, so it should not appear in the map
+  // (or appear with empty array — both are acceptable; assert via .get).
+  assert.equal(map.get('someone/random') ?? undefined, undefined);
+});
+
+test('computeRepoSiblings returns empty map for empty input', () => {
+  assert.equal(computeRepoSiblings([]).size, 0);
 });

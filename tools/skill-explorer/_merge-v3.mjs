@@ -41,6 +41,17 @@ const FILTER_RULES = {
   land_probability: ['high', 'medium'],
 };
 
+export function computeRepoSiblings(rows) {
+  const out = new Map();
+  for (const r of rows) {
+    if (r.is_official !== 'true' || r.is_popular_top1212 !== 'true') continue;
+    const key = r.source;
+    if (!out.has(key)) out.set(key, []);
+    out.get(key).push(r.name);
+  }
+  return out;
+}
+
 export function mergeRows(v2Rows, classifications) {
   return v2Rows.map((r) => {
     // Match by (source, name lowercased + spaces->hyphens).
