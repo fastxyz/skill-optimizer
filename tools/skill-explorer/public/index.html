@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Skill Explorer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Skill Explorer</h1>
+      <nav class="tabs" role="tablist">
+        <button id="tab-registries" class="tab active" role="tab" aria-selected="true">
+          Registries <span class="badge" id="badge-registries">0</span>
+        </button>
+        <button id="tab-skills" class="tab" role="tab" aria-selected="false">
+          Skills <span class="badge" id="badge-skills">0</span>
+        </button>
+      </nav>
+      <div class="status" id="global-status">idle</div>
+    </header>
+
+    <main>
+      <section id="panel-registries" class="panel active" role="tabpanel">
+        <table id="registries-table">
+          <thead>
+            <tr>
+              <th>name</th>
+              <th>operator</th>
+              <th>type</th>
+              <th>description</th>
+              <th>status</th>
+              <th>#skills</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="panel-skills" class="panel" role="tabpanel" hidden>
+        <div class="toolbar">
+          <input id="skill-filter" type="search" placeholder="Filter by name, author, description…" />
+          <button id="export-csv" class="primary">Export CSV</button>
+        </div>
+        <table id="skills-table">
+          <thead>
+            <tr>
+              <th data-sort="name">name</th>
+              <th data-sort="author">author</th>
+              <th data-sort="popularity">popularity</th>
+              <th>description</th>
+              <th>sources</th>
+              <th>notes</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+
+    <div id="modal" class="modal" hidden>
+      <div class="modal-body">
+        <button id="modal-close" class="modal-close" aria-label="Close">×</button>
+        <h2 id="modal-title"></h2>
+        <div class="modal-cols">
+          <img id="modal-screenshot" alt="Screenshot of the rendered registry page" />
+          <pre id="modal-text"></pre>
+        </div>
+      </div>
+    </div>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
