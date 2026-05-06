@@ -43,6 +43,7 @@ const FILTER_RULES = {
   improvement_potential: ['medium', 'high'],
   author_effort: ['low', 'medium'],
   land_probability: ['high', 'medium'],
+  setup_cost: ['low', 'medium'],
 };
 
 export function computeRepoSiblings(rows) {

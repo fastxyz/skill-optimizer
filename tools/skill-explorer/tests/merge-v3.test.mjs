@@ -42,10 +42,13 @@ test('mergeRows pipe-joins notable_issues for CSV-friendliness', () => {
 });
 
 test('applyTopNFilter passes only gold cohort with permitted enum values', () => {
-  const merged = mergeRows(v2Rows, classifications);
+  const setups = new Map([
+    ['anthropics__skills__pdf',  { setup_cost: 'low', setup_cost_reasoning: '' }],
+    ['anthropics__skills__docx', { setup_cost: 'low', setup_cost_reasoning: '' }],
+  ]);
+  const merged = mergeRows(v2Rows, classifications, setups);
   const filtered = applyTopNFilter(merged);
-  // Both pdf and docx are official+popular+document+easy+low-effort+high-land,
-  // BUT pdf has improvement_potential=medium (passes), docx has low (rejected).
+  // pdf has improvement_potential=medium (passes); docx has low (rejected).
   assert.equal(filtered.length, 1);
   assert.equal(filtered[0].name, 'pdf');
 });
@@ -175,4 +178,38 @@ test('mergeRows sets repo_siblings_in_cohort=0 for rows outside the cohort', () 
   const fluff = merged.find((r) => r.name === 'fluff');
   assert.equal(fluff.repo_siblings_in_cohort, 0);
   assert.equal(fluff.repo_siblings_in_cohort_names, '');
+});
+
+test('applyTopNFilter rejects rows with setup_cost=high or empty', () => {
+  // Build classification + setup-cost so all other dimensions pass.
+  const classes = new Map([
+    ['anthropics__skills__pdf', {
+      source: 'anthropics/skills', name: 'pdf', type: 'document', gradability: 'easy',
+      improvement_potential: 'medium', author_effort: 'low', land_probability: 'high',
+      summary: '', notable_issues: [], eval_sketch: '',
+    }],
+    ['anthropics__skills__docx', {
+      source: 'anthropics/skills', name: 'docx', type: 'document', gradability: 'easy',
+      improvement_potential: 'medium', author_effort: 'low', land_probability: 'high',
+      summary: '', notable_issues: [], eval_sketch: '',
+    }],
+    ['anthropics__skills__xlsx', {
+      source: 'anthropics/skills', name: 'xlsx', type: 'document', gradability: 'easy',
+      improvement_potential: 'medium', author_effort: 'low', land_probability: 'high',
+      summary: '', notable_issues: [], eval_sketch: '',
+    }],
+  ]);
+  const setups = new Map([
+    ['anthropics__skills__pdf', { setup_cost: 'low', setup_cost_reasoning: '' }],
+    ['anthropics__skills__docx', { setup_cost: 'high', setup_cost_reasoning: '' }],
+    // xlsx omitted -> empty
+  ]);
+  const rows = [
+    { source: 'anthropics/skills', name: 'pdf', is_official: 'true', is_popular_top1212: 'true', installs_raw: '100', org_total_installs: '1000' },
+    { source: 'anthropics/skills', name: 'docx', is_official: 'true', is_popular_top1212: 'true', installs_raw: '100', org_total_installs: '1000' },
+    { source: 'anthropics/skills', name: 'xlsx', is_official: 'true', is_popular_top1212: 'true', installs_raw: '100', org_total_installs: '1000' },
+  ];
+  const merged = mergeRows(rows, classes, setups);
+  const filtered = applyTopNFilter(merged);
+  assert.deepEqual(filtered.map((r) => r.name), ['pdf']);
 });
