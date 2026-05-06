@@ -98,11 +98,7 @@ async function getRepoTree(source) {
 }
 
 async function main() {
-  // Fall back to skill-candidates.csv if v2 doesn't exist yet.
-  const csvPath = existsSync(V2_CSV)
-    ? V2_CSV
-    : join(REPO_ROOT, 'docs/superpowers/skill-candidates.csv');
-  const csvText = readFileSync(csvPath, 'utf-8');
+  const csvText = readFileSync(V2_CSV, 'utf-8');
   const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
   const rows = parsed.data.filter(
     (r) => r.is_official === 'true' && r.is_popular_top1212 === 'true',
