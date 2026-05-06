@@ -79,9 +79,13 @@ export function applyTopNFilter(rows) {
 }
 
 export function rankByYield(rows) {
+  // Rank by per-skill all-time installs (`installs_raw`). We previously
+  // multiplied by `org_total_installs` to weigh org importance, but that
+  // over-amplified large orgs (Microsoft 8.2M aggregate dwarfed everyone),
+  // pushing genuinely high-install non-Microsoft skills off the top-N.
   return rows.slice().sort((a, b) => {
-    const ai = (Number(a.installs_raw) || 0) * (Number(a.org_total_installs) || 0);
-    const bi = (Number(b.installs_raw) || 0) * (Number(b.org_total_installs) || 0);
+    const ai = Number(a.installs_raw) || 0;
+    const bi = Number(b.installs_raw) || 0;
     return bi - ai;
   });
 }

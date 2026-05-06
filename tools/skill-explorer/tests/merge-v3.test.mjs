@@ -50,12 +50,12 @@ test('applyTopNFilter passes only gold cohort with permitted enum values', () =>
   assert.equal(filtered[0].name, 'pdf');
 });
 
-test('rankByYield sorts by installs_raw * org_total_installs descending', () => {
+test('rankByYield sorts by installs_raw descending', () => {
   const rows = [
-    { installs_raw: '100', org_total_installs: '1000' },  // 100k
-    { installs_raw: '500', org_total_installs: '2000' },  // 1M
-    { installs_raw: '50',  org_total_installs: '5000' },  // 250k
+    { installs_raw: '100', org_total_installs: '1000' },
+    { installs_raw: '500', org_total_installs: '2000' },
+    { installs_raw: '50',  org_total_installs: '5000' },
   ];
   const ranked = rankByYield(rows);
-  assert.deepEqual(ranked.map((r) => r.installs_raw), ['500', '50', '100']);
+  assert.deepEqual(ranked.map((r) => r.installs_raw), ['500', '100', '50']);
 });
