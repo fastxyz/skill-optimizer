@@ -4,13 +4,17 @@
 // Inputs:
 //   docs/superpowers/skill-candidates-v2.csv
 //   .superpowers/categorization/classification/*.json
+//   .superpowers/categorization/setup-cost/*.json
 // Outputs:
 //   docs/superpowers/skill-candidates-v3.csv
 //   docs/superpowers/skill-targets-top-N.csv
 //
 // CLI:
-//   node _merge-v3.mjs            # default top-N = 50
-//   node _merge-v3.mjs --top 30   # override
+//   node _merge-v3.mjs                       # default top-N = 50
+//   node _merge-v3.mjs --top 30              # override slice size
+//   node _merge-v3.mjs --max-per-repo 3      # cap per source repo (default 2)
+//   node _merge-v3.mjs --max-per-org 4       # cap per organization (default 5)
+//   node _merge-v3.mjs --strict-setup        # narrow setup_cost filter to {low} only
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -173,6 +177,9 @@ async function main() {
   const classifications = loadJsonDir(CLASS_DIR);
   const setupCosts = loadJsonDir(SETUP_COST_DIR);
   console.log(`v2 rows: ${v2.length}, classifications: ${classifications.size}, setup-costs: ${setupCosts.size}`);
+  if (setupCosts.size === 0) {
+    console.warn('WARNING: 0 setup-cost files found — every row will fail the setup_cost filter and the top-N CSV will be empty. Run _setup-cost.mjs first.');
+  }
 
   const merged = mergeRows(v2, classifications, setupCosts);
   const v2Headers = v2.length > 0 ? Object.keys(v2[0]) : [];
