@@ -101,6 +101,22 @@ export function rankByYield(rows) {
   });
 }
 
+export function applyDiversificationCaps(ranked, { maxPerRepo, maxPerOrg }) {
+  const repoCount = new Map();
+  const orgCount = new Map();
+  const out = [];
+  for (const r of ranked) {
+    const org = (r.source ?? '').split('/')[0];
+    const repo = r.source;
+    if ((repoCount.get(repo) ?? 0) >= maxPerRepo) continue;
+    if ((orgCount.get(org) ?? 0) >= maxPerOrg) continue;
+    out.push(r);
+    repoCount.set(repo, (repoCount.get(repo) ?? 0) + 1);
+    orgCount.set(org, (orgCount.get(org) ?? 0) + 1);
+  }
+  return out;
+}
+
 function csvField(v) {
   if (v === undefined || v === null) return '';
   const s = String(v);

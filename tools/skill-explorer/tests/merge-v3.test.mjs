@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeRows, applyTopNFilter, rankByYield, computeRepoSiblings } from '../_merge-v3.mjs';
+import { mergeRows, applyTopNFilter, rankByYield, computeRepoSiblings, applyDiversificationCaps } from '../_merge-v3.mjs';
 
 const v2Rows = [
   { source: 'anthropics/skills', name: 'pdf', is_official: 'true', is_popular_top1212: 'true', installs_raw: '93700', org_total_installs: '1446330' },
@@ -80,4 +80,61 @@ test('computeRepoSiblings groups names by source, only counting cohort rows', ()
 
 test('computeRepoSiblings returns empty map for empty input', () => {
   assert.equal(computeRepoSiblings([]).size, 0);
+});
+
+test('applyDiversificationCaps enforces max-per-repo (org cap is permissive)', () => {
+  const ranked = [
+    { source: 'microsoft/azure-skills', name: 'a' },
+    { source: 'microsoft/azure-skills', name: 'b' },
+    { source: 'microsoft/azure-skills', name: 'c' },
+    { source: 'microsoft/azure-skills', name: 'd' },
+  ];
+  const out = applyDiversificationCaps(ranked, { maxPerRepo: 2, maxPerOrg: 100 });
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((r) => r.name), ['a', 'b']);
+});
+
+test('applyDiversificationCaps enforces max-per-org across multiple repos', () => {
+  const ranked = [
+    { source: 'microsoft/azure-skills', name: 'a' },
+    { source: 'microsoft/azure-skills', name: 'b' },
+    { source: 'microsoft/m365-skills', name: 'c' },
+    { source: 'microsoft/m365-skills', name: 'd' },
+    { source: 'microsoft/dynamics', name: 'e' },
+    { source: 'anthropics/skills', name: 'f' },
+  ];
+  const out = applyDiversificationCaps(ranked, { maxPerRepo: 2, maxPerOrg: 3 });
+  // microsoft hits org cap of 3 after a, b, c (a, b are azure-skills; c is m365 1st).
+  // d is rejected by repo cap=2 on m365 (would be 2nd m365 but org is also at cap by then).
+  // Wait — let's trace more carefully:
+  //   a: azure-skills 0->1, microsoft 0->1, kept.
+  //   b: azure-skills 1->2, microsoft 1->2, kept.
+  //   c: m365-skills 0->1, microsoft 2->3, kept.
+  //   d: m365-skills count=1 < 2 ok, microsoft count=3 >= 3 cap, REJECT.
+  //   e: dynamics count=0 < 2 ok, microsoft count=3 >= 3 cap, REJECT.
+  //   f: anthropics 0->1, kept.
+  assert.deepEqual(out.map((r) => r.name), ['a', 'b', 'c', 'f']);
+});
+
+test('applyDiversificationCaps preserves rank order within remaining set', () => {
+  const ranked = [
+    { source: 'a/x', name: 'a1' },
+    { source: 'b/x', name: 'b1' },
+    { source: 'a/x', name: 'a2' },
+    { source: 'a/x', name: 'a3' },
+    { source: 'b/x', name: 'b2' },
+  ];
+  const out = applyDiversificationCaps(ranked, { maxPerRepo: 2, maxPerOrg: 100 });
+  assert.deepEqual(out.map((r) => r.name), ['a1', 'b1', 'a2', 'b2']);
+});
+
+test('applyDiversificationCaps returns a new array, does not mutate input', () => {
+  const ranked = [
+    { source: 'a/x', name: 'a1' },
+    { source: 'a/x', name: 'a2' },
+    { source: 'a/x', name: 'a3' },
+  ];
+  const before = ranked.slice();
+  applyDiversificationCaps(ranked, { maxPerRepo: 1, maxPerOrg: 100 });
+  assert.deepEqual(ranked, before);
 });
