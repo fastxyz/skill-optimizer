@@ -25,6 +25,7 @@ const V2_CSV = join(REPO_ROOT, 'docs/superpowers/skill-candidates-v2.csv');
 const V3_CSV = join(REPO_ROOT, 'docs/superpowers/skill-candidates-v3.csv');
 const TOP_N_CSV = join(REPO_ROOT, 'docs/superpowers/skill-targets-top-N.csv');
 const CLASS_DIR = join(REPO_ROOT, '.superpowers/categorization/classification');
+const SETUP_COST_DIR = join(REPO_ROOT, '.superpowers/categorization/setup-cost');
 
 const NEW_COLUMNS = [
   ...ENUM_COLUMNS,
@@ -138,40 +139,53 @@ function emitCsv(headers, rows) {
   return lines.join('\n') + '\n';
 }
 
+function loadJsonDir(dir) {
+  const out = new Map();
+  if (!existsSync(dir)) return out;
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.json') && x !== 'failed.json')) {
+    const slug = f.replace(/\.json$/, '');
+    try { out.set(slug, JSON.parse(readFileSync(join(dir, f), 'utf-8'))); }
+    catch (e) { console.error(`skip ${f}: ${e.message}`); }
+  }
+  return out;
+}
+
+function parsePositiveIntFlag(args, name, dflt) {
+  const i = args.indexOf(name);
+  if (i < 0 || !args[i + 1]) return dflt;
+  const n = Number(args[i + 1]);
+  if (!Number.isInteger(n) || n < 1) throw new Error(`${name} requires a positive integer`);
+  return n;
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const topNArgIdx = args.indexOf('--top');
-  let TOP_N = 50;
-  if (topNArgIdx >= 0 && args[topNArgIdx + 1]) {
-    const n = Number(args[topNArgIdx + 1]);
-    if (!Number.isInteger(n) || n < 1) throw new Error('--top requires a positive integer');
-    TOP_N = n;
-  }
+  const TOP_N = parsePositiveIntFlag(args, '--top', 50);
+  const MAX_PER_REPO = parsePositiveIntFlag(args, '--max-per-repo', 2);
+  const MAX_PER_ORG = parsePositiveIntFlag(args, '--max-per-org', 5);
+  const STRICT_SETUP = args.includes('--strict-setup');
+
+  if (STRICT_SETUP) FILTER_RULES.setup_cost = ['low'];
 
   const csvText = readFileSync(V2_CSV, 'utf-8');
   const v2 = Papa.parse(csvText, { header: true, skipEmptyLines: true }).data;
 
-  // Build classifications map keyed by slug.
-  const classifications = new Map();
-  if (existsSync(CLASS_DIR)) {
-    for (const f of readdirSync(CLASS_DIR).filter((x) => x.endsWith('.json'))) {
-      const slug = f.replace(/\.json$/, '');
-      try { classifications.set(slug, JSON.parse(readFileSync(join(CLASS_DIR, f), 'utf-8'))); }
-      catch (e) { console.error(`skip ${f}: ${e.message}`); }
-    }
-  }
-  console.log(`v2 rows: ${v2.length}, classifications loaded: ${classifications.size}`);
+  const classifications = loadJsonDir(CLASS_DIR);
+  const setupCosts = loadJsonDir(SETUP_COST_DIR);
+  console.log(`v2 rows: ${v2.length}, classifications: ${classifications.size}, setup-costs: ${setupCosts.size}`);
 
-  const merged = mergeRows(v2, classifications);
+  const merged = mergeRows(v2, classifications, setupCosts);
   const v2Headers = v2.length > 0 ? Object.keys(v2[0]) : [];
   const v3Headers = [...v2Headers, ...NEW_COLUMNS];
   writeFileSync(V3_CSV, emitCsv(v3Headers, merged), 'utf-8');
   console.log(`wrote v3: ${V3_CSV} (${merged.length} rows)`);
 
   const filtered = applyTopNFilter(merged);
-  const ranked = rankByYield(filtered).slice(0, TOP_N);
-  writeFileSync(TOP_N_CSV, emitCsv(v3Headers, ranked), 'utf-8');
-  console.log(`wrote top-${TOP_N}: ${TOP_N_CSV} (${ranked.length} rows after filter)`);
+  const ranked = rankByYield(filtered);
+  const diversified = applyDiversificationCaps(ranked, { maxPerRepo: MAX_PER_REPO, maxPerOrg: MAX_PER_ORG });
+  const topN = diversified.slice(0, TOP_N);
+  writeFileSync(TOP_N_CSV, emitCsv(v3Headers, topN), 'utf-8');
+  console.log(`wrote top-${TOP_N}: ${TOP_N_CSV} (filter→${filtered.length}, diversified→${diversified.length}, sliced→${topN.length}; max-per-repo=${MAX_PER_REPO}, max-per-org=${MAX_PER_ORG}, strict-setup=${STRICT_SETUP})`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
