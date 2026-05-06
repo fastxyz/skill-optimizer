@@ -13,7 +13,7 @@ npm install        # installs deps + chromium (~150 MB one-time)
 npm start          # starts server at http://localhost:3030
 ```
 
-Open http://localhost:3030 in a browser.
+Open <http://localhost:3030> in a browser.
 
 ## Usage
 
