@@ -39,7 +39,7 @@ function parseLimit(args) {
   const i = args.indexOf('--limit');
   if (i < 0 || !args[i + 1]) return Infinity;
   const n = Number(args[i + 1]);
-  if (!Number.isFinite(n) || n < 1) throw new Error('--limit requires a positive integer');
+  if (!Number.isInteger(n) || n < 1) throw new Error('--limit requires a positive integer');
   return n;
 }
 
