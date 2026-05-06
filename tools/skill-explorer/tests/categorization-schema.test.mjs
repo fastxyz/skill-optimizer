@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SCHEMA, ENUM_COLUMNS, FREETEXT_COLUMNS, buildPrompt } from '../lib/categorization-schema.mjs';
+import { SCHEMA, ENUM_COLUMNS, FREETEXT_COLUMNS, buildPrompt, SETUP_COST_SCHEMA, buildSetupCostPrompt } from '../lib/categorization-schema.mjs';
 
 test('SCHEMA is a valid JSON-serialisable object', () => {
   const json = JSON.stringify(SCHEMA);
@@ -42,4 +42,33 @@ test('buildPrompt embeds source, name, and SKILL.md content', () => {
   assert.match(prompt, /name: +pdf/);
   assert.match(prompt, /Some content here\./);
   assert.match(prompt, /JSON object/);
+});
+
+test('SETUP_COST_SCHEMA is JSON-serialisable and has the expected shape', () => {
+  const round = JSON.parse(JSON.stringify(SETUP_COST_SCHEMA));
+  assert.equal(round.type, 'object');
+  assert.equal(round.additionalProperties, false);
+  for (const k of ['source', 'name', 'setup_cost', 'setup_cost_reasoning']) {
+    assert.ok(round.required.includes(k), `required missing ${k}`);
+    assert.ok(round.properties[k], `property missing ${k}`);
+  }
+  assert.deepEqual(round.properties.setup_cost.enum, ['low', 'medium', 'high']);
+  assert.equal(round.properties.setup_cost_reasoning.maxLength, 250);
+});
+
+test('buildSetupCostPrompt embeds source, name, SKILL.md content, and the enum definitions', () => {
+  const prompt = buildSetupCostPrompt(
+    { source: 'anthropics/skills', name: 'pdf' },
+    '# PDF skill\n\nReads PDFs.',
+  );
+  assert.match(prompt, /anthropics\/skills/);
+  assert.match(prompt, /name: +pdf/);
+  assert.match(prompt, /Reads PDFs\./);
+  // Enum definitions must appear verbatim so the model has the same vocabulary.
+  assert.match(prompt, /low\s+—/);
+  assert.match(prompt, /medium\s+—/);
+  assert.match(prompt, /high\s+—/);
+  // Single-question pass — must not ask about other dimensions.
+  assert.doesNotMatch(prompt, /gradability/);
+  assert.doesNotMatch(prompt, /improvement_potential/);
 });

@@ -39,6 +39,52 @@ export const SCHEMA = {
   },
 };
 
+export const SETUP_COST_SCHEMA = {
+  type: 'object',
+  required: ['source', 'name', 'setup_cost', 'setup_cost_reasoning'],
+  additionalProperties: false,
+  properties: {
+    source: { type: 'string' },
+    name: { type: 'string' },
+    setup_cost: { type: 'string', enum: ['low', 'medium', 'high'] },
+    setup_cost_reasoning: { type: 'string', maxLength: 250 },
+  },
+};
+
+export function buildSetupCostPrompt(skill, skillMdContent) {
+  return `You are estimating the SETUP COST of evaluating a public agent skill.
+
+Read the SKILL.md content below and return a JSON object that matches the
+provided schema. NO prose outside the JSON object.
+
+Skill identity:
+  source: ${skill.source}
+  name:   ${skill.name}
+
+setup_cost (cost to instantiate a test environment for this skill):
+  low    — files only (sample PDF/docx/xlsx; sample code repos) OR local
+           tools we already have in our workbench (Docker, Playwright,
+           headless Chromium, sandboxed shell). Ready to test with zero
+           external account setup.
+  medium — free external service. Firebase project, GitHub repo, free-tier
+           Vercel/Supabase, public API key. Sign up + free-tier credentials,
+           no payment.
+  high   — paid or credentialed external service. Azure subscription,
+           Microsoft 365 tenant, paid SaaS, services that require a billed
+           account. Real money or organisational provisioning to test.
+
+setup_cost_reasoning: one sentence (<= 250 chars) explaining the choice in
+terms of what the evaluator would have to provision.
+
+==== SKILL.md content (verbatim) ====
+
+${skillMdContent}
+
+==== End SKILL.md ====
+
+Return JSON only, matching the schema. Set source="${skill.source}" and name="${skill.name}".`;
+}
+
 export function buildPrompt(skill, skillMdContent) {
   return `You are categorizing a public agent skill for prioritisation.
 
