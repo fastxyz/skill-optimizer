@@ -138,3 +138,41 @@ test('applyDiversificationCaps returns a new array, does not mutate input', () =
   applyDiversificationCaps(ranked, { maxPerRepo: 1, maxPerOrg: 100 });
   assert.deepEqual(ranked, before);
 });
+
+test('mergeRows attaches setup_cost + setup_cost_reasoning when setupCosts provided', () => {
+  const setupCosts = new Map([
+    ['anthropics__skills__pdf', { setup_cost: 'low', setup_cost_reasoning: 'sample PDFs only' }],
+  ]);
+  const merged = mergeRows(v2Rows, classifications, setupCosts);
+  const pdf = merged.find((r) => r.name === 'pdf');
+  assert.equal(pdf.setup_cost, 'low');
+  assert.equal(pdf.setup_cost_reasoning, 'sample PDFs only');
+});
+
+test('mergeRows leaves setup_cost columns empty when no setupCosts entry', () => {
+  const merged = mergeRows(v2Rows, classifications, new Map());
+  const pdf = merged.find((r) => r.name === 'pdf');
+  assert.equal(pdf.setup_cost, '');
+  assert.equal(pdf.setup_cost_reasoning, '');
+});
+
+test('mergeRows attaches repo_siblings_in_cohort + names (count excludes self)', () => {
+  // Add a sibling in the cohort.
+  const rows = [
+    ...v2Rows,
+    { source: 'anthropics/skills', name: 'xlsx', is_official: 'true', is_popular_top1212: 'true', installs_raw: '50000', org_total_installs: '1446330' },
+  ];
+  const merged = mergeRows(rows, classifications);
+  const pdf = merged.find((r) => r.name === 'pdf');
+  assert.equal(pdf.repo_siblings_in_cohort, 2); // docx + xlsx
+  // Set semantics, not order — assert membership.
+  const names = pdf.repo_siblings_in_cohort_names.split(' | ');
+  assert.deepEqual(names.sort(), ['docx', 'xlsx']);
+});
+
+test('mergeRows sets repo_siblings_in_cohort=0 for rows outside the cohort', () => {
+  const merged = mergeRows(v2Rows, classifications);
+  const fluff = merged.find((r) => r.name === 'fluff');
+  assert.equal(fluff.repo_siblings_in_cohort, 0);
+  assert.equal(fluff.repo_siblings_in_cohort_names, '');
+});

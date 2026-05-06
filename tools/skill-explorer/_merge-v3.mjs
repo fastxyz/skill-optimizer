@@ -28,9 +28,13 @@ const CLASS_DIR = join(REPO_ROOT, '.superpowers/categorization/classification');
 
 const NEW_COLUMNS = [
   ...ENUM_COLUMNS,
+  'setup_cost',
+  'setup_cost_reasoning',
   'summary',
   'notable_issues_pipe_joined',
   'eval_sketch',
+  'repo_siblings_in_cohort',
+  'repo_siblings_in_cohort_names',
 ];
 
 const FILTER_RULES = {
@@ -52,29 +56,33 @@ export function computeRepoSiblings(rows) {
   return out;
 }
 
-export function mergeRows(v2Rows, classifications) {
+export function mergeRows(v2Rows, classifications, setupCosts = new Map()) {
+  const bySource = computeRepoSiblings(v2Rows);
   return v2Rows.map((r) => {
-    // Match by (source, name lowercased + spaces->hyphens).
     const skillId = (r.name ?? '').toLowerCase().replace(/\s+/g, '-');
     let slug;
     try { slug = sourceSlug({ source: r.source ?? '', skillId }); }
     catch { slug = ''; }
     const c = classifications.get(slug);
-    if (!c) {
-      const blanks = {};
-      for (const col of [...ENUM_COLUMNS, ...FREETEXT_COLUMNS, 'notable_issues_pipe_joined']) blanks[col] = '';
-      return { ...r, ...blanks };
-    }
+    const sc = setupCosts.get(slug);
+    const inCohort = r.is_official === 'true' && r.is_popular_top1212 === 'true';
+    const siblings = inCohort
+      ? (bySource.get(r.source) ?? []).filter((n) => n !== r.name)
+      : [];
     return {
       ...r,
-      type: c.type ?? '',
-      gradability: c.gradability ?? '',
-      improvement_potential: c.improvement_potential ?? '',
-      author_effort: c.author_effort ?? '',
-      land_probability: c.land_probability ?? '',
-      summary: c.summary ?? '',
-      notable_issues_pipe_joined: Array.isArray(c.notable_issues) ? c.notable_issues.join(' | ') : '',
-      eval_sketch: c.eval_sketch ?? '',
+      type: c?.type ?? '',
+      gradability: c?.gradability ?? '',
+      improvement_potential: c?.improvement_potential ?? '',
+      author_effort: c?.author_effort ?? '',
+      land_probability: c?.land_probability ?? '',
+      setup_cost: sc?.setup_cost ?? '',
+      setup_cost_reasoning: sc?.setup_cost_reasoning ?? '',
+      summary: c?.summary ?? '',
+      notable_issues_pipe_joined: Array.isArray(c?.notable_issues) ? c.notable_issues.join(' | ') : '',
+      eval_sketch: c?.eval_sketch ?? '',
+      repo_siblings_in_cohort: siblings.length,
+      repo_siblings_in_cohort_names: siblings.join(' | '),
     };
   });
 }
