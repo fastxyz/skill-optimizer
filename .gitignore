@@ -67,3 +67,4 @@ cli-commands.json
 tools.json
 tasks.json
 .worktrees/
+.superpowers/

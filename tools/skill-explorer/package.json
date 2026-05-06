@@ -1,0 +1,18 @@
+{
+  "name": "skill-explorer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Internal localhost tool for harvesting skills from registries (not published).",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "nanoid": "^5.0.0",
+    "papaparse": "^5.4.1",
+    "playwright": "^1.48.0"
+  }
+}
