@@ -40,12 +40,16 @@ mkdirSync(CLASS_DIR, { recursive: true });
 function parseLimit(args) {
   const i = args.indexOf('--limit');
   if (i < 0 || !args[i + 1]) return Infinity;
-  return Number(args[i + 1]);
+  const n = Number(args[i + 1]);
+  if (!Number.isInteger(n) || n < 1) throw new Error('--limit requires a positive integer');
+  return n;
 }
 function parseConcurrency(args) {
   const i = args.indexOf('--concurrency');
   if (i < 0 || !args[i + 1]) return 6;
-  return Number(args[i + 1]);
+  const n = Number(args[i + 1]);
+  if (!Number.isInteger(n) || n < 1) throw new Error('--concurrency requires a positive integer');
+  return n;
 }
 
 function logProgress(line) {
