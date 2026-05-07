@@ -55,6 +55,7 @@ temp/
 docs/superpowers/
 docs/plans/
 docs/specs/
+.superpowers/
 
 # Skill-optimizer generated artifacts
 .skill-optimizer/

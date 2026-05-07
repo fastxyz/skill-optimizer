@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -212,6 +212,8 @@ async function copyAgentResults(containerName: string, resultsDir: string, repoR
       copy.stderr.trim(),
     ].filter(Boolean).join('\n\n'));
   }
+
+  await runShellCommand(`chmod -R a+rw ${shellQuote(resultsDir)}`, { cwd: repoRoot });
 }
 
 async function removeContainer(containerName: string, repoRoot: string): Promise<void> {
@@ -408,6 +410,8 @@ export function prepareDockerWorkbenchRun(
   mkdirSync(referencesDir, { recursive: true });
   mkdirSync(workDir, { recursive: true });
   mkdirSync(resultsDir, { recursive: true });
+  chmodSync(workDir, 0o777);
+  chmodSync(resultsDir, 0o777);
 
   copyDirectoryContents(resolvedCase.referencesDir, referencesDir);
   copyCaseSupportDirs(resolvedCase.configDir, caseDir);
@@ -434,7 +438,15 @@ export function prepareDockerWorkbenchRun(
     resultPath: join(resultsDir, 'result.json'),
     tracePath: join(resultsDir, 'trace.jsonl'),
     ...(mcpConfigPath ? { mcpConfigPath } : {}),
-    cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
+    cleanup: () => {
+      try {
+        rmSync(tempDir, { recursive: true, force: true });
+      } catch (error) {
+        // The container (uid 10001) may write subdirs (.cache, .venv) that the host user
+        // cannot delete. Don't let cleanup failures kill the run; tmpfiles.d will sweep /tmp later.
+        console.warn(`workbench: could not remove ${tempDir}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    },
   };
 }
 
