@@ -185,11 +185,16 @@ attribute or behavior that should be present but isn't.
 - NO `onPaste={(e) => e.preventDefault()}`
 - emails / codes / usernames → `spellCheck={false}`
 
-**Every `<button type="submit">`:**
+**Every `<button>` (any type):**
+
+- visible focus style (`focus-visible:ring-*` — NOT `focus:ring-*`, which fires on click)
+- `hover:` state for visual feedback (`hover:bg-*` or equivalent)
+- `type="button"` if not a form submit (default `submit` causes accidental form submits)
+
+**Every `<button type="submit">`:** (in addition to the above)
 
 - stays enabled until the request starts; spinner during the request
 - NEVER `disabled={!form.valid}` style — causes input-flicker and races with paste/autofill
-- visible focus style (`focus-visible:ring-*`)
 
 **Every `<form>`:**
 
@@ -213,6 +218,27 @@ attribute or behavior that should be present but isn't.
 - honors `prefers-reduced-motion`
 - animates `transform` / `opacity` only — NEVER `transition: all`
 - interruptible
+
+**Every modal / dialog / drawer / sheet:**
+
+- `overscroll-behavior: contain` (prevent scroll bleed to page behind)
+- `touch-action: manipulation` (no double-tap zoom delay)
+- `env(safe-area-inset-*)` for notch-aware bottom action bars
+- `autoFocus` only when there's a single primary input on desktop; avoid on mobile
+
+**Every native `<select>` (when supporting dark mode):**
+
+- explicit `background-color` AND `color` (Windows dark mode requires both)
+
+**Every heading `<h1>`–`<h6>`:**
+
+- `text-wrap: balance` or `text-pretty` (prevents widows)
+- hierarchical levels — never skip (`<h1>` → `<h3>` is wrong; insert `<h2>`)
+- `scroll-margin-top` on heading anchors that scroll-into-view
+
+**Every brand name / code identifier in copy:**
+
+- `translate="no"` to prevent garbled auto-translation
 
 ## Common-miss examples
 
@@ -277,6 +303,29 @@ These are the rules most often overlooked. The bad pattern looks idiomatic, whic
 ) : (
   <ul>{items.map((i) => <li key={i.id}>{i.name}</li>)}</ul>
 )}
+```
+
+**Use `focus-visible:`, not `focus:`.**
+
+```jsx
+// BAD: focus ring shows on mouse click too — visually noisy for non-keyboard users.
+<button className="focus:ring-2 focus:ring-blue-500">Save</button>
+
+// GOOD: focus ring only on keyboard navigation.
+<button className="focus-visible:ring-2 focus-visible:ring-blue-500">Save</button>
+```
+
+**Brand names and code identifiers need `translate="no"`.**
+
+```jsx
+// BAD: machine translators garble brand names and code tokens
+// ("Acme Cloud" might become "Cumulus de Acme" in another locale).
+<h1>Welcome to Acme Cloud</h1>
+<code>npm install acme-sdk</code>
+
+// GOOD: tell auto-translation to leave these alone.
+<h1>Welcome to <span translate="no">Acme Cloud</span></h1>
+<code translate="no">npm install acme-sdk</code>
 ```
 
 ## Output Format

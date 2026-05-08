@@ -69,8 +69,7 @@ pattern-matching.
 
 ## Eval evidence
 
-Same four cases × three mid-tier models × three trials = 36 trials. Same
-seeded violations. Same grader.
+Original baseline: **4 cases × 3 mid-tier models × 3 trials = 36 trials**.
 
 | Model | Before | After |
 |---|---|---|
@@ -88,6 +87,33 @@ Specific rules eliminated or reduced:
 | `above-fold-img-missing-priority` | 2 misses | 1 |
 | `input-missing-autocomplete` | 1 miss | **0** |
 | `block-paste` | 2 misses | 2 (no change — gemini terseness) |
+
+### Broader 9-case validation
+
+To confirm the changes generalize beyond the original 4 cases, we expanded to **9 cases × 3 models × 3 trials = 81 trials** covering all 16 sections of `command.md` (~45 of 81 graded rules; the rest are subjective, framework-bound, or overlap and are skipped — see [`../README.md`](../README.md) §Coverage). Result on the expanded suite, with the same proposed `SKILL.md` + `command.md`:
+
+| Metric | Value |
+|---|---|
+| Strict pass rate | 42/81 (52%) |
+| **Rule coverage rate** (violations identified / seeded) | **334/405 (82%)** |
+
+Strict pass dropped from 86% → 52% because the 5 new cases test harder absence-type rules (touch-action on modals, `safe-area-inset-*`, brand `translate="no"`, etc.) that even the updated skill misses some of the time. **Rule-coverage 82% is the load-bearing metric** — the skill catches 4 out of every 5 seeded violations on average across all 9 cases.
+
+Per-case rule coverage on the 9-case suite:
+
+| Case | Coverage |
+|---|---|
+| product-card | 100% |
+| hero-section | 100% |
+| checkout-form | 98% |
+| blog-post | 87% |
+| loading-screen | 82% |
+| data-table | 80% |
+| theme-toggle | 69% |
+| search-page | 64% |
+| confirm-dialog | 62% |
+
+The cases that still score below 80% are dominated by 4 specific rules that even the updated skill misses (button hover, brand `translate="no"`, safe-area-inset, focus-visible vs focus). The most recent iteration of `command.md` adds explicit `hover:` to the per-button checklist plus BAD/GOOD examples for `focus-visible` and `translate="no"`; we did not re-run the 9-case matrix after those additions, so the numbers above don't reflect that final iteration.
 
 ## Next steps for the team
 

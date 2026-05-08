@@ -54,3 +54,58 @@ cases:
     graders:
       - name: animation-findings
         command: node $CASE/checks/grade-animation-findings.mjs
+
+  - name: review-data-table
+    task: |
+      Review /work/DataTable.tsx for Web Interface Guidelines compliance using
+      the web-design-guidelines skill at /work/web-design-guidelines/SKILL.md.
+
+      Write the findings to /work/findings.txt, one finding per line, in the
+      "DataTable.tsx:<line> <issue>" format described by the skill's guidelines.
+    graders:
+      - name: data-table-findings
+        command: node $CASE/checks/grade-data-table-findings.mjs
+
+  - name: review-confirm-dialog
+    task: |
+      Review /work/ConfirmDialog.tsx for Web Interface Guidelines compliance using
+      the web-design-guidelines skill at /work/web-design-guidelines/SKILL.md.
+
+      Write the findings to /work/findings.txt, one finding per line, in the
+      "ConfirmDialog.tsx:<line> <issue>" format described by the skill's guidelines.
+    graders:
+      - name: confirm-dialog-findings
+        command: node $CASE/checks/grade-confirm-dialog-findings.mjs
+
+  - name: review-search-page
+    task: |
+      Review /work/SearchPage.tsx for Web Interface Guidelines compliance using
+      the web-design-guidelines skill at /work/web-design-guidelines/SKILL.md.
+
+      Write the findings to /work/findings.txt, one finding per line, in the
+      "SearchPage.tsx:<line> <issue>" format described by the skill's guidelines.
+    graders:
+      - name: search-page-findings
+        command: node $CASE/checks/grade-search-page-findings.mjs
+
+  - name: review-theme-toggle
+    task: |
+      Review /work/ThemeToggle.tsx for Web Interface Guidelines compliance using
+      the web-design-guidelines skill at /work/web-design-guidelines/SKILL.md.
+
+      Write the findings to /work/findings.txt, one finding per line, in the
+      "ThemeToggle.tsx:<line> <issue>" format described by the skill's guidelines.
+    graders:
+      - name: theme-toggle-findings
+        command: node $CASE/checks/grade-theme-toggle-findings.mjs
+
+  - name: review-blog-post
+    task: |
+      Review /work/BlogPost.tsx for Web Interface Guidelines compliance using
+      the web-design-guidelines skill at /work/web-design-guidelines/SKILL.md.
+
+      Write the findings to /work/findings.txt, one finding per line, in the
+      "BlogPost.tsx:<line> <issue>" format described by the skill's guidelines.
+    graders:
+      - name: blog-post-findings
+        command: node $CASE/checks/grade-blog-post-findings.mjs
