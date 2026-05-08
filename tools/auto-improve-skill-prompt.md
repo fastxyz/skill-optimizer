@@ -8,7 +8,10 @@ exit cleanly to `analysis.md` (see "Stop conditions" at the end).
 
 **Reference run (the manual baseline you must reproduce on
 web-design-guidelines):** `examples/workbench/web-design-guidelines/`.
-Read it before starting if you've never seen this layout.
+If `examples/workbench/web-design-guidelines/` has source files
+(`suite.yml`, `checks/`, etc.), read them as a layout reference.
+If only `.results/` is present, the case sources are on a different
+branch — proceed without it; the prompt is self-sufficient.
 
 ---
 
@@ -43,10 +46,15 @@ Read it before starting if you've never seen this layout.
       code.
     - **other / unclear** — exit `analysis.md status: blocked-by-skill-shape`.
 4. Pick the closest matching template under `examples/workbench/`:
-    - code-reviewer → mirror `examples/workbench/web-design-guidelines/`
+    - code-reviewer → use the case directory layout described in this
+      prompt (the structure under Phase 2). If
+      `examples/workbench/web-design-guidelines/` source files are
+      available, you can use them as a concrete example, but do not
+      require them.
     - document-producer → mirror `examples/workbench/pdf/`
     - tool-use / mcp-driver → mirror `examples/workbench/mcp/`
-    - code-patterns → mirror `examples/workbench/find-skills/`
+    - code-patterns → use the layout described in Phase 2 (no
+      guaranteed local template for this type)
 5. Persist the classification to `examples/workbench/${SKILL_ID}/analysis.md`
    immediately (frontmatter only, status pending) so a partial run
    leaves a trail.
@@ -69,8 +77,83 @@ blocked. Do not invent a new shape.
    skill's shape, 4–6 known violations per file, each violation on a
    distinct line range mapped to one upstream rule.
 4. Write graders in `checks/`: one `grade-<sample>-findings.mjs` per
-   sample, sharing `checks/_grader-utils.mjs` (copy verbatim from
-   `examples/workbench/web-design-guidelines/checks/_grader-utils.mjs`).
+   sample, sharing `checks/_grader-utils.mjs`. Write the following
+   file content to `examples/workbench/${SKILL_ID}/checks/_grader-utils.mjs`
+   (verbatim):
+
+   ```js
+   // Shared grader logic for web-design-guidelines eval cases.
+   //
+   // Each finding is assumed to be one line in findings.txt that references
+   // "<File>.tsx:<line>" (line numbers come from the agent — they're often
+   // off by ±1-2 due to LLM line-counting). A violation is considered "found"
+   // when at least one finding line:
+   //   (a) references a line number within the violation's accepted range, AND
+   //   (b) contains at least one of the violation's distinguishing keywords.
+   //
+   // This per-finding-line check prevents spurious cross-matches (e.g. the
+   // keyword "label" from a different finding being credited to a paste rule).
+
+   import { existsSync, readFileSync } from 'node:fs';
+
+   export function gradeFindings({ findingsPath, file, expected }) {
+     const failures = [];
+     const found = new Set();
+
+     if (!existsSync(findingsPath)) {
+       failures.push('findings.txt was not created');
+       return emitResult({ found, expected, failures });
+     }
+
+     const text = readFileSync(findingsPath, 'utf-8');
+     const refRe = new RegExp(`${escapeRe(file)}\\s*[:#]\\s*(\\d+)`, 'i');
+     const findingLines = text.split(/\r?\n/).filter((ln) => refRe.test(ln));
+
+     for (const v of expected) {
+       for (const line of findingLines) {
+         const m = line.match(refRe);
+         if (!m) continue;
+         const lineNum = Number(m[1]);
+         if (!v.lines.includes(lineNum)) continue;
+         if (!v.keywords.some((re) => re.test(line))) continue;
+         found.add(v.id);
+         break;
+       }
+     }
+
+     return emitResult({ found, expected, failures });
+   }
+
+   function emitResult({ found, expected, failures }) {
+     const missing = expected.filter((v) => !found.has(v.id)).map((v) => v.id);
+     const score = found.size / expected.length;
+     const pass = found.size === expected.length;
+
+     console.log(JSON.stringify({
+       pass,
+       score,
+       evidence: [
+         `${found.size}/${expected.length} expected violations identified`,
+         ...[...found].map((id) => `+ ${id}`),
+         ...missing.map((id) => `- missing: ${id}`),
+         ...failures,
+       ],
+     }));
+     return pass;
+   }
+
+   function escapeRe(s) {
+     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+   }
+
+   // Helper: build an inclusive line range [start, start+1, ..., end].
+   export function range(start, end) {
+     const out = [];
+     for (let i = start; i <= end; i++) out.push(i);
+     return out;
+   }
+   ```
+
 5. Write `suite.yml` with the standard 3-model matrix:
 
    ```yaml
@@ -83,8 +166,52 @@ blocked. Do not invent a new shape.
    timeoutSeconds: 600
    ```
 
-6. Write a Cases-table README modeled on
-   `examples/workbench/web-design-guidelines/README.md`.
+6. Write a Cases-table README. If
+   `examples/workbench/web-design-guidelines/README.md` is available,
+   use it as a concrete example; otherwise use the following skeleton
+   (fill in all `<…>` placeholders):
+
+   ```markdown
+   # <skill-name> eval
+
+   Eval suite for
+   [`<owner>/<repo>/<skill-id>`](https://github.com/<owner>/<repo>) —
+   <one-line description from the upstream SKILL.md>.
+
+   ## Cases
+
+   ### `review-<sample-name>` — <rule family>
+
+   Sample: `workspace/<SampleName>.<ext>`
+
+   | Line | Violation | Rule |
+   |---|---|---|
+   | <N>  | <short violation description>             | <rule from upstream> |
+   | <N>  | <short violation description>             | <rule from upstream> |
+
+   (repeat for each seeded violation)
+
+   ## Vendored snapshot
+
+   The skill normally <fetches rules from where>. For deterministic eval
+   we vendor a snapshot at `references/<skill-id>/<rules-filename>` and
+   tweak `SKILL.md` to read it locally. Diff vs upstream is one line.
+
+   ## Run
+
+   \`\`\`bash
+   export OPENROUTER_API_KEY=sk-or-...
+   npx tsx ../../../src/cli.ts run-suite ./suite.yml --trials 3
+   \`\`\`
+
+   ## Models
+
+   The suite runs a 3-provider mid-tier matrix:
+
+   - `openrouter/anthropic/claude-sonnet-4.6`
+   - `openrouter/openai/gpt-5-mini`
+   - `openrouter/google/gemini-2.5-pro`
+   ```
 
 **Self-checkpoint:** if you can't seed ≥3 reasonable violations, exit
 `status: blocked-by-skill-shape`.
@@ -168,8 +295,11 @@ If final status is `success`:
    NOT the local-path tweak from Phase 2 (revert that line). Diff vs
    upstream should be purely additive.
 
-3. Write `proposed-upstream-changes/README.md` modeled on
-   `examples/workbench/web-design-guidelines/proposed-upstream-changes/README.md`.
+3. Write `proposed-upstream-changes/README.md`. If
+   `examples/workbench/web-design-guidelines/proposed-upstream-changes/README.md`
+   is available, use it as a style reference; otherwise write a short
+   summary covering: what changed, why (evidence from eval results),
+   and how to apply the diff upstream.
 
 If status is anything else, skip Phase 5.
 
@@ -204,7 +334,14 @@ any judgment calls.
 
 ```bash
 git checkout -b eval/auto-pilot/${SKILL_ID}
-git add examples/workbench/${SKILL_ID}/
+git add examples/workbench/${SKILL_ID}/suite.yml \
+        examples/workbench/${SKILL_ID}/README.md \
+        examples/workbench/${SKILL_ID}/analysis.md \
+        examples/workbench/${SKILL_ID}/references/ \
+        examples/workbench/${SKILL_ID}/workspace/ \
+        examples/workbench/${SKILL_ID}/checks/
+[ -d examples/workbench/${SKILL_ID}/proposed-upstream-changes ] \
+  && git add examples/workbench/${SKILL_ID}/proposed-upstream-changes/
 git commit -m "eval(auto-pilot): ${SKILL_ID} — status=<s>, coverage <baseline>→<final>"
 ```
 
