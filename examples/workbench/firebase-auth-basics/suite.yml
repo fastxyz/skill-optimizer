@@ -1,0 +1,46 @@
+name: firebase-auth-basics-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4.6
+  - openrouter/openai/gpt-5-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: review-auth-js
+    task: |
+      You have a Firebase Authentication implementation to review. The firebase-auth-basics
+      skill is available at firebase-auth-basics/SKILL.md (with supporting references
+      in firebase-auth-basics/references/).
+
+      Review the file src/auth.js against the firebase-auth-basics guidelines and best
+      practices. Look for:
+      - Missing emulator connection for local development
+      - Incorrect auth state access patterns
+      - Missing error handling on auth calls
+
+      Write every violation to findings.txt (create it at the top level of /work), one
+      per line. Each line must reference the filename and approximate line number, for example:
+        auth.js:11 - <description of violation and which guideline it breaks>
+    graders:
+      - name: auth-findings
+        command: node $CASE/checks/grade-auth-findings.mjs
+
+  - name: review-firestore-rules
+    task: |
+      You have a Firebase Authentication implementation to review. The firebase-auth-basics
+      skill is available at firebase-auth-basics/SKILL.md (with supporting references
+      in firebase-auth-basics/references/).
+
+      Review the file firestore.rules against the firebase-auth-basics security rules
+      guidelines. Look for rules that are missing authentication checks or are
+      overly permissive.
+
+      Write every violation to findings.txt (create it at the top level of /work), one
+      per line. Each line must reference the filename and approximate line number, for example:
+        firestore.rules:7 - <description of violation and which guideline it breaks>
+    graders:
+      - name: rules-findings
+        command: node $CASE/checks/grade-rules-findings.mjs
