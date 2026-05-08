@@ -1,0 +1,50 @@
+name: supabase-postgres-best-practices-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4-5
+  - openrouter/openai/gpt-4o-mini
+  - openrouter/google/gemini-2.5-flash
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: review-schema
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/schema.sql for violations of the Supabase Postgres
+      best practices. For each violation found, write one line to /work/findings.txt
+      in the following format:
+
+        schema.sql:<line_number> - <rule-id>: <short description of violation>
+
+      Reference the actual line number where the violation occurs. Cover all
+      violations you find, one per line.
+    graders:
+      - name: schema-findings
+        command: node $CASE/checks/grade-schema-findings.mjs
+
+  - name: review-rls
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/rls_policies.sql for violations of the Supabase Postgres
+      best practices. For each violation found, write one line to /work/findings.txt
+      in the following format:
+
+        rls_policies.sql:<line_number> - <rule-id>: <short description of violation>
+
+      Reference the actual line number where the violation occurs. Cover all
+      violations you find, one per line.
+    graders:
+      - name: rls-findings
+        command: node $CASE/checks/grade-rls-findings.mjs
