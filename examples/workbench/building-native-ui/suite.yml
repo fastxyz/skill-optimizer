@@ -1,0 +1,44 @@
+name: building-native-ui-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4-6
+  - openrouter/openai/gpt-5-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+appendSystemPrompt: |
+  Write all task outputs to the top level of /work unless told otherwise.
+  When reviewing code for violations, output one finding per line to findings.txt.
+cases:
+  - name: review-media-player
+    task: |
+      You are reviewing a React Native / Expo screen component for guideline violations.
+      The Expo UI guidelines are in `references/building-native-ui/SKILL.md`.
+
+      Review the file `MediaPlayerScreen.tsx` against every section of the guidelines:
+      Library Preferences, Responsiveness, Styling (including Shadows), Behavior, and Navigation.
+
+      For each violation you find, write one line to `findings.txt` in this format:
+        MediaPlayerScreen.tsx:<line>: <description of what rule is violated and what should be used instead>
+
+      Be thorough — check every import, every component, every style property.
+    graders:
+      - name: media-player-findings
+        command: node $CASE/checks/grade-media-player-findings.mjs
+
+  - name: review-settings-screen
+    task: |
+      You are reviewing a React Native / Expo screen component for guideline violations.
+      The Expo UI guidelines are in `references/building-native-ui/SKILL.md`.
+
+      Review the file `SettingsScreen.tsx` against every section of the guidelines:
+      Library Preferences, Responsiveness, Styling, Behavior, and Navigation.
+
+      For each violation you find, write one line to `findings.txt` in this format:
+        SettingsScreen.tsx:<line>: <description of what rule is violated and what should be used instead>
+
+      Be thorough — check every import, every component, every prop.
+    graders:
+      - name: settings-screen-findings
+        command: node $CASE/checks/grade-settings-screen-findings.mjs
