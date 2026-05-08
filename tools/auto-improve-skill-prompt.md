@@ -241,10 +241,15 @@ blocked. Do not invent a new shape.
 
 ## Phase 4 — Iterate (max 2 loops)
 
+**Before iterating, read `tools/auto-improve-skill-lessons.md`** — it has
+recipes A-E for optimization patterns and G1-G6 for grader-reliability
+patterns, each with empirical evidence from prior pilots. Match your
+observed failure pattern to a recipe before designing a custom fix.
+
 For each iteration `I` (1 then 2):
 
 1. **Diagnose** — list the highest-miss-frequency rules. Use this prior
-   from the manual web-design-guidelines run:
+   (from `auto-improve-skill-lessons.md` § "The load-bearing prior"):
 
    > Rules about *absence* (a missing attribute, branch, or focus
    > replacement) are 5–10× harder than rules about *presence* (a
@@ -254,14 +259,34 @@ For each iteration `I` (1 then 2):
    Categorize each missed rule: visible-pattern / absence-of-attribute /
    state-machine / subjective.
 
-2. **Modify** — write a *minimal additive* edit:
-    - Add a per-element checklist entry to the rules doc.
-    - Add a BAD/GOOD code example for a missed rule.
-    - Add a two-pass-workflow nudge to the SKILL.md.
-    - Tighten ambiguous rule wording.
+   **Grader-vs-skill check (do this first):** look at actual
+   `findings.txt` from failed trials. If models *did* identify the
+   violations but the grader scored them wrong (line numbers off,
+   keyword mismatch, format variant), the grader is the bug. Apply
+   recipes G1-G6 from the lessons doc and re-run *without* counting
+   this against the 2-iteration budget. Only proceed to skill
+   modification once the grader is calibrated.
+
+2. **Modify** — write a *minimal additive* edit using the recipes
+   from `auto-improve-skill-lessons.md` § "Optimization patterns":
+    - **Recipe A** (two-pass workflow) for code-reviewer skills with
+      mixed presence/absence rules
+    - **Recipe B** (verify-tool-installed nudge) for tool-use skills
+      where models fall back to `curl`/`npm i`
+    - **Recipe C** (per-element checklists) for skills with rules
+      grouped by element type
+    - **Recipe D** (BAD/GOOD examples) for anti-patterns where the
+      bad pattern looks idiomatic
+    - **Recipe E** (rationale + bug-story) for state-machine
+      violations
 
    Edits must be additive: no rule deletions, no wording changes to
-   existing rules.
+   existing rules. (See lessons doc § "Don't make breaking changes".)
+
+   After the run completes, **append a one-line entry to
+   `tools/auto-improve-skill-lessons.md` § "Run-record protocol"**
+   documenting any new pattern your pilot surfaced. The doc is a
+   living artifact; future pilots benefit from yours.
 
 3. **Re-run** the same `run-suite --trials 3` command and compute new
    rule-coverage.
@@ -272,7 +297,9 @@ For each iteration `I` (1 then 2):
     - Else loop.
 
 **Cost guard:** sum `metrics.cost.total` from each run's `result.json`.
-If cumulative cost > $3.00, exit `status: budget-exceeded` immediately.
+If cumulative cost > $7.00, exit `status: budget-exceeded` immediately.
+Leave a $2-3 buffer below the wrapper's `--max-budget-usd` so you have
+room to finish "Always: write analysis.md AND commit" cleanly.
 
 ---
 
@@ -305,9 +332,14 @@ If status is anything else, skip Phase 5.
 
 ---
 
-## Always: write `analysis.md`
+## Always: write `analysis.md` AND commit (do NOT push)
 
-Final write to `examples/workbench/${SKILL_ID}/analysis.md`:
+**This is a single atomic step. Both must happen, in this order, every time
+the run ends — success, blocked, or out of budget.** Do not write
+`analysis.md` and stop there. Do not commit without writing
+`analysis.md` first.
+
+Step A — write `examples/workbench/${SKILL_ID}/analysis.md`:
 
 ```markdown
 ---
@@ -328,9 +360,8 @@ baseline failure pattern, modification tried + reason, uplift result,
 any judgment calls.
 ```
 
----
-
-## Always: commit (do NOT push)
+Step B — IMMEDIATELY after writing `analysis.md`, run these git commands
+(do not pause, do not call any other tool first, just run them):
 
 ```bash
 git checkout -b eval/auto-pilot/${SKILL_ID}
@@ -347,6 +378,10 @@ git commit -m "eval(auto-pilot): ${SKILL_ID} — status=<s>, coverage <baseline>
 
 Do **not** `git push`. The orchestrator reads `analysis.md` and reports.
 
+If you find yourself running low on budget or context: **skip everything
+else and do this section first.** A run with results-but-no-analysis-or-commit
+is worse than a run with truncated results that committed cleanly.
+
 ---
 
 ## Stop conditions (summary)
@@ -354,7 +389,7 @@ Do **not** `git push`. The orchestrator reads `analysis.md` and reports.
 | Condition | Action |
 | --- | --- |
 | Two iterations of Phase 4 done | Stop, write `analysis.md` |
-| Cumulative cost > $3.00 | Stop, `status: budget-exceeded` |
+| Cumulative cost > $7.00 (or 70% of wrapper budget) | Stop, `status: budget-exceeded` |
 | Phase 1 can't classify | Stop, `status: blocked-by-skill-shape` |
 | Phase 2 can't seed ≥3 violations | Stop, `status: blocked-by-skill-shape` |
 | Baseline rule-coverage < 0.50 | Stop, `status: blocked-by-skill-shape` |

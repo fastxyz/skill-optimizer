@@ -6,7 +6,9 @@
 //
 // Flags:
 //   --force          overwrite an existing examples/workbench/<skill-id>/
-//   --budget <usd>   per-run claude -p budget cap (default: 3.50)
+//   --budget <usd>   per-run claude -p budget cap (default: 10.00)
+//                    The prompt's Phase-4 cost guard stops the agent at $7
+//                    so the last $3 covers analysis.md + commit cleanup.
 //
 // Spawns `claude -p` with the templated prompt; the inner agent does the
 // 5-phase work (vendor → build suite → baseline → iterate → package) and
@@ -27,7 +29,7 @@ const FORCE = args.includes('--force');
 
 function parseBudgetFlag() {
   const i = args.indexOf('--budget');
-  if (i < 0 || !args[i + 1]) return '3.50';
+  if (i < 0 || !args[i + 1]) return '10.00';
   const v = args[i + 1];
   if (!/^\d+(\.\d+)?$/.test(v) || Number(v) <= 0) {
     console.error(`bad --budget: "${v}" — expected a positive number`);
@@ -37,8 +39,9 @@ function parseBudgetFlag() {
 }
 const BUDGET = parseBudgetFlag();
 const BUDGET_FLAG_IDX = args.indexOf('--budget');
+const BUDGET_VALUE_IDX = BUDGET_FLAG_IDX < 0 ? null : BUDGET_FLAG_IDX + 1;
 
-const slug = args.find((a, i) => !a.startsWith('--') && i !== BUDGET_FLAG_IDX + 1);
+const slug = args.find((a, i) => !a.startsWith('--') && i !== BUDGET_VALUE_IDX);
 if (!slug) {
   console.error('usage: auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>]');
   process.exit(2);
