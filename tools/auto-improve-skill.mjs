@@ -2,7 +2,11 @@
 // Auto-improve-skill wrapper.
 //
 // Operator usage (from this Claude Code session via Bash):
-//   node tools/auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force]
+//   node tools/auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>]
+//
+// Flags:
+//   --force          overwrite an existing examples/workbench/<skill-id>/
+//   --budget <usd>   per-run claude -p budget cap (default: 3.50)
 //
 // Spawns `claude -p` with the templated prompt; the inner agent does the
 // 5-phase work (vendor → build suite → baseline → iterate → package) and
@@ -20,9 +24,23 @@ const PER_CALL_TIMEOUT_MS = 90 * 60 * 1000; // 90 min hard wall-clock cap
 
 const args = process.argv.slice(2);
 const FORCE = args.includes('--force');
-const slug = args.find((a) => !a.startsWith('--'));
+
+function parseBudgetFlag() {
+  const i = args.indexOf('--budget');
+  if (i < 0 || !args[i + 1]) return '3.50';
+  const v = args[i + 1];
+  if (!/^\d+(\.\d+)?$/.test(v) || Number(v) <= 0) {
+    console.error(`bad --budget: "${v}" — expected a positive number`);
+    process.exit(2);
+  }
+  return v;
+}
+const BUDGET = parseBudgetFlag();
+const BUDGET_FLAG_IDX = args.indexOf('--budget');
+
+const slug = args.find((a, i) => !a.startsWith('--') && i !== BUDGET_FLAG_IDX + 1);
 if (!slug) {
-  console.error('usage: auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force]');
+  console.error('usage: auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>]');
   process.exit(2);
 }
 const parts = slug.split('/');
@@ -52,7 +70,7 @@ const claudeArgs = [
   '--no-session-persistence',
   '--disable-slash-commands',
   '--dangerously-skip-permissions',
-  '--max-budget-usd', '3.50',
+  '--max-budget-usd', BUDGET,
 ];
 const childEnv = { ...process.env };
 delete childEnv.CLAUDECODE;
