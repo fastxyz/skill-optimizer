@@ -357,5 +357,13 @@ something new. Format:
 + **auto-pilot supabase (2026-05-08):** "covering" / "does not cover" alternation
   pattern. Confirmed ±3 → ±8 line widening is needed by default.
 
++ **auto-pilot next-upgrade (2026-05-08):** Discovered that adding bash commands to
+  skill instructions causes smaller models (GPT-4o-mini) to try executing them,
+  producing errors in output files. BAD/GOOD examples without bash commands are safer.
+  Also: seed-file VIOLATION comments that contain the expected fix pattern cause
+  grader false positives — never embed fix patterns in seed file comments. Package.json
+  version issues are reported at line 1–2 by most models (not the dependency line ~12);
+  use `range(1, 25)` not `looseRange(12)` for file-level version checks.
+
 (Future pilots: append your additions here.)
 + **auto-pilot pptx (2026-05-08):** Discovered pptxgenjs splits styled headings across separate `<a:t>` runs (e.g. `"Key"` bold + `"Features"` normal). Join extracted runs with space, not newline, to reconstruct visible text. Also: `PIP_REQUIRE_VIRTUALENV=1` + `XDG_CACHE_HOME=/work/.cache` requires `bash -c "source venv/activate && pip install --no-cache-dir ..."` in setup; per-case setup avoids unnecessary venv/pip for control cases.
