@@ -67,3 +67,6 @@ cli-commands.json
 tools.json
 tasks.json
 .worktrees/
+
+# Auto-improve-skill wrapper run logs
+examples/workbench/*/.run.log
