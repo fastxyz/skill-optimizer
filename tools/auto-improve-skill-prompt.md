@@ -152,6 +152,30 @@ blocked. Do not invent a new shape.
      for (let i = start; i <= end; i++) out.push(i);
      return out;
    }
+
+   // Helper: centered loose range — accepts the violation line ± tolerance.
+   // Default tolerance ±8 handles LLM line-counting drift on multi-line elements.
+   // PREFER this over `range(N-3, N+3)` — see lessons.md § G1.
+   export function looseRange(centerLine, tolerance = 8) {
+     return range(centerLine - tolerance, centerLine + tolerance);
+   }
+
+   // Helper: hyphen-tolerant keyword regex — `fuzzyKeyword('empty state')`
+   // matches both "empty state" and "empty-state" and "emptystate".
+   // PREFER this over hand-writing `/empty[-\s]+state/` — see lessons.md § G2.
+   export function fuzzyKeyword(phrase) {
+     const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+     const flexible = escaped.replace(/\s+/g, '[-\\s]*');
+     return new RegExp(flexible, 'i');
+   }
+
+   // Helper: prefix-tolerant keyword — `tolerantKeyword('cover')` matches
+   // "cover", "covering", "covered", "does not cover".
+   // PREFER this over `/covering/i` — see lessons.md § G4.
+   export function tolerantKeyword(stem) {
+     const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+     return new RegExp(`\\b${escaped}\\w*`, 'i');
+   }
    ```
 
 5. Write `suite.yml` with the standard 3-model matrix:

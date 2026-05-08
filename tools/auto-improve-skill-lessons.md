@@ -169,23 +169,32 @@ grader as iteration 1 (do not propose a skill change yet).
 ### G1. Line tolerance ±5–8 (not ±0–3)
 
 LLM line-counting is unreliable. Models report violations 1-3 lines off
-from the actual line in multi-line JSX/SQL/code. Always use a wide
-range:
+from the actual line in multi-line JSX/SQL/code. Use the `looseRange`
+helper (default tolerance ±8):
 
 ```javascript
-{ id: 'rule-id', lines: range(15, 22), keywords: [/.../i] }
-// Even if the violation is on line 18, accept 15-22.
+{ id: 'rule-id', lines: looseRange(18), keywords: [/.../i] }
+// Accepts lines 10-26.
 ```
+
+`looseRange(N, tolerance)` is defined in `_grader-utils.mjs`. Prefer it
+over hand-rolling `range(N-3, N+3)` — the default already absorbs the
+common drift width seen across all 4 prior pilots.
 
 ### G2. Hyphen-tolerant keyword regex
 
 Models output "empty-state" when the rule says "empty state", or
-"clickable-handler" when the rule says "clickable handler". Use:
+"clickable-handler" when the rule says "clickable handler". Use the
+`fuzzyKeyword` helper:
 
 ```javascript
-keywords: [/empty[-\s]+state/i]   // matches both "empty state" and "empty-state"
-keywords: [/aria[-\s]?label/i]    // "aria-label" and "aria label"
+keywords: [fuzzyKeyword('empty state')]   // matches "empty state" and "empty-state"
+keywords: [fuzzyKeyword('aria label')]    // matches "aria-label" and "aria label"
 ```
+
+`fuzzyKeyword(phrase)` is defined in `_grader-utils.mjs`. It escapes
+regex metacharacters and replaces internal whitespace with `[-\s]*`,
+so callers don't have to hand-roll the regex.
 
 ### G3. Per-finding-line keyword matching (not whole-text)
 
@@ -202,8 +211,21 @@ Models phrase the same concept several ways:
 + "label" / "aria-label" / "labeled"
 + "hover" / "hover state" / "hover:bg-*"
 
-Use alternation: `/covering|cover\b/i`, `/aria-?label|labeled/i`,
-`/hover:|hover\s*state/i`.
+Use the `tolerantKeyword` helper for word-stem matching:
+
+```javascript
+keywords: [tolerantKeyword('cover')]    // matches "cover", "covering", "covered"
+keywords: [tolerantKeyword('label')]    // matches "label", "labeled", "labels"
+```
+
+For multiple distinct stems on the same rule, use an array — the grader
+treats them as alternatives:
+
+```javascript
+keywords: [tolerantKeyword('hover'), fuzzyKeyword('hover state')]
+```
+
+Both `tolerantKeyword` and `fuzzyKeyword` are defined in `_grader-utils.mjs`.
 
 ### G5. Set-semantics for sibling/list assertions
 
