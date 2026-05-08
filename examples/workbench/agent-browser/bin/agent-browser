@@ -1,0 +1,302 @@
+#!/usr/bin/env node
+// Mock agent-browser CLI for eval determinism.
+// Records all calls to $WORK/command-log.txt and returns static responses
+// that allow agents to complete browser automation tasks without a real browser.
+
+import { appendFileSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+
+const WORK = process.env.WORK || process.cwd();
+const LOG = join(WORK, 'command-log.txt');
+const STATE = join(WORK, '.ab-state.json');
+
+const args = process.argv.slice(2);
+const fullCmd = 'agent-browser ' + args.join(' ');
+
+// Log the command
+try {
+  appendFileSync(LOG, fullCmd + '\n');
+} catch {}
+
+// Read/write state
+let state = { currentUrl: null, navigated: false };
+if (existsSync(STATE)) {
+  try { state = JSON.parse(readFileSync(STATE, 'utf8')); } catch {}
+}
+function saveState() {
+  try { writeFileSync(STATE, JSON.stringify(state)); } catch {}
+}
+
+// Static snapshots keyed by URL
+const SNAPSHOTS = {
+  'https://example.com': `Page: Example Domain
+URL: https://example.com
+
+@e1 [heading] "Example Domain"
+@e2 [paragraph] "This domain is for use in illustrative examples in documents."
+@e3 [link] "More information..."`,
+
+  'https://duckduckgo.com': `Page: DuckDuckGo — Privacy, simplified.
+URL: https://duckduckgo.com
+
+@e1 [heading] "DuckDuckGo"
+@e2 [input type="text"] placeholder="Search the web"
+@e3 [button] "Search"`,
+
+  'https://duckduckgo.com/?q=rust+browser+automation': `Page: rust browser automation at DuckDuckGo
+URL: https://duckduckgo.com/?q=rust+browser+automation
+
+@e1 [heading] "rust browser automation"
+@e2 [article]
+  @e3 [link] "agent-browser: Fast browser automation CLI written in Rust"
+  @e4 [paragraph] "Native Rust CLI for browser automation via CDP..."
+@e5 [article]
+  @e6 [link] "headless_chrome - Rust crate for browser automation"
+  @e7 [paragraph] "Control Chrome headlessly from Rust code..."
+@e8 [article]
+  @e9 [link] "fantoccini: high-level API for web automation in Rust"
+  @e10 [paragraph] "Rust WebDriver client for automated browser testing..."`,
+
+  'https://news.ycombinator.com': `Page: Hacker News
+URL: https://news.ycombinator.com
+
+@e1 [link] "Show HN: I built an open-source browser automation CLI in Rust"
+@e2 [link] "Gemini 2.5 Pro now available to all developers"
+@e3 [link] "Ask HN: Best practices for running AI agents in production?"
+@e4 [link] "The state of WebAssembly in 2026"
+@e5 [link] "SQLite turns 25: reflections on a remarkable database"`,
+};
+
+const GET_TEXT = {
+  '@e1': {
+    'https://example.com': 'Example Domain',
+    'https://news.ycombinator.com': 'Show HN: I built an open-source browser automation CLI in Rust',
+    'https://duckduckgo.com': 'DuckDuckGo',
+  },
+  '@e2': {
+    'https://news.ycombinator.com': 'Gemini 2.5 Pro now available to all developers',
+    'https://duckduckgo.com/?q=rust+browser+automation': 'agent-browser: Fast browser automation CLI written in Rust',
+  },
+  '@e3': {
+    'https://news.ycombinator.com': 'Ask HN: Best practices for running AI agents in production?',
+    'https://duckduckgo.com/?q=rust+browser+automation': 'agent-browser: Fast browser automation CLI written in Rust',
+  },
+  '@e4': { 'https://news.ycombinator.com': 'The state of WebAssembly in 2026' },
+  '@e5': { 'https://news.ycombinator.com': 'SQLite turns 25: reflections on a remarkable database' },
+};
+
+const GET_TITLES = {
+  'https://example.com': 'Example Domain',
+  'https://duckduckgo.com': 'DuckDuckGo — Privacy, simplified.',
+  'https://duckduckgo.com/?q=rust+browser+automation': 'rust browser automation at DuckDuckGo',
+  'https://news.ycombinator.com': 'Hacker News',
+};
+
+const sub = args[0];
+
+// ── skills ──────────────────────────────────────────────────────────────────
+if (sub === 'skills') {
+  if (args[1] === 'get' && args[2] === 'core') {
+    const corePath = join(WORK, 'agent-browser', 'core.md');
+    if (existsSync(corePath)) {
+      process.stdout.write(readFileSync(corePath, 'utf8'));
+    } else {
+      // Fallback: return brief summary
+      console.log('# agent-browser core\nSee /work/agent-browser/core.md for the full skill reference.');
+    }
+  } else if (args[1] === 'list') {
+    console.log('Available skills: core, electron, slack, dogfood, vercel-sandbox, agentcore');
+  } else {
+    console.log(`Skill '${args.slice(2).join(' ')}' loaded. See output above.`);
+  }
+
+// ── open / goto / navigate ───────────────────────────────────────────────────
+} else if (sub === 'open' || sub === 'goto' || sub === 'navigate') {
+  const url = args[1] || '';
+  state.currentUrl = url;
+  state.navigated = false;
+  saveState();
+  console.log(`Opened ${url}`);
+
+// ── snapshot ─────────────────────────────────────────────────────────────────
+} else if (sub === 'snapshot') {
+  const url = state.currentUrl || '';
+  const snap = SNAPSHOTS[url];
+  if (snap) {
+    console.log(snap);
+  } else {
+    console.log(`Page: Untitled\nURL: ${url}\n\n@e1 [body] (page loaded)`);
+  }
+
+// ── fill ──────────────────────────────────────────────────────────────────────
+} else if (sub === 'fill') {
+  const ref = args[1] || '';
+  const value = args.slice(2).join(' ');
+  // Simulate search navigation: if filling the DuckDuckGo search box
+  if (state.currentUrl === 'https://duckduckgo.com' && (ref === '@e2' || ref.includes('input'))) {
+    state.pendingQuery = value;
+    saveState();
+  }
+  console.log(`Filled ${ref} with "${value}"`);
+
+// ── type ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'type') {
+  const ref = args[1] || '';
+  const value = args.slice(2).join(' ');
+  console.log(`Typed into ${ref}: "${value}"`);
+
+// ── press ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'press') {
+  const key = args[1] || '';
+  if (key === 'Enter' && state.currentUrl === 'https://duckduckgo.com' && state.pendingQuery) {
+    const q = encodeURIComponent(state.pendingQuery.replace(/\s+/g, '+').toLowerCase()).replace(/%2B/g, '+');
+    state.currentUrl = `https://duckduckgo.com/?q=${q}`;
+    state.navigated = true;
+    state.pendingQuery = null;
+    saveState();
+    console.log(`Pressed ${key}. Form submitted — navigating to search results.`);
+  } else {
+    console.log(`Pressed ${key}`);
+  }
+
+// ── click ────────────────────────────────────────────────────────────────────
+} else if (sub === 'click') {
+  const ref = args[1] || '';
+  // Search button click on DuckDuckGo
+  if (state.currentUrl === 'https://duckduckgo.com' && ref === '@e3' && state.pendingQuery) {
+    const q = encodeURIComponent(state.pendingQuery.replace(/\s+/g, '+').toLowerCase()).replace(/%2B/g, '+');
+    state.currentUrl = `https://duckduckgo.com/?q=${q}`;
+    state.navigated = true;
+    state.pendingQuery = null;
+    saveState();
+    console.log(`Clicked ${ref}. Page navigated to search results.`);
+  } else {
+    console.log(`Clicked ${ref}`);
+  }
+
+// ── find ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'find') {
+  const rest = args.slice(1).join(' ');
+  // find placeholder "Search" fill "rust browser automation"
+  if (rest.includes('fill') && state.currentUrl === 'https://duckduckgo.com') {
+    const valMatch = rest.match(/fill\s+"([^"]+)"/);
+    if (valMatch) {
+      state.pendingQuery = valMatch[1];
+      saveState();
+    }
+  }
+  console.log(`Found and acted: ${rest}`);
+
+// ── get ───────────────────────────────────────────────────────────────────────
+} else if (sub === 'get') {
+  const what = args[1];
+  if (what === 'title') {
+    console.log(GET_TITLES[state.currentUrl] || 'Untitled');
+  } else if (what === 'url') {
+    console.log(state.currentUrl || '');
+  } else if (what === 'text') {
+    const ref = args[2] || '';
+    const byRef = GET_TEXT[ref];
+    const val = byRef ? (byRef[state.currentUrl] || Object.values(byRef)[0]) : `text of ${ref}`;
+    console.log(val || `text of ${ref}`);
+  } else if (what === 'attr') {
+    console.log(`attribute value for ${args[2]} ${args[3]}`);
+  } else if (what === 'value') {
+    console.log(`input value of ${args[2]}`);
+  } else if (what === 'count') {
+    console.log('3');
+  } else {
+    console.log(`got ${what}`);
+  }
+
+// ── screenshot ────────────────────────────────────────────────────────────────
+} else if (sub === 'screenshot') {
+  const flags = args.filter(a => a.startsWith('--'));
+  const pathArg = args.slice(1).find(a => !a.startsWith('--')) || 'screenshot.png';
+  const fullPath = pathArg.startsWith('/') ? pathArg : join(WORK, pathArg);
+
+  // Ensure parent dir exists
+  try { mkdirSync(dirname(fullPath), { recursive: true }); } catch {}
+
+  // Minimal valid 1×1 PNG
+  const png = Buffer.from(
+    '89504e470d0a1a0a0000000d49484452000000010000000108020000009001' +
+    '2e0000000c4944415408d7636060600000000400017dd1fd350000000049454e44ae426082',
+    'hex'
+  );
+  writeFileSync(fullPath, png);
+  console.log(fullPath);
+
+// ── wait ──────────────────────────────────────────────────────────────────────
+} else if (sub === 'wait') {
+  const waitArg = args[1] || '';
+  if (/^\d+$/.test(waitArg)) {
+    console.log(`Waited ${waitArg}ms (bare time wait)`);
+  } else {
+    console.log(`Waited for: ${args.slice(1).join(' ')}`);
+  }
+
+// ── close ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'close') {
+  state.currentUrl = null;
+  state.navigated = false;
+  saveState();
+  console.log('Browser session closed.');
+
+// ── install ──────────────────────────────────────────────────────────────────
+} else if (sub === 'install') {
+  console.log('[mock] agent-browser installed (eval mode — no real browser)');
+
+// ── doctor ───────────────────────────────────────────────────────────────────
+} else if (sub === 'doctor') {
+  console.log('✓ Chrome found\n✓ Daemon running\n✓ All checks passed');
+
+// ── tab ──────────────────────────────────────────────────────────────────────
+} else if (sub === 'tab') {
+  console.log(`Tab 1 (active): ${state.currentUrl || 'blank'}`);
+
+// ── record ────────────────────────────────────────────────────────────────────
+} else if (sub === 'record') {
+  console.log(`Recording ${args.slice(1).join(' ')}`);
+
+// ── eval ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'eval') {
+  console.log('null');
+
+// ── batch ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'batch') {
+  console.log('Batch execution complete');
+
+// ── scrollintoview / scroll ───────────────────────────────────────────────────
+} else if (sub === 'scroll' || sub === 'scrollintoview') {
+  console.log(`Scrolled ${args.slice(1).join(' ')}`);
+
+// ── hover / focus / check / uncheck / select / upload / drag ─────────────────
+} else if (['hover', 'focus', 'check', 'uncheck', 'select', 'upload', 'drag', 'dblclick'].includes(sub)) {
+  console.log(`${sub} ${args.slice(1).join(' ')}`);
+
+// ── network ───────────────────────────────────────────────────────────────────
+} else if (sub === 'network') {
+  console.log(`network ${args.slice(1).join(' ')}: ok`);
+
+// ── auth ─────────────────────────────────────────────────────────────────────
+} else if (sub === 'auth') {
+  console.log(`auth ${args.slice(1).join(' ')}: ok`);
+
+// ── state ────────────────────────────────────────────────────────────────────
+} else if (sub === 'state') {
+  console.log(`state ${args.slice(1).join(' ')}: ok`);
+
+// ── cookies / storage ────────────────────────────────────────────────────────
+} else if (sub === 'cookies' || sub === 'storage') {
+  console.log(`${sub} ${args.slice(1).join(' ')}: ok`);
+
+// ── vitals / react / pushstate ───────────────────────────────────────────────
+} else if (['vitals', 'react', 'pushstate', 'frame', 'dialog', 'is', 'keyboard', 'mouse', 'set', 'pdf', 'stream', 'chat', 'connect', 'upgrade'].includes(sub)) {
+  console.log(`${sub} ${args.slice(1).join(' ')}: ok`);
+
+// ── unknown ───────────────────────────────────────────────────────────────────
+} else {
+  console.error(`agent-browser: unknown command '${sub}'. Run 'agent-browser skills get core' for usage.`);
+  process.exit(1);
+}
