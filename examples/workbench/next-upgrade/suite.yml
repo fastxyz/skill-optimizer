@@ -1,0 +1,40 @@
+name: next-upgrade-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4-5
+  - openrouter/openai/gpt-4o-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+appendSystemPrompt: |
+  Keep all task outputs within /work unless asked otherwise.
+cases:
+  - name: review-starter-app
+    workspace: ./workspace
+    task: |
+      You have a Next.js 14 project at /work/starter-app.
+
+      Use the next-upgrade skill at /work/references/next-upgrade/SKILL.md
+      to review this project for all v14→v15 migration issues. The upgrade
+      guide is vendored at /work/references/next-upgrade/upgrade-guide.md.
+
+      Write your findings to /work/findings.txt. For each issue found,
+      write one line in this exact format:
+        <filename>:<line-number> <description of the issue>
+
+      Examples of valid lines:
+        app/api/route.ts:5 cookies() must be awaited in v15
+        app/page.tsx:6 viewport should be a separate export
+        package.json:10 next version should be upgraded to v15
+
+      Review ALL files in the project and report every v14→v15 issue you find.
+    graders:
+      - name: findings-page
+        command: node $CASE/checks/grade-page-findings.mjs
+      - name: findings-id-page
+        command: node $CASE/checks/grade-id-page-findings.mjs
+      - name: findings-route
+        command: node $CASE/checks/grade-route-findings.mjs
+      - name: findings-package
+        command: node $CASE/checks/grade-package-findings.mjs
