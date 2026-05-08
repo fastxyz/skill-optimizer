@@ -1,0 +1,36 @@
+name: firebase-hosting-basics-eval
+references: ./references
+workspace: ./workspace
+models:
+  - openrouter/anthropic/claude-sonnet-4-6
+  - openrouter/openai/gpt-4o-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+appendSystemPrompt: |
+  Write all output files at the top level of /work unless the task specifies otherwise.
+cases:
+  - name: review-firebase-config
+    task: |
+      You are a Firebase Hosting configuration expert.
+
+      Review the file `firebase-app/firebase.json` for configuration problems and best-practice violations.
+
+      Use the Firebase Hosting skill documentation in `references/firebase-hosting-basics/SKILL.md` to guide your review.
+      Read `references/firebase-hosting-basics/configuration.md` and `references/firebase-hosting-basics/deploying.md` for detailed reference.
+
+      For each issue you find, append a line to `findings.txt` in the format:
+        firebase.json:<line-number>: <description of issue>
+
+      You MUST create `findings.txt` and write every issue to it before finishing.
+
+      Check for ALL of the following:
+      1. Correct public directory for SPA builds (should be dist or build, not src)
+      2. Complete ignore patterns (should include firebase.json, **/.*,  **/node_modules/**)
+      3. Proper cleanUrls setting (should be true for clean URLs)
+      4. Valid redirect types (must be 301 or 302 — the value 200 is NOT valid for redirects)
+      5. SPA catch-all rewrite rule routing all paths to /index.html (required for client-side routing)
+    graders:
+      - name: firebase-config-findings
+        command: node $CASE/checks/grade-firebase-config-findings.mjs
