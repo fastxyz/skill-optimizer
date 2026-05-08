@@ -1,9 +1,11 @@
-name: pdf-workbench-example
+name: pdf-skill-eval
 references: ./references
 appendSystemPrompt: |
   Keep task outputs at the top level of /work unless the user asks for a different path.
 models:
-  - openrouter/google/gemini-2.5-flash
+  - openrouter/anthropic/claude-sonnet-4.6
+  - openrouter/openai/gpt-5-mini
+  - openrouter/google/gemini-2.5-pro
 env:
   - OPENROUTER_API_KEY
 timeoutSeconds: 600

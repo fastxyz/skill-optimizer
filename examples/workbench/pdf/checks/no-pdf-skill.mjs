@@ -17,7 +17,7 @@ if (!existsSync(notePath)) {
 }
 
 if (existsSync(tracePath)) {
-  const traceResult = noReadPath(tracePath, /\/pdf-skill\/SKILL\.md$/);
+  const traceResult = noReadPath(tracePath, /\/pdf\/SKILL\.md$/);
   if (!traceResult.pass) {
     failures.push(...traceResult.evidence);
   }
