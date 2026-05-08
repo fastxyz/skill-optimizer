@@ -358,3 +358,4 @@ something new. Format:
   pattern. Confirmed ±3 → ±8 line widening is needed by default.
 
 (Future pilots: append your additions here.)
++ **auto-pilot pptx (2026-05-08):** Discovered pptxgenjs splits styled headings across separate `<a:t>` runs (e.g. `"Key"` bold + `"Features"` normal). Join extracted runs with space, not newline, to reconstruct visible text. Also: `PIP_REQUIRE_VIRTUALENV=1` + `XDG_CACHE_HOME=/work/.cache` requires `bash -c "source venv/activate && pip install --no-cache-dir ..."` in setup; per-case setup avoids unnecessary venv/pip for control cases.
