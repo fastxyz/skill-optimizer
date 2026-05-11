@@ -183,7 +183,7 @@ blocked. Do not invent a new shape.
    ```yaml
    models:
      - openrouter/anthropic/claude-sonnet-4.6
-     - openrouter/openai/gpt-5-mini
+     - openrouter/openai/gpt-5
      - openrouter/google/gemini-2.5-pro
    env:
      - OPENROUTER_API_KEY
@@ -233,7 +233,7 @@ blocked. Do not invent a new shape.
    The suite runs a 3-provider mid-tier matrix:
 
    - `openrouter/anthropic/claude-sonnet-4.6`
-   - `openrouter/openai/gpt-5-mini`
+   - `openrouter/openai/gpt-5`
    - `openrouter/google/gemini-2.5-pro`
    ```
 

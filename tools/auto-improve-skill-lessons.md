@@ -178,8 +178,10 @@ helper (default tolerance ±8):
 ```
 
 `looseRange(N, tolerance)` is defined in `_grader-utils.mjs`. Prefer it
-over hand-rolling `range(N-3, N+3)` — the default already absorbs the
-common drift width seen across all 4 prior pilots.
+over hand-rolling `range(N-3, N+3)` — the default `±8` absorbs the
+drift seen on the current model matrix (sonnet-4.6, gpt-5, gemini-2.5-pro).
+If you swap in a smaller or older model (e.g., gpt-5-mini, gpt-4o-mini),
+expect 6–15 line drift and pass `looseRange(N, 12)` or wider.
 
 ### G2. Hyphen-tolerant keyword regex
 
@@ -327,6 +329,53 @@ count it against the 2-iteration budget).
 **Source:** auto-pilot supabase + agent-browser pilots — both spent
 iteration 1 on grader fixes before reaching skill modification.
 
+### Don't add bash commands to skills aimed at small models
+
+When you propose adding `grep`, `npm install`, `bash -c`, or any other
+shell command to a SKILL.md, small models will try to **execute** them
+rather than read them as documentation. This consistently regresses
+coverage.
+
+**Source:** auto-pilot next-upgrade pilot (2026-05-09). Iteration 1
+added a per-element grep checklist with bash commands. Coverage
+dropped 0.83 → 0.69 because gpt-5-mini executed `npx next-upgrade`
+(fabricated) and `grep` calls instead of reading the files.
+
+For absence-type rules where you want the agent to look for missing
+attributes, prefer pure declarative wording (Recipe C per-element
+checklist) or BAD/GOOD code examples (Recipe D), not shell commands.
+
+### Watch for CLI fabrication on "upgrade-style" skills
+
+When a skill's name suggests transformation work (`upgrade`, `migrate`,
+`convert`, `init`), some models will hallucinate a CLI matching the
+skill name (e.g., `npx next-upgrade`), run it, get an error, and write
+the error message as findings. This is *distinct* from the
+"reaches-for-fallback `curl`" failure (Recipe B): there, the model
+substitutes a wrong-but-real tool; here, the model invents one.
+
+**Source:** auto-pilot next-upgrade pilot (2026-05-09). gpt-5-mini ran
+`npx next-upgrade` (does not exist), then wrote the package-not-found
+error to `findings.txt`.
+
+If you observe this pattern at baseline, the fix is in the skill's
+opening lines: be explicit that the agent should *read the source files*
+and *write findings*, not run any CLI. Bundle that with the
+"Verify-tool-installed" pattern (Recipe B) when applicable.
+
+### Some upstream repos use non-canonical SKILL.md paths
+
+Default `WebFetch` URL is
+`https://raw.githubusercontent.com/<owner>/<repo>/main/skills/<id>/SKILL.md`.
+Some repos use different layouts:
+
++ `expo/skills`: `plugins/expo/skills/<id>/SKILL.md`
++ some agent-skills repos: `<id>/SKILL.md` at the repo root (no
+  `skills/` prefix)
+
+Phase 1 should retry with these variants if the canonical URL 404s
+before classifying as `blocked-by-skill-shape`.
+
 ---
 
 ## Run-record protocol
@@ -349,6 +398,17 @@ something new. Format:
   Also surfaced "Verify-tool-installed nudge" pattern.
 + **auto-pilot pdf (2026-05-08):** Validated "exit clean on already-good skill"
   — no modifications proposed; baseline 1.00.
++ **auto-pilot firebase-hosting-basics (2026-05-09):** Applied Recipe A + E to a
+  config-conventions skill. 0.89 → 1.00.
++ **auto-pilot shadcn-ui (2026-05-09):** Applied Recipe A + D. Gemini's
+  wrong-location miss rate dropped from 100% → 0%. 0.82 → 0.89.
++ **auto-pilot next-upgrade (2026-05-09):** First documented regression. Adding
+  bash commands to SKILL.md caused gpt-5-mini to execute them rather than read
+  files. 0.83 → 0.76. Surfaced two new failure modes: "no bash for small models"
+  and "CLI fabrication on upgrade-style skills". Both now in § Failure modes.
++ **auto-pilot building-native-ui / native-data-fetching (2026-05-09):** Surfaced
+  non-canonical SKILL.md path (`plugins/expo/skills/<id>/SKILL.md`). Now noted in
+  § Failure modes.
 
 ### Grader patterns added by pilots
 
@@ -356,5 +416,18 @@ something new. Format:
   regex, per-finding-line matching, keyword variants.
 + **auto-pilot supabase (2026-05-08):** "covering" / "does not cover" alternation
   pattern. Confirmed ±3 → ±8 line widening is needed by default.
++ **auto-pilot batch-2 (2026-05-09):** gpt-5-mini drifts 6–15 lines vs
+  sonnet/gemini's 0–3. The default `±8` `looseRange` is calibrated for sonnet +
+  gemini-2.5-pro + gpt-5 (the current matrix as of 2026-05-09) but undertuned
+  for smaller / older models. If swapping in a small model for cost reasons,
+  widen to `looseRange(N, 12)` as the new default.
+
+### Model-matrix history
+
++ **2026-05-08:** `claude-sonnet-4.6`, `openai/gpt-5-mini`, `google/gemini-2.5-pro`.
++ **2026-05-09:** swapped `gpt-5-mini` → `gpt-5` after batch 2 showed gpt-5-mini
+  consistently dragged scores via (a) 3–4 line verbosity floor, (b) 6–15 line
+  drift in `findings.txt`, (c) CLI fabrication on transformation-style skills.
+  Final matrix: `claude-sonnet-4.6`, `openai/gpt-5`, `google/gemini-2.5-pro`.
 
 (Future pilots: append your additions here.)
