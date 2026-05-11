@@ -1,0 +1,51 @@
+name: pptx-skill-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4-6
+  - openrouter/openai/gpt-4o-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+appendSystemPrompt: |
+  The pptx skill is at /work/pptx/SKILL.md. Consult it whenever working with presentations.
+  Keep task outputs at the top level of /work unless the user asks for a different path.
+  When running pip install, always pass --no-cache-dir to avoid permission issues.
+
+cases:
+  - name: extract-pptx-facts
+    setup:
+      - bash -c "python -m venv /work/.venv && source /work/.venv/bin/activate && pip install -q --no-cache-dir 'markitdown[pptx]' python-pptx"
+      - /work/.venv/bin/python $CASE/checks/create-inputs.py
+    task: |
+      Read presentation.pptx and write answer.json with these exact fields:
+        - title: the presentation title from slide 1 (exact string)
+        - slideCount: total number of slides (number)
+        - revenue: the revenue figure from the financial highlights slide, including the dollar sign (e.g. "$5.1M")
+        - customerCount: the total customer count from the customer metrics slide (number, no commas)
+    graders:
+      - name: answer-json
+        command: node $CASE/checks/extract-pptx-facts.mjs
+
+  - name: create-product-deck
+    setup:
+      - bash -c "python -m venv /work/.venv && source /work/.venv/bin/activate && pip install -q --no-cache-dir 'markitdown[pptx]'"
+    task: |
+      Create a 4-slide product deck called deck.pptx for NovaSoft Analytics, a business
+      intelligence platform. The deck must include:
+        - Slide 1: Title slide with "NovaSoft Analytics: Smarter Business Decisions"
+        - Slide 2: "Key Features" — at least 3 bullet points about analytics capabilities
+        - Slide 3: "Proven Results" — include the statistic "40% faster reporting"
+        - Slide 4: Closing slide with "Start your free trial at novasoft.io"
+      Use pptxgenjs to create the presentation from scratch.
+    graders:
+      - name: deck-pptx
+        command: node $CASE/checks/create-product-deck.mjs
+
+  - name: no-pptx-skill-needed
+    task: |
+      Write a file called answer.txt containing exactly this text (nothing else):
+      Q4 Revenue: $8.7M
+    graders:
+      - name: answer-without-pptx-skill
+        command: node $CASE/checks/no-pptx-skill.mjs

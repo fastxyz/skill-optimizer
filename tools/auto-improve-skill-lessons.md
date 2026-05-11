@@ -430,4 +430,13 @@ something new. Format:
   drift in `findings.txt`, (c) CLI fabrication on transformation-style skills.
   Final matrix: `claude-sonnet-4.6`, `openai/gpt-5`, `google/gemini-2.5-pro`.
 
++ **auto-pilot next-upgrade (2026-05-08):** Discovered that adding bash commands to
+  skill instructions causes smaller models (GPT-4o-mini) to try executing them,
+  producing errors in output files. BAD/GOOD examples without bash commands are safer.
+  Also: seed-file VIOLATION comments that contain the expected fix pattern cause
+  grader false positives — never embed fix patterns in seed file comments. Package.json
+  version issues are reported at line 1–2 by most models (not the dependency line ~12);
+  use `range(1, 25)` not `looseRange(12)` for file-level version checks.
+
 (Future pilots: append your additions here.)
++ **auto-pilot pptx (2026-05-08):** Discovered pptxgenjs splits styled headings across separate `<a:t>` runs (e.g. `"Key"` bold + `"Features"` normal). Join extracted runs with space, not newline, to reconstruct visible text. Also: `PIP_REQUIRE_VIRTUALENV=1` + `XDG_CACHE_HOME=/work/.cache` requires `bash -c "source venv/activate && pip install --no-cache-dir ..."` in setup; per-case setup avoids unnecessary venv/pip for control cases.

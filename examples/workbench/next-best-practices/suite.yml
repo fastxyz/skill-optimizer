@@ -1,0 +1,41 @@
+name: next-best-practices-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4-6
+  - openrouter/openai/gpt-4o-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: review-dashboard
+    task: |
+      You are a Next.js code reviewer. Review the file at /work/app/dashboard/page.tsx
+      against the best practices in /work/next-best-practices/SKILL.md (and its linked
+      sub-documents in the same directory).
+
+      Use the write tool to create /work/findings.txt with every violation you find.
+      Use this format for each line:
+        page.tsx:<line_number>: <short description of the violation>
+
+      Be thorough — check async API usage, data-fetching patterns, RSC boundaries,
+      image usage, and error-handling patterns.
+    graders:
+      - name: dashboard-findings
+        command: node $CASE/checks/grade-dashboard-findings.mjs
+
+  - name: review-herosection
+    task: |
+      You are a Next.js code reviewer. Review the file at /work/components/HeroSection.tsx
+      against the best practices in /work/next-best-practices/SKILL.md (and its linked
+      sub-documents in the same directory).
+
+      Use the write tool to create /work/findings.txt with every violation you find.
+      Use this format for each line:
+        HeroSection.tsx:<line_number>: <short description of the violation>
+
+      Be thorough — check RSC boundaries, image optimization, and script loading patterns.
+    graders:
+      - name: herosection-findings
+        command: node $CASE/checks/grade-herosection-findings.mjs

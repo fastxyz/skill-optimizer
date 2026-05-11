@@ -1,0 +1,38 @@
+name: shadcn-ui-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4-6
+  - openrouter/openai/gpt-4o-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: review-usercard
+    task: |
+      Review UserCard.tsx for shadcn/ui best-practice violations.
+      Use the skill guidance in your references/shadcn-ui/SKILL.md.
+
+      For each violation you find, append a line to /work/findings.txt in the format:
+        UserCard.tsx:<line> — <short description>
+
+      Focus on: file/component structure, class-merging utilities, color/theming approach,
+      and accessibility attribute handling.
+    graders:
+      - name: usercard-findings
+        command: node $CASE/checks/grade-usercard-findings.mjs
+
+  - name: review-statusbadge
+    task: |
+      Review StatusBadge.tsx for shadcn/ui best-practice violations.
+      Use the skill guidance in your references/shadcn-ui/SKILL.md.
+
+      For each violation you find, append a line to /work/findings.txt in the format:
+        StatusBadge.tsx:<line> — <short description>
+
+      Focus on: file/component structure, variant patterns, class-merging utilities,
+      and interactive element accessibility.
+    graders:
+      - name: statusbadge-findings
+        command: node $CASE/checks/grade-statusbadge-findings.mjs
