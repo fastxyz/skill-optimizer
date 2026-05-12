@@ -325,9 +325,22 @@ When reviewing existing code for shadcn/ui best-practice compliance, scan each f
 
 ### Pass 1 — File placement and visible anti-patterns
 
-- [ ] **File location**: Custom/composed components must NOT be in `components/ui/`. Check the
-      file path. If a component composes or wraps shadcn primitives, it belongs in `components/`
-      (e.g. `components/UserCard.tsx`, not `components/ui/UserCard.tsx`).
+- [ ] **File location**: Custom/composed components must NOT be in `components/ui/`. **Always
+      read the first line of each file** — source files begin with a path comment (e.g.
+      `// src/components/ui/StatusBadge.tsx`). If that path contains `components/ui/` AND the
+      component is NOT a raw shadcn primitive (installed via CLI), that is a wrong-location
+      violation. Flag it: `StatusBadge.tsx:1 — custom component placed in components/ui/; move
+      to components/`.
+
+  ```tsx
+  // BAD: path comment reveals wrong location
+  // src/components/ui/StatusBadge.tsx   ← WRONG (custom composed component in ui/)
+  export function StatusBadge(...) { ... }
+
+  // GOOD: custom component in components/
+  // src/components/StatusBadge.tsx      ← CORRECT
+  export function StatusBadge(...) { ... }
+  ```
 - [ ] **Class merging**: Every dynamic `className` must use `cn()` (clsx + tailwind-merge).
       Reject bare string concatenation: `"base " + extra` or template literals without `cn()`.
 - [ ] **Variant logic**: Multiple style variants must use `cva` from `class-variance-authority`.
