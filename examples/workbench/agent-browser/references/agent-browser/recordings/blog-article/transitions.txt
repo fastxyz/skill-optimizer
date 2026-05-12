@@ -1,0 +1,7 @@
+# Single-page blog article. The grader checks that the agent extracted the
+# article title verbatim, not the marketing tagline above it nor the byline.
+
+page-title=Why We Migrated Our Build System to Bazel
+url=https://eng.example.com/blog/2026/04/bazel-migration
+url-prefix=https://eng.example.com/blog
+state=initial

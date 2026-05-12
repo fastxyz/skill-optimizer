@@ -25,6 +25,21 @@ branch — proceed without it; the prompt is self-sufficient.
 
 ---
 
+## Constraints / Upstream context
+
+The operator has provided the following upstream context. **Treat each
+directive here as a hard constraint** — your Phase 4 modifications and
+Phase 5 packaging must respect every line. If a constraint conflicts
+with this prompt's defaults (e.g. names a different target file, or
+forbids a recipe), the constraint wins. If the block below is the
+"no upstream context" placeholder, proceed with this prompt's defaults.
+
+```text
+${CONTEXT_BLOCK}
+```
+
+---
+
 ## Phase 1 — Discover
 
 1. Fetch the upstream `SKILL.md` via WebFetch from
@@ -292,7 +307,15 @@ For each iteration `I` (1 then 2):
    modification once the grader is calibrated.
 
 2. **Modify** — write a *minimal additive* edit using the recipes
-   from `auto-improve-skill-lessons.md` § "Optimization patterns":
+   from `auto-improve-skill-lessons.md` § "Optimization patterns".
+
+   **Target file selection.** By default, edit
+   `references/${SKILL_ID}/SKILL.md`. If the Constraints section above
+   names a different target file (e.g. a fetched rules doc), edit
+   THAT file instead. Never modify both unless the constraints
+   explicitly authorize a multi-file change.
+
+   Recipes:
     - **Recipe A** (two-pass workflow) for code-reviewer skills with
       mixed presence/absence rules
     - **Recipe B** (verify-tool-installed nudge) for tool-use skills
@@ -345,6 +368,11 @@ If final status is `success`:
 2. The `after-SKILL.md` must contain the proposed upstream change but
    NOT the local-path tweak from Phase 2 (revert that line). Diff vs
    upstream should be purely additive.
+
+   **If Phase 4 targeted a non-SKILL.md file** (per the Constraints
+   section), name the packaged files after the actual target instead
+   (e.g. `before-command.md` / `after-command.md`) and put them under
+   the rules-doc repo's directory rather than the skill repo's.
 
 3. Write `proposed-upstream-changes/README.md`. If
    `examples/workbench/web-design-guidelines/proposed-upstream-changes/README.md`

@@ -1,0 +1,18 @@
+RootWebArea "Why We Migrated Our Build System to Bazel" focused=true
+  - banner @e1
+    - link @e2 "Engineering Blog"
+    - link @e3 "Archive"
+    - link @e4 "RSS"
+  - main @e0
+    - paragraph @e9 "FROM THE PLATFORM TEAM"
+    - heading @e10 "Why We Migrated Our Build System to Bazel" level=1
+    - paragraph @e11 "By Jordan Lee — April 18, 2026 — 12 min read"
+    - paragraph @e12 "Six months ago we replaced our custom Make-based build orchestration with Bazel. Here is what changed, what broke, and what we would do differently."
+    - heading @e13 "Background" level=2
+    - paragraph @e14 "Our monorepo had grown to 4.2 million lines of code across 11 languages."
+    - heading @e15 "Why Bazel" level=2
+    - paragraph @e16 "We picked Bazel for its hermetic builds and remote caching support."
+    - heading @e17 "What broke" level=2
+    - paragraph @e18 "Two CI workflows depended on implicit globs that Bazel rejected."
+  - contentinfo @e20
+    - link @e21 "Subscribe"

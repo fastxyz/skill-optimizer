@@ -1,0 +1,14 @@
+RootWebArea "Welcome to Acme — Sign in or create an account" focused=true
+  - banner @e1
+    - link @e2 "Acme"
+    - link @e3 "Pricing"
+    - link @e4 "Docs"
+  - main @e0
+    - heading @e10 "Welcome back" level=1
+    - paragraph @e11 "Sign in to continue, or create a new account."
+    - button @e5 "Sign In" type=button class="btn btn-primary"
+    - button @e6 "Sign Up" type=button class="btn btn-primary"
+    - link @e12 "Forgot password?" href="/reset"
+  - contentinfo @e20
+    - link @e21 "Terms"
+    - link @e22 "Privacy"

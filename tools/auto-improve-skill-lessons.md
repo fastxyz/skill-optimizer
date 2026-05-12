@@ -430,4 +430,6 @@ something new. Format:
   drift in `findings.txt`, (c) CLI fabrication on transformation-style skills.
   Final matrix: `claude-sonnet-4.6`, `openai/gpt-5`, `google/gemini-2.5-pro`.
 
++ **auto-pilot supabase v2 (2026-05-12):** Upstream constraints required adding a new reference file (`monitor-two-pass-review.md`) instead of editing SKILL.md. Baseline was already 1.00 (calibrated graders from prior run). Pattern: when a re-run starts from calibrated graders, the Phase 3 exit condition fires before Phase 4 — the "modification" step then serves purely as upstream PR packaging rather than eval improvement.
+
 (Future pilots: append your additions here.)

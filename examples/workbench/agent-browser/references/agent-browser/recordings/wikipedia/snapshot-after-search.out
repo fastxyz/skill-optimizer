@@ -1,0 +1,15 @@
+RootWebArea "Search results - Wikipedia" focused=true
+  - banner @e1
+    - link @e2 "Main page"
+  - main @e0
+    - heading @e9 "Search results" level=1
+    - searchbox @e7 "Hypertext Transfer Protocol" value="Hypertext Transfer Protocol"
+    - button @e8 "Search" type=submit
+    - heading @e30 "Hypertext Transfer Protocol" level=2
+    - link @e31 "Hypertext Transfer Protocol" href="/wiki/Hypertext_Transfer_Protocol"
+    - paragraph @e32 "The Hypertext Transfer Protocol (HTTP) is an application layer protocol in the Internet protocol suite model for distributed, collaborative, hypermedia information systems."
+    - heading @e33 "HTTPS" level=2
+    - link @e34 "HTTPS" href="/wiki/HTTPS"
+    - paragraph @e35 "Hypertext Transfer Protocol Secure (HTTPS) is an extension of HTTP."
+  - contentinfo @e20
+    - link @e21 "Privacy policy"

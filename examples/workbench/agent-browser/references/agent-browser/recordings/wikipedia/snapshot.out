@@ -1,0 +1,17 @@
+RootWebArea "Wikipedia, the free encyclopedia" focused=true
+  - banner @e1
+    - link @e2 "Main page"
+    - link @e3 "Talk"
+  - navigation @e4 "Site"
+    - link @e5 "Contents"
+    - link @e6 "Current events"
+  - main @e0
+    - heading @e9 "Welcome to Wikipedia" level=1
+    - paragraph @e10 "the free encyclopedia that anyone can edit."
+    - searchbox @e7 "Search Wikipedia" placeholder="Search Wikipedia"
+    - button @e8 "Search" type=submit
+    - link @e11 "Featured article"
+    - link @e12 "In the news"
+  - contentinfo @e20
+    - link @e21 "Privacy policy"
+    - link @e22 "About Wikipedia"
