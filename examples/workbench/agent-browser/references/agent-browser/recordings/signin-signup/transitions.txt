@@ -1,0 +1,11 @@
+# Auth landing page with two visually-similar primary buttons.
+# Task asks the agent to log in (Sign In = @e5), NOT to register (Sign Up = @e6).
+# A grader fails the case when the agent clicks the wrong ref.
+
+page-title=Welcome to Acme — Sign in or create an account
+url=https://app.acme.example.com/welcome
+url-prefix=https://app.acme.example.com/welcome
+state=initial
+
+click @e5 -> after-signin
+click @e6 -> after-signup

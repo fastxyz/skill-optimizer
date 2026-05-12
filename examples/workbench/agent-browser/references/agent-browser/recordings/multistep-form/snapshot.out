@@ -1,0 +1,9 @@
+RootWebArea "Subscribe — Acme Newsletter" focused=true
+  - main @e0
+    - heading @e10 "Subscribe to the Acme weekly digest" level=1
+    - paragraph @e11 "Two fields, no spam, unsubscribe anytime."
+    - textbox @e5 "Your name" required=true
+    - textbox @e6 "Email address" required=true type=email
+    - button @e7 "Continue" type=submit disabled=false
+  - contentinfo @e20
+    - link @e21 "Privacy"

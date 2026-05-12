@@ -1,17 +1,166 @@
 #!/usr/bin/env bash
 # Fake agent-browser CLI for eval testing.
-# Logs all invocations to /work/ab-calls.log and returns realistic mock output.
+#
+# Logs every invocation to /work/ab-calls.log (graders depend on this).
+# For Tier-1 cases, replays pre-recorded accessibility-tree snapshots from
+#   /work/references/agent-browser/recordings/<page>/snapshot[-<state>].out
+# and advances state on click/type via a transitions.txt manifest:
+#
+#   /work/references/agent-browser/recordings/<page>/transitions.txt
+#
+# transitions.txt format (lines, comments allowed with leading '#'):
+#   page-title=<text used in title.txt grading>
+#   url=<canonical url>           (optional, multiple allowed)
+#   url-prefix=<url prefix>       (optional, multiple allowed)
+#   state=<initial-state-name>    (defaults to "initial")
+#   <action> <ref> -> <next-state>
+#     action: click | type | press
+#     ref:    @eN (with leading @e), or "*" to match any ref
+#     next:   the new state name; recording snapshot-<next-state>.out must exist
+#             unless next-state == initial-state name (then snapshot.out is used)
+#
+# State persists across CLI invocations in /work/.ab-state with two lines:
+#   page=<page-id>
+#   state=<state>
+#
+# If no recording matches, the CLI falls back to the legacy generic snapshot,
+# preserving Tier-0 behaviour.
 
-LOG=/work/ab-calls.log
+set -u
+# Default working root is /work (the agent's view inside the Docker
+# workspace). For local smoke tests outside Docker, set AB_WORK to a
+# different directory containing the same `bin/`, `references/agent-browser/`
+# layout and the fake CLI honours it transparently.
+WORK_ROOT="${AB_WORK:-/work}"
+LOG="$WORK_ROOT/ab-calls.log"
+STATE_FILE="$WORK_ROOT/.ab-state"
+RECORDINGS="$WORK_ROOT/references/agent-browser/recordings"
+
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || true
 echo "$*" >> "$LOG"
 
-case "$1" in
+read_state() {
+  CURRENT_PAGE=""
+  CURRENT_STATE=""
+  if [[ -f "$STATE_FILE" ]]; then
+    while IFS='=' read -r k v; do
+      case "$k" in
+        page)  CURRENT_PAGE="$v" ;;
+        state) CURRENT_STATE="$v" ;;
+      esac
+    done < "$STATE_FILE"
+  fi
+}
+
+write_state() {
+  printf 'page=%s\nstate=%s\n' "$1" "$2" > "$STATE_FILE"
+}
+
+# Find a recording dir whose transitions.txt matches a URL.
+# Echoes the page-id (dir name) on success; empty otherwise.
+match_url_to_page() {
+  local url="$1"
+  [[ -d "$RECORDINGS" ]] || return 0
+  local dir page t k v line
+  for dir in "$RECORDINGS"/*/; do
+    [[ -d "$dir" ]] || continue
+    page="$(basename "$dir")"
+    t="$dir/transitions.txt"
+    [[ -f "$t" ]] || continue
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ "$line" =~ ^[[:space:]]*# ]] && continue
+      [[ -z "${line//[[:space:]]/}" ]] && continue
+      k="${line%%=*}"
+      v="${line#*=}"
+      case "$k" in
+        url)
+          if [[ "$url" == "$v" ]]; then echo "$page"; return 0; fi ;;
+        url-prefix)
+          if [[ "$url" == "$v"* ]]; then echo "$page"; return 0; fi ;;
+      esac
+    done < "$t"
+  done
+}
+
+# Read the initial-state name for a page (defaults to "initial").
+page_initial_state() {
+  local page="$1"
+  local t="$RECORDINGS/$page/transitions.txt"
+  [[ -f "$t" ]] || { echo "initial"; return 0; }
+  local k v line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    k="${line%%=*}"
+    v="${line#*=}"
+    if [[ "$k" == "state" ]]; then echo "$v"; return 0; fi
+  done < "$t"
+  echo "initial"
+}
+
+# Read the page-title field (used by some graders / canned outputs).
+page_title() {
+  local page="$1"
+  local t="$RECORDINGS/$page/transitions.txt"
+  [[ -f "$t" ]] || { echo ""; return 0; }
+  local k v line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    k="${line%%=*}"
+    v="${line#*=}"
+    if [[ "$k" == "page-title" ]]; then echo "$v"; return 0; fi
+  done < "$t"
+  echo ""
+}
+
+# Resolve the snapshot file for a (page, state) pair.
+# If state == initial-state, prefer snapshot.out; else snapshot-<state>.out.
+snapshot_file_for() {
+  local page="$1" state="$2"
+  local init
+  init="$(page_initial_state "$page")"
+  if [[ "$state" == "$init" || -z "$state" ]]; then
+    echo "$RECORDINGS/$page/snapshot.out"
+  else
+    echo "$RECORDINGS/$page/snapshot-$state.out"
+  fi
+}
+
+# Apply a transition (action ref) on the current page+state.
+# If a matching rule exists, update CURRENT_STATE and persist.
+apply_transition() {
+  local action="$1" ref="$2"
+  [[ -n "$CURRENT_PAGE" ]] || return 0
+  local t="$RECORDINGS/$CURRENT_PAGE/transitions.txt"
+  [[ -f "$t" ]] || return 0
+  local line a r arrow next
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "${line//[[:space:]]/}" ]] && continue
+    # Skip key=value rows
+    if [[ "$line" == *"="* && "$line" != *"->"* ]]; then continue; fi
+    # Parse: <action> <ref> -> <next-state>
+    # shellcheck disable=SC2086
+    set -- $line
+    a="${1:-}"; r="${2:-}"; arrow="${3:-}"; next="${4:-}"
+    [[ "$arrow" == "->" ]] || continue
+    [[ "$a" == "$action" ]] || continue
+    if [[ "$r" == "$ref" || "$r" == "*" ]]; then
+      CURRENT_STATE="$next"
+      write_state "$CURRENT_PAGE" "$CURRENT_STATE"
+      return 0
+    fi
+  done < "$t"
+}
+
+read_state
+
+case "${1:-}" in
   skills)
-    case "$2" in
+    case "${2:-}" in
       get)
         SKILL_NAME="${3:-core}"
         if [[ "$SKILL_NAME" == "core" ]]; then
-          CORE_PATH="/work/references/agent-browser/agent-browser-core.md"
+          CORE_PATH="$WORK_ROOT/references/agent-browser/agent-browser-core.md"
           if [[ -f "$CORE_PATH" ]]; then
             cat "$CORE_PATH"
           else
@@ -19,8 +168,8 @@ case "$1" in
             echo "Navigate: agent-browser navigate <url>"
             echo "Snapshot: agent-browser snapshot"
             echo "Screenshot: agent-browser screenshot [path]"
-            echo "Click: agent-browser click @N"
-            echo "Type: agent-browser type @N \"text\""
+            echo "Click:     agent-browser click @eN"
+            echo "Type:      agent-browser type @eN \"text\""
           fi
         else
           echo "# agent-browser $SKILL_NAME skill (mock)"
@@ -35,44 +184,103 @@ case "$1" in
         ;;
     esac
     ;;
-  navigate)
+
+  navigate|open)
     URL="${2:-about:blank}"
-    echo "Navigated to $URL"
-    echo "Session: default (ready)"
+    PAGE="$(match_url_to_page "$URL")"
+    if [[ -n "$PAGE" ]]; then
+      INIT_STATE="$(page_initial_state "$PAGE")"
+      write_state "$PAGE" "$INIT_STATE"
+      echo "Navigated to $URL"
+      echo "Session: default (ready)"
+    else
+      # Unknown URL — clear page state and use legacy generic behaviour
+      : > "$STATE_FILE"
+      echo "Navigated to $URL"
+      echo "Session: default (ready)"
+    fi
     ;;
+
   snapshot)
-    echo 'RootWebArea "Example Domain"'
-    echo '  heading @1 "Example Domain" level=1'
-    echo '  paragraph @2 "This domain is for use in illustrative examples in documents."'
-    echo '  link @3 "More information..." href=https://www.iana.org/domains/reserved'
+    if [[ -n "$CURRENT_PAGE" ]]; then
+      SNAP="$(snapshot_file_for "$CURRENT_PAGE" "$CURRENT_STATE")"
+      if [[ -f "$SNAP" ]]; then
+        cat "$SNAP"
+      else
+        # Recording missing for this state — emit a clear marker so graders
+        # can detect "agent reached an undefined state".
+        echo "RootWebArea \"(unknown state $CURRENT_STATE on $CURRENT_PAGE)\""
+        echo "  - paragraph @e1 \"No recording for this state.\""
+      fi
+    else
+      # Legacy fallback for Tier-0 cases that don't seed a recording.
+      echo 'RootWebArea "Example Domain"'
+      echo '  - heading @e1 "Example Domain" level=1'
+      echo '  - paragraph @e2 "This domain is for use in illustrative examples in documents."'
+      echo '  - link @e3 "More information..." href=https://www.iana.org/domains/reserved'
+    fi
     ;;
+
   screenshot)
-    OUTFILE="${2:-/work/screenshot.png}"
-    # Write a minimal valid 1x1 white PNG (base64 decoded)
+    OUTFILE="${2:-$WORK_ROOT/screenshot.png}"
+    # Minimal valid 1x1 PNG
     printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > "$OUTFILE"
     echo "Screenshot saved: $OUTFILE"
     ;;
+
   click)
-    REF="${2:-@1}"
+    REF="${2:-}"
+    if [[ -z "$REF" ]]; then
+      echo "agent-browser: click requires a ref (e.g., click @e3)" >&2
+      exit 2
+    fi
+    apply_transition click "$REF"
     echo "Clicked $REF"
     ;;
+
   type)
-    REF="${2:-@1}"
-    shift 2
+    REF="${2:-}"
+    shift 2 2>/dev/null || true
+    if [[ -z "$REF" ]]; then
+      echo "agent-browser: type requires a ref (e.g., type @e3 \"hello\")" >&2
+      exit 2
+    fi
+    apply_transition type "$REF"
     echo "Typed \"$*\" into $REF"
     ;;
+
+  press)
+    KEY="${2:-Enter}"
+    apply_transition press "@*" 2>/dev/null || true
+    # press isn't ref-bound; allow transitions keyed on '*'
+    echo "Pressed $KEY"
+    ;;
+
+  evaluate|eval)
+    # Canned: return empty result (graders don't depend on it)
+    echo "{\"result\": null}"
+    ;;
+
   install)
     echo "agent-browser: already installed"
     ;;
+
   --version|-v|version)
     echo "agent-browser 0.9.0 (mock for eval)"
     ;;
+
   which|check)
-    echo "/work/bin/agent-browser"
+    echo "$WORK_ROOT/bin/agent-browser"
     ;;
+
+  ""|help|--help|-h)
+    echo "Usage: agent-browser <command> [args]"
+    echo "Commands: skills, navigate, snapshot, screenshot, click, type, press, evaluate"
+    ;;
+
   *)
-    echo "agent-browser: unknown command '$1'"
-    echo "Run: agent-browser skills get core"
+    echo "agent-browser: unknown command '${1:-}'" >&2
+    echo "Run: agent-browser skills get core" >&2
     exit 1
     ;;
 esac

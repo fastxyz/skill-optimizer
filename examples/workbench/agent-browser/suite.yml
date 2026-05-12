@@ -9,6 +9,8 @@ env:
 timeoutSeconds: 600
 
 cases:
+  # ----- Tier-0 (kept for continuity with the v1 baseline) -----
+
   - name: navigate-and-report
     task: |
       Navigate to https://example.com and find the main heading on the page.
@@ -30,3 +32,64 @@ cases:
     graders:
       - name: screenshot-capture-findings
         command: node $CASE/checks/grade-screenshot-capture-findings.mjs
+
+  # ----- Tier-1 (snapshot-driven @eN ref discipline + content correctness) -----
+
+  - name: ref-based-search
+    task: |
+      Open the English Wikipedia main page at https://en.wikipedia.org/wiki/Main_Page
+      and search for "Hypertext Transfer Protocol".
+
+      On the search results page, identify the title of the top result and write
+      it to /work/top-result.txt (one line, no extra prose).
+
+      The agent-browser CLI is available. Check /work/references/agent-browser/SKILL.md
+      for guidance on which tool to use.
+    graders:
+      - name: ref-based-search-findings
+        command: node $CASE/checks/grade-ref-based-search-findings.mjs
+
+  - name: ref-disambiguation
+    task: |
+      Open https://app.acme.example.com/welcome. The page has two primary
+      buttons: "Sign In" and "Sign Up". Sign in to your existing account
+      (do NOT create a new one).
+
+      After you reach the next page, write the page's level-1 heading to
+      /work/next-heading.txt (one line).
+
+      The agent-browser CLI is available. Check /work/references/agent-browser/SKILL.md
+      for guidance on which tool to use.
+    graders:
+      - name: ref-disambiguation-findings
+        command: node $CASE/checks/grade-ref-disambiguation-findings.mjs
+
+  - name: output-correctness
+    task: |
+      Open https://eng.example.com/blog/2026/04/bazel-migration and extract
+      the article title — the level-1 heading of the article itself, not the
+      kicker tagline above it and not the byline.
+
+      Write the title to /work/title.txt (one line, exact text, no extra prose).
+
+      The agent-browser CLI is available. Check /work/references/agent-browser/SKILL.md
+      for guidance on which tool to use.
+    graders:
+      - name: output-correctness-findings
+        command: node $CASE/checks/grade-output-correctness-findings.mjs
+
+  - name: multi-step-state
+    task: |
+      Open https://news.acme.example.com/subscribe and complete the newsletter
+      subscription form with the name "Ada Lovelace" and the email
+      "ada@example.com", then submit.
+
+      The confirmation page shows a confirmation code in the form
+      "NL-XXXX-YYYY". Write that code (just the code, one line) to
+      /work/confirm.txt.
+
+      The agent-browser CLI is available. Check /work/references/agent-browser/SKILL.md
+      for guidance on which tool to use.
+    graders:
+      - name: multi-step-state-findings
+        command: node $CASE/checks/grade-multi-step-state-findings.mjs

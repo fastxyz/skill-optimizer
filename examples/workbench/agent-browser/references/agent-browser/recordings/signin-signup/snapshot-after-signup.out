@@ -1,0 +1,8 @@
+RootWebArea "Create your account — Acme" focused=true
+  - main @e0
+    - heading @e10 "Create your account" level=1
+    - textbox @e40 "Full name"
+    - textbox @e41 "Work email"
+    - textbox @e42 "Password" type=password
+    - textbox @e43 "Confirm password" type=password
+    - button @e44 "Create account" type=submit

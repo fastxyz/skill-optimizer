@@ -1,0 +1,7 @@
+RootWebArea "Sign in — Acme" focused=true
+  - main @e0
+    - heading @e10 "Sign in to your account" level=1
+    - textbox @e30 "Email"
+    - textbox @e31 "Password" type=password
+    - button @e32 "Sign In" type=submit
+    - link @e33 "Forgot password?"

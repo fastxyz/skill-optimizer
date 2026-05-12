@@ -1,0 +1,13 @@
+# Two-field newsletter form. Continue button (@e7) is the only path forward.
+# Required progression: type @e5 (name) -> type @e6 (email) -> click @e7.
+# The Continue button is visible from the start but completing both fields
+# is what makes the post-submit confirmation page valid.
+
+page-title=Subscribe — Acme Newsletter
+url=https://news.acme.example.com/subscribe
+url-prefix=https://news.acme.example.com/subscribe
+state=initial
+
+type  @e5 -> name-entered
+type  @e6 -> email-entered
+click @e7 -> submitted

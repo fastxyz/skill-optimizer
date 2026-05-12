@@ -1,0 +1,8 @@
+RootWebArea "Subscribed — Acme Newsletter" focused=true
+  - main @e0
+    - heading @e50 "You're subscribed!" level=1
+    - paragraph @e51 "Confirmation code: NL-7QF3-2026"
+    - paragraph @e52 "We just sent a verification email to ada@example.com."
+    - link @e53 "Back to home" href="/"
+  - contentinfo @e20
+    - link @e21 "Privacy"
