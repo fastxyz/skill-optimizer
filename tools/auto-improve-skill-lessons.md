@@ -357,4 +357,6 @@ something new. Format:
 + **auto-pilot supabase (2026-05-08):** "covering" / "does not cover" alternation
   pattern. Confirmed ±3 → ±8 line widening is needed by default.
 
++ **auto-pilot supabase v2 (2026-05-12):** Upstream constraints required adding a new reference file (`monitor-two-pass-review.md`) instead of editing SKILL.md. Baseline was already 1.00 (calibrated graders from prior run). Pattern: when a re-run starts from calibrated graders, the Phase 3 exit condition fires before Phase 4 — the "modification" step then serves purely as upstream PR packaging rather than eval improvement.
+
 (Future pilots: append your additions here.)
