@@ -23,6 +23,7 @@ npx tsx src/cli.ts run-suite --help
 - `src/workbench/`: workbench case loading, suite loading, Docker runner, Pi agent, graders, and traces
 - `docker/workbench-runner.Dockerfile`: generic non-root container image for setup, agent, grade, and cleanup phases
 - `skills/skill-optimizer/SKILL.md`: canonical distributable Agent Skill
+- `skills/auto-improve-orchestrator/SKILL.md`: Claude Code skill that orchestrates auto-improvement of public agent skills. Operator dispatches the orchestrator subagent (via Agent tool with `isolation: "worktree"`) which manages research / eval-iteration / skill-iteration end-to-end for one skill. See `docs/auto-improve-skill-v1.3-spec.md` for the architecture.
 - `skills/skill-optimizer/references/workbench.md`: detailed workbench schema and usage reference
 - `.claude-plugin/`, `.codex-plugin/`, `.cursor-plugin/`, `.opencode/`: cross-agent plugin manifests and install support
 - `.agents/plugins/marketplace.json`: Codex repo marketplace entry for the root plugin
