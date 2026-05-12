@@ -2,13 +2,17 @@
 // Auto-improve-skill wrapper.
 //
 // Operator usage (from this Claude Code session via Bash):
-//   node tools/auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>]
+//   node tools/auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>] [--context <path>]
 //
 // Flags:
 //   --force          overwrite an existing examples/workbench/<skill-id>/
 //   --budget <usd>   per-run claude -p budget cap (default: 10.00)
 //                    The prompt's Phase-4 cost guard stops the agent at $7
 //                    so the last $3 covers analysis.md + commit cleanup.
+//   --context <path> markdown file with upstream constraints (architecture
+//                    intent, target-file override, additive-only directives,
+//                    etc.) injected verbatim into the prompt's "Constraints"
+//                    section. Phase 4 must respect every constraint stated.
 //
 // Spawns `claude -p` with the templated prompt; the inner agent does the
 // 5-phase work (vendor → build suite → baseline → iterate → package) and
@@ -41,9 +45,27 @@ const BUDGET = parseBudgetFlag();
 const BUDGET_FLAG_IDX = args.indexOf('--budget');
 const BUDGET_VALUE_IDX = BUDGET_FLAG_IDX < 0 ? null : BUDGET_FLAG_IDX + 1;
 
-const slug = args.find((a, i) => !a.startsWith('--') && i !== BUDGET_VALUE_IDX);
+const CONTEXT_FLAG_IDX = args.indexOf('--context');
+const CONTEXT_VALUE_IDX = CONTEXT_FLAG_IDX < 0 ? null : CONTEXT_FLAG_IDX + 1;
+let CONTEXT_BLOCK = '';
+if (CONTEXT_FLAG_IDX >= 0) {
+  const ctxPath = args[CONTEXT_VALUE_IDX];
+  if (!ctxPath) {
+    console.error('--context requires a path argument');
+    process.exit(2);
+  }
+  const absCtx = resolve(REPO_ROOT, ctxPath);
+  if (!existsSync(absCtx)) {
+    console.error(`--context file not found: ${absCtx}`);
+    process.exit(2);
+  }
+  CONTEXT_BLOCK = readFileSync(absCtx, 'utf-8').trim();
+}
+
+const RESERVED_VALUE_IDXS = new Set([BUDGET_VALUE_IDX, CONTEXT_VALUE_IDX].filter((x) => x !== null));
+const slug = args.find((a, i) => !a.startsWith('--') && !RESERVED_VALUE_IDXS.has(i));
 if (!slug) {
-  console.error('usage: auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>]');
+  console.error('usage: auto-improve-skill.mjs <owner>/<repo>/<skill-id> [--force] [--budget <usd>] [--context <path>]');
   process.exit(2);
 }
 const parts = slug.split('/');
@@ -61,7 +83,13 @@ if (existsSync(caseDir) && !FORCE) {
 mkdirSync(caseDir, { recursive: true });
 
 const promptTemplate = readFileSync(PROMPT_PATH, 'utf-8');
-const prompt = promptTemplate.replace(/\$\{SLUG\}/g, slug).replace(/\$\{SKILL_ID\}/g, skillId);
+const contextRendered = CONTEXT_BLOCK
+  ? CONTEXT_BLOCK
+  : '_(no upstream context provided — proceed with default behavior)_';
+const prompt = promptTemplate
+  .replace(/\$\{SLUG\}/g, slug)
+  .replace(/\$\{SKILL_ID\}/g, skillId)
+  .replace(/\$\{CONTEXT_BLOCK\}/g, contextRendered);
 
 const logPath = join(caseDir, '.run.log');
 const logStream = createWriteStream(logPath, { flags: 'a' });
