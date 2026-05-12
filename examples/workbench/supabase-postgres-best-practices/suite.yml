@@ -1,0 +1,122 @@
+name: supabase-postgres-best-practices-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4.6
+  - openrouter/openai/gpt-5-mini
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: review-schema
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/schema.sql for violations of the Supabase Postgres
+      best practices. For each violation found, write one line to /work/findings.txt
+      in the following format:
+
+        schema.sql:<line_number> - <rule-id>: <short description of violation>
+
+      Reference the actual line number where the violation occurs. Cover all
+      violations you find, one per line.
+    graders:
+      - name: schema-findings
+        command: node $CASE/checks/grade-schema-findings.mjs
+
+  - name: review-rls
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/rls_policies.sql for violations of the Supabase Postgres
+      best practices. For each violation found, write one line to /work/findings.txt
+      in the following format:
+
+        rls_policies.sql:<line_number> - <rule-id>: <short description of violation>
+
+      Reference the actual line number where the violation occurs. Cover all
+      violations you find, one per line.
+    graders:
+      - name: rls-findings
+        command: node $CASE/checks/grade-rls-findings.mjs
+
+  - name: review-multi-table-rls
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/multi_table_schema.sql. The file defines several
+      tables; some hold user-owned data and some are global reference data.
+      Identify every table that is missing required Row-Level Security
+      protections (either ENABLE ROW LEVEL SECURITY or FORCE ROW LEVEL SECURITY)
+      and any other best-practice violations you find.
+
+      For each violation, write one line to /work/findings.txt in the format:
+
+        multi_table_schema.sql:<line_number> - <rule-id>: <table_name> <short description>
+
+      Name the specific offending table in the description. Reference the actual
+      line number where the violation is observable. Cover all violations you
+      find, one per line.
+    graders:
+      - name: multi-table-rls-findings
+        command: node $CASE/checks/grade-multi-table-rls-findings.mjs
+
+  - name: review-fk-index-audit
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/migrations.sql. The file contains a sequence of
+      ALTER TABLE statements that add foreign keys. For each foreign key,
+      determine whether it has a supporting index (a CREATE INDEX on the FK
+      column anywhere in the file).
+
+      For every FK that is missing its supporting index, write one line to
+      /work/findings.txt in the format:
+
+        migrations.sql:<line_number> - schema-foreign-key-indexes: <fk_column> on <table> has no supporting index
+
+      Name the specific FK column. Reference the line number of the ALTER TABLE
+      that declares the unsupported FK. Cover all violations you find, one per
+      line.
+    graders:
+      - name: fk-index-audit-findings
+        command: node $CASE/checks/grade-fk-index-audit-findings.mjs
+
+  - name: review-update-without-where
+    task: |
+      You are a Postgres expert applying the supabase-postgres-best-practices skill.
+
+      Read the skill at supabase-postgres-best-practices/SKILL.md, then read all
+      relevant rule files under supabase-postgres-best-practices/references/ to
+      understand the complete set of rules.
+
+      Review the file /work/data_migration.sql, a one-shot DML backfill script.
+      Identify any UPDATE or DELETE statement that would mutate more rows than
+      intended (for example, an UPDATE without a WHERE clause).
+
+      For each violation, write one line to /work/findings.txt in the format:
+
+        data_migration.sql:<line_number> - <rule-id>: <table_name> <short description>
+
+      Name the specific table being mutated. Reference the line number of the
+      dangerous statement. Cover all violations you find, one per line.
+    graders:
+      - name: update-without-where-findings
+        command: node $CASE/checks/grade-update-without-where-findings.mjs

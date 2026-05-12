@@ -55,6 +55,7 @@ temp/
 docs/superpowers/
 docs/plans/
 docs/specs/
+.superpowers/
 
 # Skill-optimizer generated artifacts
 .skill-optimizer/
@@ -67,3 +68,6 @@ cli-commands.json
 tools.json
 tasks.json
 .worktrees/
+
+# Auto-improve-skill wrapper run logs
+examples/workbench/*/.run.log

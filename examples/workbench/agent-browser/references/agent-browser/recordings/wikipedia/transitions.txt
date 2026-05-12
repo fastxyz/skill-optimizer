@@ -1,0 +1,16 @@
+# Wikipedia search flow.
+# Initial page is the English Wikipedia main page; agent must locate the
+# searchbox (@e7), type a query, then click the magnifying-glass submit
+# button (@e8) to navigate to the results page.
+
+page-title=Wikipedia, the free encyclopedia
+url=https://en.wikipedia.org/wiki/Main_Page
+url=https://en.wikipedia.org/
+url-prefix=https://en.wikipedia.org
+state=initial
+
+# Typing into the searchbox does not navigate; state stays the same.
+type @e7 -> initial
+
+# Clicking the submit button advances to the results page recording.
+click @e8 -> after-search

@@ -1,0 +1,26 @@
+name: firecrawl-build-scrape-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4.6
+  - openrouter/openai/gpt-5
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: review-scrape-integration
+    task: |
+      You have the firecrawl-build-scrape skill at references/firecrawl-build-scrape/SKILL.md and the
+      Node.js API reference at references/firecrawl-build-scrape/node-docs.md.
+
+      Review the file ScrapeService.ts against the patterns and rules described in the skill.
+      Find every violation of the skill's guidelines.
+
+      Write all violations to findings.txt, one per line, in this exact format:
+        ScrapeService.ts:<line_number> - <description of violation and which rule it breaks>
+
+      Be specific about line numbers. Include every violation you find.
+    graders:
+      - name: scrape-service-findings
+        command: node $CASE/checks/grade-scrape-service-findings.mjs

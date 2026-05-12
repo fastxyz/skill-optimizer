@@ -1,0 +1,22 @@
+{
+  "hosting": {
+    "public": "src",
+    "ignore": [
+      "firebase.json"
+    ],
+    "cleanUrls": false,
+    "redirects": [
+      {
+        "source": "/old-blog",
+        "destination": "/blog",
+        "type": 200
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "apiFunction"
+      }
+    ]
+  }
+}
