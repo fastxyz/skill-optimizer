@@ -126,6 +126,22 @@ included in the upstream PR):
    section addition is in-scope.
 5. **Recent merged PRs are small** — typical PR size is 1-3 files,
    8-249 added lines. This 33-line addition fits the typical merge pattern.
+6. **Branch target: `main`** (not `next`). Per `CONTRIBUTING.md`, `next`
+   is for new skills or significant changes; `main` is for incremental
+   improvements to existing skills. A 33-line additive section to an
+   existing skill is incremental → `main`. The orchestrator's prepared
+   PR target is `main`.
+7. **Eval pipeline test case — RECOMMENDED, not required.** Per
+   `CONTRIBUTING.md`: *"You should add your own test cases there for
+   your skill"* — refers to the separate
+   [`firebase/firebase-tools` eval pipeline](https://github.com/firebase/firebase-tools/tree/main/scripts/agent-evals).
+   Optional follow-up PR to that repo: add a test case that exercises
+   the new `Configuration Review` workflow against a misconfigured
+   `firebase.json`. The auto-pilot's eval at
+   `examples/workbench/firebase-hosting-basics/` is the local evidence
+   (0.89→1.00 measured); the firebase-tools test case would replicate
+   that on their CI. Mention in the PR description as a "happy to follow
+   up with an eval test case if useful" note to the maintainer.
 
 ## Operator steps to submit
 
