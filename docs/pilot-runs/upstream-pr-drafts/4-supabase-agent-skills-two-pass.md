@@ -1,113 +1,165 @@
-# PR #4 — supabase/agent-skills: two-pass review reference
+# PR #4 — supabase/agent-skills: monitor-two-pass-review reference
 
 **Target:** `supabase/agent-skills`
-**Files:** `skills/supabase-postgres-best-practices/references/review-two-pass-checklist.md` (NEW)
+**File:** `skills/supabase-postgres-best-practices/references/monitor-two-pass-review.md` (NEW file, additive)
 **Base branch:** `main`
-**Title:** `feat: add two-pass review checklist reference to postgres-best-practices`
+**Title:** `feat: add monitor-two-pass-review reference for absence-class SQL bugs`
 
-## Body (per the repo's terse conventional-commit style)
+## Summary
+
+Single additive reference file under the existing `monitor-` prefix
+(diagnostic workflow). Frames a two-pass SQL-review pattern around a
+concrete anti-pattern (`UPDATE` missing `WHERE`) using the repo's
+required `**Incorrect**` / `**Correct**` SQL-block convention.
+
+The reference is the v1.2.1 auto-pilot's reshaping of a more abstract
+"two-pass review" concept. The auto-pilot read the upstream context
+file (`tools/auto-improve-contexts/supabase-postgres-best-practices.md`,
+encoded from gh-CLI research of CONTRIBUTING.md, `_template.md`,
+`_contributing.md`, `_sections.md`, plus the last 10 merged PRs) and
+produced a file that conforms exactly to the existing 28-reference
+convention: 4-field frontmatter, `monitor-` prefix, single rule,
+`**Incorrect**`/`**Correct**` SQL blocks, trailing `Reference:` link,
+~50 lines.
+
+## PR body (terse, per supabase convention)
 
 ```markdown
 ## Summary
 
-- Adds a new reference file `references/review-two-pass-checklist.md` to the `supabase-postgres-best-practices` skill, splitting the review workflow into Pass 1 (presence violations — wrong token) and Pass 2 (absence violations — missing element).
-- Closes a measured gap: across a 3-model eval matrix (claude-sonnet-4.6, openai/gpt-5-mini, google/gemini-2.5-pro × 3 trials), models reliably catch the visible "wrong index column order" / "wrong constraint syntax" violations but skip the absence-type rules (missing `FORCE RLS`, missing FK index, missing partial index `WHERE`).
-- Added as a new reference per the repo's contribution norm (additive file under `references/`, no SKILL.md modification). Standard `{prefix}-{name}.md` naming, valid frontmatter.
-
-## Evidence
-
-| Phase | Rule coverage |
-|---|---|
-| Baseline (raw) | 0.54 (44/81 violations) |
-| After adding two-pass reference | 0.86 (70/81) |
-
-Uplift of +0.32 across 9 seeded SQL violations spanning schema, RLS, and indexing rules. Most gains on absence-type rules (missing-FORCE-RLS, missing-FK-index, missing-partial-index-WHERE).
+- Adds a new reference under the `monitor-` prefix that teaches a two-pass SQL review pattern catching absence-class bugs (missing `WHERE`, missing RLS, missing FK index) that single-pass review systematically misses.
+- Slots into the existing 28-reference convention: same frontmatter (`title`, `impact`, `impactDescription`, `tags`), same `**Incorrect**` / `**Correct**` SQL-block shape, same trailing `Reference:` link.
+- Purely additive — no existing files modified. `metadata.version` left to Release Please.
 ```
 
 ## File to add
 
-**Path:** `skills/supabase-postgres-best-practices/references/review-two-pass-checklist.md` (NEW file)
+**Path:** `skills/supabase-postgres-best-practices/references/monitor-two-pass-review.md` (NEW file)
 
-Content:
-
-```markdown
+````markdown
 ---
-title: Two-Pass Review Checklist
-impact: high
-tags: [review, indexing, rls, schema]
+title: Run Two Passes on Generated SQL Reviews
+impact: MEDIUM
+impactDescription: Catch absence-class bugs (missing WHERE, missing index) that single-pass review skips
+tags: review, diagnostics, code-review, sql-review
 ---
 
-When reviewing SQL files for postgres best practices, use this two-pass
-approach. Pass 1 catches visible token misuse; Pass 2 catches the
-absence-type rules that are most often missed.
+## Run Two Passes on Generated SQL Reviews
 
-## Pass 1 — Presence violations (a token appears but is wrong)
+Single-pass SQL review catches tokens that should not be there (presence violations) but
+systematically misses required elements that are absent (absence violations). The most
+dangerous SQL bugs — mutations without `WHERE`, tables without RLS, foreign keys without
+indexes — all fall into the absence class and survive single-pass review undetected.
 
-- Wrong composite-index column order (range column before equality column)
-- `ADD CONSTRAINT IF NOT EXISTS` syntax (invalid in Postgres)
-- `auth.uid()` called directly in RLS `USING` clause instead of `(select auth.uid())`
-- Index without `INCLUDE` when covering columns are needed for the predicate
+**Incorrect (single-pass review approves unsafe mutation):**
 
-## Pass 2 — Absence violations (a required element is missing entirely)
+```sql
+-- Single pass: scanned for SELECT *, OFFSET, subqueries — none found
+-- Reviewer approves the following as safe:
 
-- Tables storing multi-tenant / user data with NO `ENABLE ROW LEVEL SECURITY`
-- Tables with `ENABLE ROW LEVEL SECURITY` but no `FORCE ROW LEVEL SECURITY`
-- Foreign key columns with NO corresponding `CREATE INDEX`
-- RLS policy columns with NO index for the filtered column
-- Full indexes where a partial `WHERE` clause would be smaller and faster
-
-## Why two passes
-
-Models reliably catch visible misuse (a wrong token in the SQL) but skip
-absence-type checks (something missing from the SQL entirely). Running
-Pass 2 explicitly — element-by-element through `CREATE TABLE`,
-`CREATE POLICY`, and `CREATE INDEX` statements — closes the gap.
-
-## Incorrect
-
-\`\`\`sql
--- Forgets to enforce RLS even after enabling it
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY orders_owner ON orders USING (auth.uid() = user_id);
-\`\`\`
-
-## Correct
-
-\`\`\`sql
--- Enables AND forces RLS so superuser/owner queries are also subject to policies
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders FORCE ROW LEVEL SECURITY;
-CREATE POLICY orders_owner ON orders USING ((select auth.uid()) = user_id);
-CREATE INDEX ON orders (user_id);  -- needed because the policy filters on user_id
-\`\`\`
+update orders set status = 'archived';
+-- Absence violation missed: no WHERE clause — this archives ALL rows, not just old ones
 ```
+
+**Correct (two-pass review catches the absence violation):**
+
+```sql
+-- Pass 1 (presence): scan for known-bad tokens
+--   SELECT *? No.  OFFSET? No.  auth.uid() direct? No.  IF NOT EXISTS on ALTER? No.
+--   Passed.
+
+-- Pass 2 (absence): verify required patterns exist on every mutation and user table
+--   UPDATE/DELETE without WHERE? YES — absence violation caught
+
+-- Fix: add WHERE clause before approving
+update orders set status = 'archived'
+  where created_at < now() - interval '1 year';
+-- Now only rows older than one year are archived — safe and intentional
+```
+
+Pass 2 absence checklist — verify these exist:
+
+```sql
+-- UPDATE/DELETE must have a WHERE clause
+update users set is_active = false where last_login < now() - interval '1 year';
+
+-- User-data tables must have RLS enabled
+alter table messages enable row level security;
+
+-- FK columns must have a supporting index
+create index posts_author_id_idx on posts (author_id);
+```
+
+Reference: [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+````
+
+## Evidence (honest framing)
+
+**This pilot did not produce measured uplift.** Two reasons up-front:
+
+1. The v2 auto-pilot baseline on a 5-case eval (45 trials × 3 frontier
+   models) hit **0.97 overall** — above the 0.95 "skill needs no
+   changes" threshold. No iteration loop fired.
+2. The `monitor-two-pass-review.md` reference itself was therefore
+   produced as a packaging-only output (per upstream context constraint
+   "add EXACTLY ONE additive file"), not as a response to measured
+   failures.
+
+**Per-case breakdown reveals one weak case the reference targets:**
+
+| Case | Coverage | Notes |
+|---|---|---|
+| `review-schema` (5 violations) | 100% | Calibrated baseline from prior pilot |
+| `review-rls` (4 violations) | 97.2% | Calibrated baseline |
+| `review-multi-table-rls` (3 violations) — NEW | 100% | Frontier models handled enumeration cleanly |
+| `review-fk-index-audit` (3 violations) — NEW | 96.3% | Gemini missed 1 trial |
+| **`review-update-without-where` (1 violation) — NEW** | **77.8%** | **2/9 trials missed by gpt-5-mini + gemini** |
+
+The `update-without-where` case at 77.8% is the failure mode the
+reference directly addresses. The 0.97 overall average masks it
+because the auto-pilot's exit-on-≥0.95 logic uses overall average
+rather than per-case minimum (a known v1.2.1 limitation; addressed in
+the v1.3 design proposal).
+
+**Earlier evidence (batch-1 pilot, 2026-05-08):** the same two-pass
+concept (then in less polished form) showed an uncalibrated baseline
+of 0.54 → 0.86 with grader-fixes-plus-skill-change bundled. We never
+cleanly separated the grader-calibration uplift from the skill-change
+uplift, so this number is **not** clean evidence either.
+
+**Net pitch:** the reference is structurally sound and convention-perfect.
+It addresses an observed failure pattern (update-without-where at
+77.8%) that single-pass review systematically misses. We don't have
+clean v1.2.1 measurement that quantifies its effect because frontier
+models on the rest of the suite are at ceiling. Maintainer decides if
+that's worth merging.
 
 ## Caveats
 
-1. **File naming.** Per CONTRIBUTING.md, references use a
-   `{prefix}-{name}.md` pattern. `review-` is a reasonable prefix for
-   workflow guidance distinct from the `schema-`, `query-`, `lock-`,
-   `data-`, etc. prefixes already in the directory. Verify with
-   `ls skills/supabase-postgres-best-practices/references/` after
-   cloning to confirm no naming collision.
-
-2. **Don't bump SKILL.md version.** Release Please handles that
-   post-merge based on the conventional commit type (`feat:`).
-
-3. **CI gate.** `pnpm test:sanity` runs on every PR. It checks new
-   reference files have valid frontmatter and follow the
-   `{prefix}-{name}.md` convention. Run it locally before pushing:
-
-```bash
-pnpm install
-pnpm test:sanity
-```
-
-1. **Earlier proposal alternative.** The auto-pilot's batch-1 proposal
-   added the two-pass content directly to `SKILL.md`. That's a less
-   conventional path for this repo (they prefer reference-file
-   additions) — reformatting as a new reference here. The content is
-   functionally identical.
+1. **Convention compliance.** Filename uses existing `monitor-` prefix
+   (no new prefix added; would have required modifying `_sections.md`
+   which is not additive). Frontmatter has all 4 required fields per
+   `_template.md`. Body has `**Incorrect (...)**` + `**Correct (...)**`
+   blocks per `_contributing.md` Key Principle #1 ("Show exact SQL
+   rewrites. Avoid philosophical advice."). Code blocks tagged `sql`
+   with lowercase keywords. Trailing `Reference:` link.
+2. **No SKILL.md changes.** Per `release-please-config.json`, the
+   `metadata.version: "1.1.1"` field is auto-managed by Release
+   Please's `extra-files` regex. Manual edits would conflict with the
+   bot's release PR.
+3. **No `_sections.md`, `_template.md`, or `_contributing.md` changes.**
+   Those are infrastructure files; CONTRIBUTING.md treats touching them
+   as a "major change requiring prior Discussion".
+4. **Discussion-first gate.** PR #48 (qvad's "Add YugabyteDB write
+   throughput optimization skill", 13 reference files, no prior
+   Discussion) was closed without merge. Single additive reference
+   files under existing prefixes do NOT trigger this gate per recent
+   merged PRs (PR #71 from gregnr, PR #55 from external `staaldraad`
+   both merged within hours).
+5. **`pnpm test:sanity` does NOT validate frontmatter.** Confirmed by
+   reading `test/sanity.test.ts` directly — it only runs
+   `npx skills add` to verify install. Convention is enforced by
+   maintainer review only.
 
 ## Operator steps to submit
 
@@ -118,25 +170,37 @@ git clone git@github.com:fastxyz/agent-skills-supabase.git \
 cd /tmp/upstream-supabase-agent-skills
 git remote add upstream https://github.com/supabase/agent-skills.git
 git fetch upstream
-git checkout -b feat/two-pass-review-reference upstream/main
+git checkout -b feat/monitor-two-pass-review upstream/main
 
-# 2. Add the reference file
+# 2. Add the reference file (paste the content above)
 mkdir -p skills/supabase-postgres-best-practices/references
-# (the dir likely already exists; check first)
-# Paste the file content above into:
-# skills/supabase-postgres-best-practices/references/review-two-pass-checklist.md
+# Paste content into:
+# skills/supabase-postgres-best-practices/references/monitor-two-pass-review.md
 
 # 3. Run sanity tests
 pnpm install
 pnpm test:sanity
 
-# 4. Commit + push (conventional commits)
-git add skills/supabase-postgres-best-practices/references/review-two-pass-checklist.md
-git commit -m "feat: add two-pass review checklist reference to postgres-best-practices"
-git push -u origin feat/two-pass-review-reference
+# 4. Commit + push
+git add skills/supabase-postgres-best-practices/references/monitor-two-pass-review.md
+git commit -m "feat: add monitor-two-pass-review reference for absence-class SQL bugs"
+git push -u origin feat/monitor-two-pass-review
 
-# 5. Open PR
+# 5. Open PR (terse body per repo convention)
 gh pr create --repo supabase/agent-skills --base main \
-  --title "feat: add two-pass review checklist reference to postgres-best-practices" \
+  --title "feat: add monitor-two-pass-review reference for absence-class SQL bugs" \
   --body-file path/to/this-draft-body.md
 ```
+
+## Provenance
+
+- v2 auto-pilot run: branch `eval/auto-pilot/supabase-postgres-best-practices-v2`,
+  commit `59c3e85`, status `success`, baseline 0.97, final 0.97 (no iteration; per-case
+  breakdown shows update-without-where at 77.8%).
+- v1 auto-pilot run: branch `eval/auto-pilot/supabase-postgres-best-practices--v1-shallow`,
+  commit `7721534`, status `success`, baseline 1.00, same proposed file.
+- Batch-1 (older models, uncalibrated graders): branch
+  `eval/auto-pilot/supabase-postgres-best-practices--v1`, commit `94659af`,
+  status `success`, baseline 0.54, final 0.86 (uplift conflated with grader-fix).
+- Context file: `tools/auto-improve-contexts/supabase-postgres-best-practices.md`
+- Total v2 pilot cost: $3.15

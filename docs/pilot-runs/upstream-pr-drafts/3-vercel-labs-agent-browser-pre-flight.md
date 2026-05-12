@@ -74,6 +74,21 @@ The full proposed `after-SKILL.md` is checked into our repo at:
    Alternative: also add a one-line bullet to README's "Tips" or
    equivalent that says "verify install with `which agent-browser`".
 
+4. **Deeper-eval pilot timed out.** A v1.2.1 re-run with 4 new Tier-1
+   cases (ref-based-search, ref-disambiguation, output-correctness,
+   multi-step-state — pre-recorded fixtures, stateful fake CLI, all
+   smoke-tested) was attempted in this session to surface harder
+   failure modes than the original 2-case Tier-0 eval. The pilot was
+   killed by the wrapper's 90-min hard timeout mid-baseline (50/54
+   trials complete, no Phase 5 commit). The deeper eval itself is
+   committed at branch `eval/agent-browser-deeper-v1` (commit
+   `f0883ad`); the partial baseline trial data is preserved at
+   `examples/workbench/agent-browser/.results/20260512-101220/` and
+   could be analyzed in a future session. For this PR we ship the
+   original Pre-flight diff (eval baseline 0.97, 1 of 9 Gemini trials
+   used `curl` instead of `agent-browser navigate`) since the deeper
+   eval's measurement was incomplete.
+
 ## Operator steps to submit
 
 ```bash
