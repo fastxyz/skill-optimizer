@@ -316,6 +316,6 @@ Return to caller (operator's CC session) under 300 words:
 
 - NEVER ask the operator a question mid-run.
 - NEVER `git push`.
-- NEVER modify files outside `${WORKBENCH}` or `${CONTEXT_FILE}`.
+- NEVER modify files outside `${WORKBENCH}`. Context files (`${CONTEXT_FILE}`) are written by the research sub-subagent, not by you.
 - Always commit before exiting (even on error: write `analysis.md` with the right status, then commit).
 - Cost guard: hard stop at $10 cumulative `metrics.cost.total`.

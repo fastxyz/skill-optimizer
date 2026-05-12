@@ -1,5 +1,7 @@
 # Auto-improve-skill pilot runs
 
+> **Note (v1.3):** The `tools/auto-improve-skill.mjs` wrapper referenced in this README has been removed. The current invocation is via the `skills/auto-improve-orchestrator/` Claude Code skill — operator dispatches the orchestrator subagent via the Agent tool. See `docs/auto-improve-skill-v1.3-spec.md` and `skills/auto-improve-orchestrator/SKILL.md` for current usage. The historical commands in this file are preserved for reference but should not be used.
+
 Summaries of batched runs of the `tools/auto-improve-skill.mjs` auto-pilot
 against public agent skills from our prioritized top-N list. Each summary
 documents what skills ran, what the auto-pilot proposed, what worked, what

@@ -37,6 +37,8 @@ Agent({
 })
 ```
 
+The orchestrator also accepts an optional `${REFRESH_CONTEXT}` template variable. Set to `"true"` (default `"false"`) to force the research sub-subagent to re-fetch upstream conventions even if a cached context file exists. Use when upstream conventions have changed (e.g., new sanity-test rules, new prefix taxonomy).
+
 For a batch of N skills, dispatch N Agent calls in a single message —
 they run in parallel, each in its own worktree.
 
@@ -70,7 +72,7 @@ The orchestrator subagent:
   out of scope for v1.3 — operator builds them manually.
 - `OPENROUTER_API_KEY` must be set in `.env` at the repo root.
 - Worktree must be created via `isolation: "worktree"` for parallelism
-  + isolation. Do NOT run the orchestrator subagent on the main
+  - isolation. Do NOT run the orchestrator subagent on the main
   worktree.
 
 ## Out of scope (deferred)

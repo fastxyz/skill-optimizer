@@ -72,7 +72,7 @@ While per_case_min OUTSIDE (0.50, 0.95) AND EVAL_ITER < 3:
       - Else: DIRECTION = "simplify"
 
   Dispatch sub-subagent prompts/eval-iterate.md with:
-    SKILL_ID, latest suite-result path, DIRECTION
+    SKILL_ID, WORKBENCH_DIR, SUITE_RESULT_PATH, DIRECTION, LESSONS_PATH
   Wait for completion. Verify it committed workbench changes.
 
   Re-run baseline measurement (Phase 3, no resume — case set changed).
@@ -93,7 +93,7 @@ ITER = 0
 While ITER < 2:
   ITER += 1
   Dispatch sub-subagent prompts/skill-iterate.md with:
-    SKILL_ID, latest suite-result path, target_file from context, ITER
+    SKILL_ID, WORKBENCH_DIR, SUITE_RESULT_PATH, TARGET_FILE (from context), CONTEXT_FILE, LESSONS_PATH, ITER
   Wait for completion. Verify it committed changes.
 
   Read the new suite-result.json from the latest .results/<ts>/.

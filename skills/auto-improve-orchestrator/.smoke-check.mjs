@@ -58,7 +58,7 @@ check(!existsSync('tools/auto-improve-contexts'), 'tools/auto-improve-contexts/ 
 
 // 6. Lessons + contexts at new paths
 check(existsSync(`${skillRoot}/references/lessons.md`), 'lessons at new path');
-check(existsSync(`${skillRoot}/references/contexts/supabase-postgres-best-practices.md`), 'supabase context at new path');
+check(existsSync(`${skillRoot}/references/contexts/supabase-supabase-postgres-best-practices.md`), 'supabase context at new path');
 
 if (failures > 0) {
   console.error(`\n${failures} smoke checks failed`);
