@@ -14,7 +14,7 @@ required `**Incorrect**` / `**Correct**` SQL-block convention.
 
 The reference is the v1.2.1 auto-pilot's reshaping of a more abstract
 "two-pass review" concept. The auto-pilot read the upstream context
-file (`tools/auto-improve-contexts/supabase-postgres-best-practices.md`,
+file (`skills/auto-improve-orchestrator/references/contexts/supabase-postgres-best-practices.md`,
 encoded from gh-CLI research of CONTRIBUTING.md, `_template.md`,
 `_contributing.md`, `_sections.md`, plus the last 10 merged PRs) and
 produced a file that conforms exactly to the existing 28-reference
@@ -202,5 +202,5 @@ gh pr create --repo supabase/agent-skills --base main \
 - Batch-1 (older models, uncalibrated graders): branch
   `eval/auto-pilot/supabase-postgres-best-practices--v1`, commit `94659af`,
   status `success`, baseline 0.54, final 0.86 (uplift conflated with grader-fix).
-- Context file: `tools/auto-improve-contexts/supabase-postgres-best-practices.md`
+- Context file: `skills/auto-improve-orchestrator/references/contexts/supabase-postgres-best-practices.md`
 - Total v2 pilot cost: $3.15

@@ -216,5 +216,5 @@ gh pr create --repo vercel-labs/web-interface-guidelines --base main \
 
 - v1.2.1 auto-pilot run: branch `eval/auto-pilot/web-design-guidelines`,
   commit `df7149e`, status `success`, baseline 0.92, final 1.00
-- Context file: `tools/auto-improve-contexts/vercel-web-interface-guidelines.md`
+- Context file: `skills/auto-improve-orchestrator/references/contexts/vercel-web-interface-guidelines.md`
 - Pilot cost: $2.29
