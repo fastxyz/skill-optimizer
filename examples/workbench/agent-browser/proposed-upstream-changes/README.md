@@ -35,7 +35,7 @@ that used `curl` for HTTP fetching instead of `agent-browser navigate` despite
 having already loaded the core skill content.
 
 The `curl`/`wget` fallback is a known failure mode for tool-use skills
-(documented in `tools/auto-improve-skill-lessons.md` § Recipe B). The Pre-flight
+(documented in `skills/auto-improve-orchestrator/references/lessons.md` § Recipe B). The Pre-flight
 section is the standard fix.
 
 ## Baseline evidence
