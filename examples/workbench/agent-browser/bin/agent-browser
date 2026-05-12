@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Fake agent-browser CLI for eval testing.
+# Logs all invocations to /work/ab-calls.log and returns realistic mock output.
+
+LOG=/work/ab-calls.log
+echo "$*" >> "$LOG"
+
+case "$1" in
+  skills)
+    case "$2" in
+      get)
+        SKILL_NAME="${3:-core}"
+        if [[ "$SKILL_NAME" == "core" ]]; then
+          CORE_PATH="/work/references/agent-browser/agent-browser-core.md"
+          if [[ -f "$CORE_PATH" ]]; then
+            cat "$CORE_PATH"
+          else
+            echo "# agent-browser Core Workflow"
+            echo "Navigate: agent-browser navigate <url>"
+            echo "Snapshot: agent-browser snapshot"
+            echo "Screenshot: agent-browser screenshot [path]"
+            echo "Click: agent-browser click @N"
+            echo "Type: agent-browser type @N \"text\""
+          fi
+        else
+          echo "# agent-browser $SKILL_NAME skill (mock)"
+          echo "Use agent-browser commands for $SKILL_NAME automation."
+        fi
+        ;;
+      list)
+        echo "Available skills: core, electron, slack, dogfood, vercel-sandbox, agentcore"
+        ;;
+      *)
+        echo "Usage: agent-browser skills get <name>"
+        ;;
+    esac
+    ;;
+  navigate)
+    URL="${2:-about:blank}"
+    echo "Navigated to $URL"
+    echo "Session: default (ready)"
+    ;;
+  snapshot)
+    echo 'RootWebArea "Example Domain"'
+    echo '  heading @1 "Example Domain" level=1'
+    echo '  paragraph @2 "This domain is for use in illustrative examples in documents."'
+    echo '  link @3 "More information..." href=https://www.iana.org/domains/reserved'
+    ;;
+  screenshot)
+    OUTFILE="${2:-/work/screenshot.png}"
+    # Write a minimal valid 1x1 white PNG (base64 decoded)
+    printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82' > "$OUTFILE"
+    echo "Screenshot saved: $OUTFILE"
+    ;;
+  click)
+    REF="${2:-@1}"
+    echo "Clicked $REF"
+    ;;
+  type)
+    REF="${2:-@1}"
+    shift 2
+    echo "Typed \"$*\" into $REF"
+    ;;
+  install)
+    echo "agent-browser: already installed"
+    ;;
+  --version|-v|version)
+    echo "agent-browser 0.9.0 (mock for eval)"
+    ;;
+  which|check)
+    echo "/work/bin/agent-browser"
+    ;;
+  *)
+    echo "agent-browser: unknown command '$1'"
+    echo "Run: agent-browser skills get core"
+    exit 1
+    ;;
+esac

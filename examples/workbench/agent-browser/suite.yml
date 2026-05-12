@@ -1,0 +1,32 @@
+name: agent-browser-eval
+references: ./references
+models:
+  - openrouter/anthropic/claude-sonnet-4.6
+  - openrouter/openai/gpt-5
+  - openrouter/google/gemini-2.5-pro
+env:
+  - OPENROUTER_API_KEY
+timeoutSeconds: 600
+
+cases:
+  - name: navigate-and-report
+    task: |
+      Navigate to https://example.com and find the main heading on the page.
+      Write the heading text to /work/heading.txt.
+
+      The agent-browser CLI is available. Check /work/references/agent-browser/SKILL.md
+      for guidance on which tool to use.
+    graders:
+      - name: navigate-report-findings
+        command: node $CASE/checks/grade-navigate-report-findings.mjs
+
+  - name: screenshot-capture
+    task: |
+      Take a screenshot of https://example.com and save it to /work/screenshot.png.
+      Also write the page title to /work/title.txt.
+
+      The agent-browser CLI is available. Check /work/references/agent-browser/SKILL.md
+      for guidance on which tool to use.
+    graders:
+      - name: screenshot-capture-findings
+        command: node $CASE/checks/grade-screenshot-capture-findings.mjs
